@@ -30,7 +30,8 @@ pnpm-debug.log*
 .env.*
 !.env.example
 
-# Large data files (>100MB)
+# Data folder
+data/
 *.parquet
 
 # Editor and OS
