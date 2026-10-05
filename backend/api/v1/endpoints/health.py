@@ -5,7 +5,7 @@ from backend.core.database import IS_ENRICHED
 from backend.services.vehicle_service import VehicleService
 from backend.api.deps import get_vehicle_service
 
-router = APIRouter()
+router = APIRouter(tags=["Sistema"])
 
 @router.get("/health")
 def health_check(vehicle_service: VehicleService = Depends(get_vehicle_service)):
