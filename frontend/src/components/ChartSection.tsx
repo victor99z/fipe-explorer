@@ -9,12 +9,15 @@ import {
   Title,
   Tooltip,
   Legend,
-  Filler
+  Filler,
+  ChartOptions,
+  ScriptableContext
 } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
 import { LineChart, BarChart2, Layers, Info } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './ui/card';
 import { Button } from './ui/button';
+import { HistoryPoint, HistoryInfo } from '../types/vehicle';
 
 ChartJS.register(
   CategoryScale,
@@ -28,8 +31,13 @@ ChartJS.register(
   Filler
 );
 
-export default function ChartSection({ series = [], info = {} }) {
-  const [chartMode, setChartMode] = useState('line'); // 'line', 'bar', 'minmax'
+export interface ChartSectionProps {
+  series?: HistoryPoint[];
+  info?: HistoryInfo & { groupby?: string };
+}
+
+export default function ChartSection({ series = [], info }: ChartSectionProps) {
+  const [chartMode, setChartMode] = useState<'line' | 'bar' | 'minmax'>('line');
 
   if (!series || series.length === 0) return null;
 
@@ -42,7 +50,7 @@ export default function ChartSection({ series = [], info = {} }) {
         label: 'Valor FIPE (R$)',
         data: series.map(item => item.valor),
         borderColor: '#10b981',
-        backgroundColor: (context) => {
+        backgroundColor: (context: ScriptableContext<'line'>) => {
           const ctx = context.chart.ctx;
           const gradient = ctx.createLinearGradient(0, 0, 0, 400);
           gradient.addColorStop(0, 'rgba(16, 185, 129, 0.3)');
@@ -107,7 +115,7 @@ export default function ChartSection({ series = [], info = {} }) {
     ]
   };
 
-  const chartOptions = {
+  const chartOptions: ChartOptions<'line' | 'bar'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -155,7 +163,7 @@ export default function ChartSection({ series = [], info = {} }) {
           font: { family: 'Plus Jakarta Sans', size: 11 },
           callback: function(value) {
             if (chartMode === 'bar') return value + '%';
-            return 'R$ ' + (value / 1000).toFixed(0) + 'k';
+            return 'R$ ' + (Number(value) / 1000).toFixed(0) + 'k';
           }
         }
       }
@@ -167,10 +175,10 @@ export default function ChartSection({ series = [], info = {} }) {
       <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-800 gap-4">
         <div>
           <CardTitle className="text-xl font-extrabold text-white">
-            {info.nome_marca} - {info.nome_modelo} {info.ano_modelo ? `(${info.ano_modelo})` : ''}
+            {info?.nome_marca} - {info?.nome_modelo} {info?.ano_modelo ? `(${info.ano_modelo})` : ''}
           </CardTitle>
           <CardDescription className="text-xs text-slate-400 mt-1">
-            Período analisado: {info.periodo_inicial} até {info.periodo_final} • Total de observações: {series.length} {info.groupby === 'mes' ? 'meses' : 'anos'}
+            Período analisado: {info?.periodo_inicial} até {info?.periodo_final} • Total de observações: {series.length} {info?.groupby === 'mes' ? 'meses' : 'anos'}
           </CardDescription>
         </div>
 
@@ -202,9 +210,9 @@ export default function ChartSection({ series = [], info = {} }) {
 
       <CardContent className="pt-6">
         <div className="w-full h-80 sm:h-96 relative">
-          {chartMode === 'line' && <Line data={lineData} options={chartOptions} />}
-          {chartMode === 'bar' && <Bar data={barData} options={chartOptions} />}
-          {chartMode === 'minmax' && <Line data={minMaxData} options={chartOptions} />}
+          {chartMode === 'line' && <Line data={lineData} options={chartOptions as any} />}
+          {chartMode === 'bar' && <Bar data={barData} options={chartOptions as any} />}
+          {chartMode === 'minmax' && <Line data={minMaxData} options={chartOptions as any} />}
         </div>
       </CardContent>
 

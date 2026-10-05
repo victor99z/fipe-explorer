@@ -5,10 +5,16 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from './ui/table';
+import { HistoryPoint, HistoryInfo } from '../types/vehicle';
 
-export default function DataTableSection({ series = [], info = {} }) {
-  const [tableSearch, setTableSearch] = useState('');
-  const [sortAsc, setSortAsc] = useState(false);
+export interface DataTableSectionProps {
+  series?: HistoryPoint[];
+  info?: HistoryInfo;
+}
+
+export default function DataTableSection({ series = [], info }: DataTableSectionProps) {
+  const [tableSearch, setTableSearch] = useState<string>('');
+  const [sortAsc, setSortAsc] = useState<boolean>(false);
 
   if (!series || series.length === 0) return null;
 
@@ -44,7 +50,7 @@ export default function DataTableSection({ series = [], info = {} }) {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    const filename = `fipe_historico_${info.nome_marca || 'carro'}_${info.ano_modelo || 'ano'}.csv`.replace(/\s+/g, '_');
+    const filename = `fipe_historico_${info?.nome_marca || 'carro'}_${info?.ano_modelo || 'ano'}.csv`.replace(/\s+/g, '_');
     link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
@@ -78,7 +84,7 @@ export default function DataTableSection({ series = [], info = {} }) {
             variant="outline"
             size="sm"
             onClick={exportToCSV}
-            className="shrink-0"
+            className="shrink-0 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 mr-1 text-emerald-400" />
             <span>Exportar CSV</span>

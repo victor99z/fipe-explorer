@@ -1,19 +1,35 @@
 import React, { useState } from 'react';
 import { GitCompare, Plus, Trash2, AlertCircle } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card';
+import { ChartOptions } from 'chart.js';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
+import { HistoryInfo, HistoryPoint, HistorySummary } from '../types/vehicle';
+import { fetchVehicleHistory } from '../services/api';
 
-export default function ComparisonSection({ primaryInfo, primarySeries }) {
-  const [compareItems, setCompareItems] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [yearTerm, setYearTerm] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+export interface CompareItem {
+  id: number;
+  title: string;
+  info: HistoryInfo;
+  summary: HistorySummary;
+  series: HistoryPoint[];
+}
 
-  const handleAddVehicle = async (e) => {
+export interface ComparisonSectionProps {
+  primaryInfo?: HistoryInfo | null;
+  primarySeries?: HistoryPoint[];
+}
+
+export default function ComparisonSection({ primaryInfo, primarySeries }: ComparisonSectionProps) {
+  const [compareItems, setCompareItems] = useState<CompareItem[]>([]);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [yearTerm, setYearTerm] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string>('');
+
+  const handleAddVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchTerm.trim()) return;
 
@@ -26,34 +42,34 @@ export default function ComparisonSection({ primaryInfo, primarySeries }) {
     setErrorMsg('');
 
     try {
-      const yearVal = yearTerm ? parseInt(yearTerm) : null;
-      const res = await fetch(`/api/history?search_term=${encodeURIComponent(searchTerm)}&ano_modelo=${yearVal || ''}&groupby=ano`);
-      if (res.ok) {
-        const data = await res.json();
-        setCompareItems([...compareItems, {
-          id: Date.now(),
-          title: `${data.info.nome_marca} ${searchTerm} (${data.info.ano_modelo || yearVal || 'Todos'})`,
-          info: data.info,
-          summary: data.summary,
-          series: data.series
-        }]);
-        setSearchTerm('');
-      } else {
-        setErrorMsg("Veículo não encontrado. Tente outro modelo ou ano.");
-      }
-    } catch (err) {
+      const yearVal = yearTerm ? parseInt(yearTerm) : undefined;
+      const data = await fetchVehicleHistory({
+        search_term: searchTerm.trim(),
+        ano_modelo: yearVal,
+        groupby: 'ano'
+      });
+
+      setCompareItems(prev => [...prev, {
+        id: Date.now(),
+        title: `${data.info.nome_marca} ${searchTerm} (${data.info.ano_modelo || yearVal || 'Todos'})`,
+        info: data.info,
+        summary: data.summary,
+        series: data.series
+      }]);
+      setSearchTerm('');
+    } catch (err: unknown) {
       console.error(err);
-      setErrorMsg("Erro ao buscar dados do veículo.");
+      setErrorMsg("Veículo não encontrado. Tente outro modelo ou ano.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRemoveItem = (id) => {
-    setCompareItems(compareItems.filter(item => item.id !== id));
+  const handleRemoveItem = (id: number) => {
+    setCompareItems(prev => prev.filter(item => item.id !== id));
   };
 
-  const allLabelsSet = new Set();
+  const allLabelsSet = new Set<string>();
   if (primarySeries) {
     primarySeries.forEach(s => allLabelsSet.add(s.periodo));
   }
@@ -64,8 +80,18 @@ export default function ComparisonSection({ primaryInfo, primarySeries }) {
   const sortedLabels = Array.from(allLabelsSet).sort();
   const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899'];
 
-  const datasets = [];
-  if (primarySeries) {
+  const datasets: Array<{
+    label: string;
+    data: (number | null)[];
+    borderColor: string;
+    backgroundColor: string;
+    borderWidth: number;
+    tension: number;
+    pointRadius: number;
+    borderDash?: number[];
+  }> = [];
+
+  if (primarySeries && primaryInfo) {
     datasets.push({
       label: `${primaryInfo.nome_marca} - ${primaryInfo.nome_modelo} (${primaryInfo.ano_modelo || 'Ano'})`,
       data: sortedLabels.map(l => {
@@ -101,7 +127,7 @@ export default function ComparisonSection({ primaryInfo, primarySeries }) {
     datasets
   };
 
-  const chartOptions = {
+  const chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -111,7 +137,7 @@ export default function ComparisonSection({ primaryInfo, primarySeries }) {
       },
       tooltip: {
         callbacks: {
-          label: (ctx) => `${ctx.dataset.label}: R$ ${ctx.parsed.y ? ctx.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '0,00'}`
+          label: (ctx) => `${ctx.dataset.label}: R$ ${ctx.parsed.y ? ctx.parsed.y.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00'}`
         }
       }
     },
@@ -184,7 +210,7 @@ export default function ComparisonSection({ primaryInfo, primarySeries }) {
                   variant="ghost"
                   size="icon"
                   onClick={() => handleRemoveItem(item.id)}
-                  className="text-slate-500 hover:text-rose-400 h-8 w-8"
+                  className="text-slate-500 hover:text-rose-400 h-8 w-8 cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>

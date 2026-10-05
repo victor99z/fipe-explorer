@@ -6,24 +6,45 @@ import { Input } from './ui/input';
 import { Select } from './ui/select';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
+import { fetchBrands } from '../services/api';
 
-export default function FilterBar({ filters, onChange, onReset }) {
-  const [brands, setBrands] = useState([]);
-  const [models, setModels] = useState([]);
-  const [loadingBrands, setLoadingBrands] = useState(false);
-  const [loadingModels, setLoadingModels] = useState(false);
+export interface FilterBarState {
+  tipo_veiculo: string;
+  marca?: string;
+  marcas?: string;
+  modelo?: string;
+  ano_modelo?: number | null;
+  motorizacao?: string;
+  cambio?: string;
+  groupby?: string;
+  metrica_ano?: string;
+  codigo_fipe?: string | null;
+  search_term?: string | null;
+}
 
-  const [brandDropdownOpen, setBrandDropdownOpen] = useState(false);
-  const [brandSearch, setBrandSearch] = useState('');
-  const brandDropdownRef = useRef(null);
+export interface FilterBarProps {
+  filters: FilterBarState;
+  onChange: (updates: Partial<FilterBarState>) => void;
+  onReset: () => void;
+}
+
+export default function FilterBar({ filters, onChange, onReset }: FilterBarProps) {
+  const [brands, setBrands] = useState<string[]>([]);
+  const [models, setModels] = useState<string[]>([]);
+  const [_loadingBrands, setLoadingBrands] = useState<boolean>(false);
+  const [loadingModels, setLoadingModels] = useState<boolean>(false);
+
+  const [brandDropdownOpen, setBrandDropdownOpen] = useState<boolean>(false);
+  const [brandSearch, setBrandSearch] = useState<string>('');
+  const brandDropdownRef = useRef<HTMLDivElement>(null);
 
   const selectedBrands = filters.marcas 
     ? filters.marcas.split(',').filter(Boolean) 
     : (filters.marca ? [filters.marca] : []);
 
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (brandDropdownRef.current && !brandDropdownRef.current.contains(event.target)) {
+    function handleClickOutside(event: MouseEvent) {
+      if (brandDropdownRef.current && !brandDropdownRef.current.contains(event.target as Node)) {
         setBrandDropdownOpen(false);
       }
     }
@@ -35,12 +56,9 @@ export default function FilterBar({ filters, onChange, onReset }) {
     async function loadBrands() {
       setLoadingBrands(true);
       try {
-        const res = await fetch(`/api/filters/brands?tipo_veiculo=${filters.tipo_veiculo}`);
-        if (res.ok) {
-          const data = await res.json();
-          setBrands(data);
-        }
-      } catch (err) {
+        const data = await fetchBrands(filters.tipo_veiculo);
+        setBrands(data);
+      } catch (err: unknown) {
         console.error(err);
       } finally {
         setLoadingBrands(false);
@@ -63,7 +81,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
           const data = await res.json();
           setModels(data);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error(err);
       } finally {
         setLoadingModels(false);
@@ -72,7 +90,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
     loadModels();
   }, [filters.tipo_veiculo, filters.marcas, filters.marca]);
 
-  const toggleBrand = (brandName) => {
+  const toggleBrand = (brandName: string) => {
     let newBrands = [...selectedBrands];
     if (newBrands.includes(brandName)) {
       newBrands = newBrands.filter(b => b !== brandName);
@@ -113,7 +131,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
           variant="outline"
           size="sm"
           onClick={onReset}
-          className="self-start sm:self-auto text-xs"
+          className="self-start sm:self-auto text-xs cursor-pointer"
         >
           <RefreshCw className="w-3.5 h-3.5 mr-1 text-emerald-400" />
           <span>Restaurar Filtros</span>
@@ -132,7 +150,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
                 variant={filters.tipo_veiculo === 'carro' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => onChange({ tipo_veiculo: 'carro', marca: '', marcas: '', modelo: '', ano_modelo: null })}
-                className="h-8 text-xs font-semibold"
+                className="h-8 text-xs font-semibold cursor-pointer"
               >
                 <Car className="w-3.5 h-3.5 mr-1" /> Carro
               </Button>
@@ -141,7 +159,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
                 variant={filters.tipo_veiculo === 'moto' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => onChange({ tipo_veiculo: 'moto', marca: '', marcas: '', modelo: '', ano_modelo: null })}
-                className="h-8 text-xs font-semibold"
+                className="h-8 text-xs font-semibold cursor-pointer"
               >
                 <Bike className="w-3.5 h-3.5 mr-1" /> Moto
               </Button>
@@ -150,7 +168,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
                 variant={filters.tipo_veiculo === 'caminhão' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => onChange({ tipo_veiculo: 'caminhão', marca: '', marcas: '', modelo: '', ano_modelo: null })}
-                className="h-8 text-xs font-semibold"
+                className="h-8 text-xs font-semibold cursor-pointer"
               >
                 <Truck className="w-3.5 h-3.5 mr-1" /> Caminhão
               </Button>
@@ -162,7 +180,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
             <label className="block text-xs font-semibold text-slate-300 mb-2 flex justify-between">
               <span>Marcas (Multisseleção)</span>
               {selectedBrands.length > 0 && (
-                <button onClick={clearBrands} className="text-[10px] text-emerald-400 hover:underline">Limpar ({selectedBrands.length})</button>
+                <button type="button" onClick={clearBrands} className="text-[10px] text-emerald-400 hover:underline cursor-pointer">Limpar ({selectedBrands.length})</button>
               )}
             </label>
             <div 
@@ -272,7 +290,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
                 variant={(!filters.motorizacao || filters.motorizacao === 'todos') ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => onChange({ motorizacao: 'todos' })}
-                className="h-8 text-[11px]"
+                className="h-8 text-[11px] cursor-pointer"
               >
                 Todos
               </Button>
@@ -281,7 +299,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
                 variant={filters.motorizacao === 'turbo' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => onChange({ motorizacao: 'turbo' })}
-                className={`h-8 text-[11px] ${filters.motorizacao === 'turbo' ? 'bg-amber-600 hover:bg-amber-500' : ''}`}
+                className={`h-8 text-[11px] cursor-pointer ${filters.motorizacao === 'turbo' ? 'bg-amber-600 hover:bg-amber-500' : ''}`}
               >
                 🔥 Turbo
               </Button>
@@ -290,7 +308,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
                 variant={filters.motorizacao === 'aspirado' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => onChange({ motorizacao: 'aspirado' })}
-                className="h-8 text-[11px]"
+                className="h-8 text-[11px] cursor-pointer"
               >
                 Aspirado
               </Button>
@@ -309,7 +327,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
                 variant={(!filters.cambio || filters.cambio === 'todos') ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => onChange({ cambio: 'todos' })}
-                className="h-8 text-[11px]"
+                className="h-8 text-[11px] cursor-pointer"
               >
                 Todos
               </Button>
@@ -318,7 +336,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
                 variant={filters.cambio === 'automatico' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => onChange({ cambio: 'automatico' })}
-                className={`h-8 text-[11px] ${filters.cambio === 'automatico' ? 'bg-cyan-600 hover:bg-cyan-500' : ''}`}
+                className={`h-8 text-[11px] cursor-pointer ${filters.cambio === 'automatico' ? 'bg-cyan-600 hover:bg-cyan-500' : ''}`}
               >
                 Aut / CVT
               </Button>
@@ -327,7 +345,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
                 variant={filters.cambio === 'manual' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => onChange({ cambio: 'manual' })}
-                className="h-8 text-[11px]"
+                className="h-8 text-[11px] cursor-pointer"
               >
                 Manual
               </Button>
@@ -343,7 +361,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
                 variant={filters.groupby === 'ano' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => onChange({ groupby: 'ano' })}
-                className="h-8 text-xs"
+                className="h-8 text-xs cursor-pointer"
               >
                 <Calendar className="w-3.5 h-3.5 mr-1" /> Por Ano
               </Button>
@@ -352,7 +370,7 @@ export default function FilterBar({ filters, onChange, onReset }) {
                 variant={filters.groupby === 'mes' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => onChange({ groupby: 'mes' })}
-                className="h-8 text-xs"
+                className="h-8 text-xs cursor-pointer"
               >
                 <BarChart3 className="w-3.5 h-3.5 mr-1" /> Por Mês
               </Button>

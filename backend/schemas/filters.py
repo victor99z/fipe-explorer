@@ -17,3 +17,8 @@ class VehicleFilterParams(BaseModel):
     ordenacao: str = Field(default="preco_desc", description="Ordenação dos resultados")
     page: int = Field(default=1, ge=1, le=1000, description="Número da página")
     limit: int = Field(default=24, ge=1, le=100, description="Itens por página")
+
+class EngineSizeItem(BaseModel):
+    litragem: str
+    total_modelos: int
+

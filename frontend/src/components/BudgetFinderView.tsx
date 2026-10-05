@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, ChevronLeft, ChevronRight, Check, X, 
-  ChevronDown, SlidersHorizontal, ArrowUpDown, RotateCcw, 
-  Car, ShieldCheck, Database, Layers, CheckCircle2
+  ChevronDown, SlidersHorizontal, RotateCcw, 
+  Car
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import CustomDropdown from './ui/custom-dropdown';
 import VehicleHistoryModal from './VehicleHistoryModal';
+import { Vehicle, VehicleSearchResponse, EngineSizeItem } from '../types/vehicle';
+import { fetchBrands, fetchEngineSizes, fetchCars } from '../services/api';
 
-const POPULAR_BRANDS = [
+const POPULAR_BRANDS: string[] = [
   'VW - VolksWagen',
   'GM - Chevrolet',
   'Fiat',
@@ -23,7 +25,12 @@ const POPULAR_BRANDS = [
   'BMW'
 ];
 
-const POPULAR_ENGINES = [
+interface EngineItem {
+  id: string;
+  label: string;
+}
+
+const POPULAR_ENGINES: EngineItem[] = [
   { id: 'todos', label: 'Todos' },
   { id: '1.0', label: '1.0' },
   { id: '1.3', label: '1.3' },
@@ -35,43 +42,47 @@ const POPULAR_ENGINES = [
   { id: '2.0+', label: '2.0+' },
 ];
 
-export default function BudgetFinderView({ onSwitchTab }) {
+export interface BudgetFinderViewProps {
+  onSwitchTab?: (tab: string) => void;
+}
+
+export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFinderViewProps) {
   // Budget inputs
-  const [budgetValue, setBudgetValue] = useState('80000');
-  const [useSmartRange, setUseSmartRange] = useState(true); // 80% to 100% of budget
-  const [showAdvancedPricing, setShowAdvancedPricing] = useState(false);
-  const [minPrice, setMinPrice] = useState('64000');
-  const [maxPrice, setMaxPrice] = useState('80000');
+  const [budgetValue, setBudgetValue] = useState<string>('80000');
+  const [useSmartRange, setUseSmartRange] = useState<boolean>(true); // 80% to 100% of budget
+  const [showAdvancedPricing, setShowAdvancedPricing] = useState<boolean>(false);
+  const [minPrice, setMinPrice] = useState<string>('64000');
+  const [maxPrice, setMaxPrice] = useState<string>('80000');
 
   // Filters
-  const [motorizacao, setMotorizacao] = useState('todos'); // 'todos', 'turbo', 'aspirado'
-  const [cambio, setCambio] = useState('todos'); // 'todos', 'automatico', 'manual'
-  const [litragem, setLitragem] = useState('todos'); // 'todos', '1.0', '1.4', etc.
-  const [selectedBrands, setSelectedBrands] = useState([]);
-  const [searchModel, setSearchModel] = useState('');
-  const [minYear, setMinYear] = useState('2018');
-  const [maxYear, setMaxYear] = useState('2026');
-  const [combustivel, setCombustivel] = useState('');
-  const [ordenacao, setOrdenacao] = useState('preco_desc');
-  const [page, setPage] = useState(1);
+  const [motorizacao, setMotorizacao] = useState<string>('todos'); // 'todos', 'turbo', 'aspirado'
+  const [cambio, setCambio] = useState<string>('todos'); // 'todos', 'automatico', 'manual'
+  const [litragem, setLitragem] = useState<string>('todos'); // 'todos', '1.0', '1.4', etc.
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [searchModel, setSearchModel] = useState<string>('');
+  const [minYear, setMinYear] = useState<string>('2018');
+  const [maxYear, setMaxYear] = useState<string>('2026');
+  const [combustivel, setCombustivel] = useState<string>('');
+  const [ordenacao, setOrdenacao] = useState<string>('preco_desc');
+  const [page, setPage] = useState<number>(1);
 
   // External data
-  const [allBrands, setAllBrands] = useState([]);
-  const [availableEngines, setAvailableEngines] = useState([]);
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [allBrands, setAllBrands] = useState<string[]>([]);
+  const [availableEngines, setAvailableEngines] = useState<EngineSizeItem[]>([]);
+  const [data, setData] = useState<VehicleSearchResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Brand dropdown state
-  const [brandDropdownOpen, setBrandDropdownOpen] = useState(false);
-  const [brandSearchTerm, setBrandSearchTerm] = useState('');
-  const brandDropdownRef = useRef(null);
+  const [brandDropdownOpen, setBrandDropdownOpen] = useState<boolean>(false);
+  const [brandSearchTerm, setBrandSearchTerm] = useState<string>('');
+  const brandDropdownRef = useRef<HTMLDivElement>(null);
 
   // Modal vehicle history
-  const [selectedVehicleForHistory, setSelectedVehicleForHistory] = useState(null);
+  const [selectedVehicleForHistory, setSelectedVehicleForHistory] = useState<Vehicle | null>(null);
 
   // Sync smart range when budget changes
-  const applyBudget = (val, isSmart = useSmartRange) => {
+  const applyBudget = (val: string, isSmart: boolean = useSmartRange) => {
     const num = Number(val);
     setBudgetValue(val);
     if (!isNaN(num) && num > 0) {
@@ -88,8 +99,8 @@ export default function BudgetFinderView({ onSwitchTab }) {
 
   // Close brand dropdown on click outside
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (brandDropdownRef.current && !brandDropdownRef.current.contains(event.target)) {
+    function handleClickOutside(event: MouseEvent) {
+      if (brandDropdownRef.current && !brandDropdownRef.current.contains(event.target as Node)) {
         setBrandDropdownOpen(false);
       }
     }
@@ -101,19 +112,13 @@ export default function BudgetFinderView({ onSwitchTab }) {
   useEffect(() => {
     async function loadFilterOptions() {
       try {
-        const [brandsRes, enginesRes] = await Promise.all([
-          fetch('/api/filters/brands?tipo_veiculo=carro'),
-          fetch('/api/filters/engine-sizes?tipo_veiculo=carro')
+        const [brands, engines] = await Promise.all([
+          fetchBrands('carro'),
+          fetchEngineSizes('carro')
         ]);
-        if (brandsRes.ok) {
-          const bJson = await brandsRes.json();
-          setAllBrands(bJson);
-        }
-        if (enginesRes.ok) {
-          const eJson = await enginesRes.json();
-          setAvailableEngines(eJson);
-        }
-      } catch (err) {
+        setAllBrands(brands);
+        setAvailableEngines(engines);
+      } catch (err: unknown) {
         console.error("Erro ao carregar opções de filtro:", err);
       }
     }
@@ -124,45 +129,31 @@ export default function BudgetFinderView({ onSwitchTab }) {
   useEffect(() => {
     let isCancelled = false;
 
-    async function fetchCars() {
+    async function executeSearch() {
       setLoading(true);
       setError(null);
       try {
-        const queryParams = new URLSearchParams({
+        const result = await fetchCars({
           tipo_veiculo: 'carro',
           preco_min: minPrice || '0',
           preco_max: maxPrice || '1000000',
           ano_min: minYear || '1990',
           ano_max: maxYear || '2026',
-          motorizacao: motorizacao,
-          cambio: cambio,
-          litragem: litragem,
-          ordenacao: ordenacao,
-          page: page.toString(),
-          limit: '18'
+          motorizacao,
+          cambio,
+          litragem,
+          marcas: selectedBrands,
+          combustivel,
+          search: searchModel.trim() || undefined,
+          ordenacao,
+          page,
+          limit: 18
         });
 
-        if (selectedBrands.length > 0) {
-          queryParams.append('marcas', selectedBrands.join(','));
-        }
-
-        if (combustivel) {
-          queryParams.append('combustivel', combustivel);
-        }
-
-        if (searchModel.trim()) {
-          queryParams.append('search', searchModel.trim());
-        }
-
-        const res = await fetch(`/api/search/by-price?${queryParams.toString()}`);
-        if (!res.ok) {
-          throw new Error("Erro ao consultar veículos na FIPE.");
-        }
-        const json = await res.json();
         if (!isCancelled) {
-          setData(json);
+          setData(result);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         if (!isCancelled) {
           console.error(err);
           setError("Não foi possível carregar os dados. Verifique a conexão com o servidor.");
@@ -175,7 +166,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
     }
 
     const timer = setTimeout(() => {
-      fetchCars();
+      executeSearch();
     }, 200);
 
     return () => {
@@ -184,7 +175,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
     };
   }, [minPrice, maxPrice, motorizacao, cambio, litragem, selectedBrands, searchModel, minYear, maxYear, combustivel, ordenacao, page]);
 
-  const toggleBrand = (brandName) => {
+  const toggleBrand = (brandName: string) => {
     setSelectedBrands(prev => {
       if (prev.includes(brandName)) {
         return prev.filter(b => b !== brandName);
@@ -212,7 +203,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
     setPage(1);
   };
 
-  const formattedBudgetDisplay = () => {
+  const formattedBudgetDisplay = (): string => {
     const num = Number(budgetValue);
     if (isNaN(num) || num <= 0) return 'R$ 0,00';
     return `R$ ${num.toLocaleString('pt-BR')}`;
@@ -221,7 +212,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
   return (
     <div className="w-full space-y-12">
       
-      {/* 1. HERO SECTION: Two-column Supabase Layout matching screenshot */}
+      {/* 1. HERO SECTION */}
       <section className="pt-6 sm:pt-12 pb-4">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
@@ -283,7 +274,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
                 setUseSmartRange(next);
                 applyBudget(budgetValue, next);
               }}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] border transition-colors ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] border transition-colors cursor-pointer ${
                 useSmartRange 
                   ? 'border-[#3ecf8e] bg-[#ffffff] dark:bg-[#18181b] text-[#171717] dark:text-[#ededed] font-medium' 
                   : 'border-[#dfdfdf] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed]'
@@ -296,7 +287,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
             <button
               type="button"
               onClick={() => setShowAdvancedPricing(!showAdvancedPricing)}
-              className="text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed] flex items-center gap-1 transition-colors"
+              className="text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed] flex items-center gap-1 transition-colors cursor-pointer"
             >
               <SlidersHorizontal className="w-3 h-3" />
               <span>{showAdvancedPricing ? 'Fechar ajuste' : 'Ajustar min/max'}</span>
@@ -305,7 +296,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
             <button
               type="button"
               onClick={handleResetFilters}
-              className="text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed] flex items-center gap-1 transition-colors"
+              className="text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed] flex items-center gap-1 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3 h-3" />
               <span>Limpar</span>
@@ -432,7 +423,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
                 <CustomDropdown
                   value={POPULAR_ENGINES.some(e => e.id === litragem) ? '' : (litragem === 'todos' ? '' : litragem)}
                   onChange={(val) => {
-                    setLitragem(val || 'todos');
+                    setLitragem(String(val) || 'todos');
                     setPage(1);
                   }}
                   placeholder="+ Outras"
@@ -580,7 +571,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
                   <button 
                     type="button"
                     onClick={() => { setSelectedBrands([]); setPage(1); }}
-                    className="text-[11px] text-[#171717] dark:text-[#ededed] underline hover:text-[#707070] dark:hover:text-[#a1a1aa]"
+                    className="text-[11px] text-[#171717] dark:text-[#ededed] underline hover:text-[#707070] dark:hover:text-[#a1a1aa] cursor-pointer"
                   >
                     Desmarcar
                   </button>
@@ -640,7 +631,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
                           <button
                             type="button"
                             onClick={() => setBrandSearchTerm('')}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9a9a9a] dark:text-[#71717a] hover:text-[#171717] dark:hover:text-[#ededed] p-0.5"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9a9a9a] dark:text-[#71717a] hover:text-[#171717] dark:hover:text-[#ededed] p-0.5 cursor-pointer"
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -702,7 +693,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
                   <button 
                     type="button"
                     onClick={() => { setSearchModel(''); setPage(1); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9a9a9a] dark:text-[#71717a] hover:text-[#171717] dark:hover:text-[#ededed]"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9a9a9a] dark:text-[#71717a] hover:text-[#171717] dark:hover:text-[#ededed] cursor-pointer"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -719,7 +710,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
               </div>
               <CustomDropdown
                 value={minYear}
-                onChange={(val) => { setMinYear(val); setPage(1); }}
+                onChange={(val) => { setMinYear(String(val)); setPage(1); }}
                 className="w-full"
                 menuClassName="w-full min-w-[160px]"
                 options={[
@@ -756,7 +747,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
           <span className="text-xs text-[#707070] dark:text-[#a1a1aa]">Ordenar por:</span>
           <CustomDropdown
             value={ordenacao}
-            onChange={(val) => { setOrdenacao(val); setPage(1); }}
+            onChange={(val) => { setOrdenacao(String(val)); setPage(1); }}
             className="w-48"
             menuClassName="w-52"
             align="right"
@@ -810,7 +801,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {data?.resultados?.map((car) => {
             const hasDevaluation = car.variacao_pct !== undefined && car.variacao_pct !== null;
-            const isPositive = car.variacao_pct >= 0;
+            const isPositive = (car.variacao_pct ?? 0) >= 0;
 
             return (
               <div
@@ -848,7 +839,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
                     {car.nome_modelo}
                   </h3>
 
-                  {/* Supabase-style Checklist Specs (✓ Item style as seen in screenshot) */}
+                  {/* Supabase-style Checklist Specs */}
                   <div className="space-y-1.5 mb-6 text-xs text-[#707070] dark:text-[#a1a1aa]">
                     {car.litragem && (
                       <div className="flex items-center gap-2">
@@ -919,7 +910,7 @@ export default function BudgetFinderView({ onSwitchTab }) {
       )}
 
       {/* 5. PAGINAÇÃO */}
-      {data?.total_paginas > 1 && (
+      {data && data.total_paginas > 1 && (
         <div className="flex items-center justify-center gap-2 pt-6 pb-8">
           <Button
             variant="outline"

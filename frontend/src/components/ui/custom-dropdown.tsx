@@ -2,7 +2,32 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Check, Search, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
-export default function CustomDropdown({
+export interface DropdownOption<T = string | number> {
+  value: T;
+  label: string;
+}
+
+export interface CustomDropdownProps<T = string | number> {
+  value?: T | null;
+  onChange: (value: T) => void;
+  options?: DropdownOption<T>[];
+  placeholder?: string;
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  className?: string;
+  menuClassName?: string;
+  align?: 'left' | 'right';
+  renderTrigger?: (params: {
+    isOpen: boolean;
+    setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
+    selectedOption?: DropdownOption<T>;
+    displayLabel: string;
+    activeState: boolean;
+  }) => React.ReactNode;
+  isActive?: boolean;
+}
+
+export default function CustomDropdown<T extends string | number = string>({
   value,
   onChange,
   options = [],
@@ -14,16 +39,16 @@ export default function CustomDropdown({
   align = 'left',
   renderTrigger,
   isActive = false,
-}) {
+}: CustomDropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const dropdownRef = useRef(null);
-  const searchInputRef = useRef(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Close dropdown on click outside
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     }
@@ -37,7 +62,7 @@ export default function CustomDropdown({
 
   // Close on ESC
   useEffect(() => {
-    function handleKeyDown(event) {
+    function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setIsOpen(false);
       }
@@ -137,7 +162,7 @@ export default function CustomDropdown({
                 const isSelected = String(opt.value) === String(value);
                 return (
                   <button
-                    key={opt.value}
+                    key={String(opt.value)}
                     type="button"
                     onClick={() => {
                       onChange(opt.value);

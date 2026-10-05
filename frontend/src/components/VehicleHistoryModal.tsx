@@ -9,10 +9,14 @@ import {
   Title,
   Tooltip,
   Legend,
-  Filler
+  Filler,
+  ChartOptions,
+  ScriptableContext
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { Button } from './ui/button';
+import { Vehicle, HistoryResponse } from '../types/vehicle';
+import { fetchVehicleHistory } from '../services/api';
 
 ChartJS.register(
   CategoryScale,
@@ -25,52 +29,60 @@ ChartJS.register(
   Filler
 );
 
-export default function VehicleHistoryModal({ vehicle, onClose }) {
-  const [historyData, setHistoryData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [groupby, setGroupby] = useState('mes'); // 'mes' or 'ano'
+export interface VehicleHistoryModalProps {
+  vehicle: Vehicle | null;
+  onClose: () => void;
+}
+
+export default function VehicleHistoryModal({ vehicle, onClose }: VehicleHistoryModalProps) {
+  const [historyData, setHistoryData] = useState<HistoryResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [groupby, setGroupby] = useState<'mes' | 'ano'>('mes');
 
   useEffect(() => {
     if (!vehicle) return;
 
     // Handle ESC key to close
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
+
+    let isCancelled = false;
 
     async function loadVehicleHistory() {
       setLoading(true);
       setError(null);
       try {
-        const queryParams = new URLSearchParams({
-          tipo_veiculo: vehicle.tipo_veiculo || 'carro',
+        if (!vehicle) return;
+        const data = await fetchVehicleHistory({
+          tipo_veiculo: vehicle.nome_combustivel ? 'carro' : 'carro',
           codigo_fipe: vehicle.codigo_fipe,
+          ano_modelo: vehicle.ano_modelo,
           groupby: groupby,
           metrica_ano: 'media'
         });
-        if (vehicle.ano_modelo) {
-          queryParams.append('ano_modelo', vehicle.ano_modelo);
+        if (!isCancelled) {
+          setHistoryData(data);
         }
-
-        const res = await fetch(`/api/history?${queryParams.toString()}`);
-        if (!res.ok) {
-          throw new Error('Não foi possível carregar o histórico de preços deste veículo.');
+      } catch (err: unknown) {
+        if (!isCancelled) {
+          console.error(err);
+          const msg = err instanceof Error ? err.message : 'Erro ao consultar histórico.';
+          setError(msg);
         }
-        const json = await res.json();
-        setHistoryData(json);
-      } catch (err) {
-        console.error(err);
-        setError(err.message || 'Erro ao consultar histórico.');
       } finally {
-        setLoading(false);
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
     }
 
     loadVehicleHistory();
 
     return () => {
+      isCancelled = true;
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [vehicle, groupby, onClose]);
@@ -81,8 +93,8 @@ export default function VehicleHistoryModal({ vehicle, onClose }) {
     if (!historyData || !historyData.series || historyData.series.length === 0) return null;
 
     const series = historyData.series;
-    const labels = series.map(item => item.periodo);
-    const prices = series.map(item => item.valor);
+    const labels = series.map((item) => item.periodo);
+    const prices = series.map((item) => item.valor);
 
     return {
       labels,
@@ -91,7 +103,7 @@ export default function VehicleHistoryModal({ vehicle, onClose }) {
           label: 'Preço FIPE (R$)',
           data: prices,
           borderColor: '#3ecf8e',
-          backgroundColor: (context) => {
+          backgroundColor: (context: ScriptableContext<'line'>) => {
             const ctx = context.chart.ctx;
             const gradient = ctx.createLinearGradient(0, 0, 0, 280);
             gradient.addColorStop(0, 'rgba(62, 207, 142, 0.25)');
@@ -112,7 +124,7 @@ export default function VehicleHistoryModal({ vehicle, onClose }) {
 
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
 
-  const chartOptions = {
+  const chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -129,7 +141,7 @@ export default function VehicleHistoryModal({ vehicle, onClose }) {
         titleFont: { size: 11, family: 'Inter, sans-serif' },
         bodyFont: { size: 12, family: 'Inter, sans-serif' },
         callbacks: {
-          label: (context) => `R$ ${context.parsed.y.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+          label: (context) => `R$ ${(context.parsed.y ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
         }
       }
     },
@@ -143,7 +155,7 @@ export default function VehicleHistoryModal({ vehicle, onClose }) {
         ticks: {
           color: isDark ? '#a1a1aa' : '#707070',
           font: { size: 10, family: 'Inter, sans-serif' },
-          callback: (value) => 'R$ ' + (value / 1000).toFixed(0) + 'k'
+          callback: (value) => 'R$ ' + (Number(value) / 1000).toFixed(0) + 'k'
         }
       }
     }
@@ -199,7 +211,8 @@ export default function VehicleHistoryModal({ vehicle, onClose }) {
 
           <button
             onClick={onClose}
-            className="p-1.5 text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed] rounded-[6px] hover:bg-[#fafafa] dark:hover:bg-[#27272a] transition-colors"
+            aria-label="Fechar modal"
+            className="p-1.5 text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed] rounded-[6px] hover:bg-[#fafafa] dark:hover:bg-[#27272a] transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>

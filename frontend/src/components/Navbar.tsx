@@ -1,7 +1,12 @@
 import React from 'react';
 import { Database, Sun, Moon, BookOpen, ExternalLink } from 'lucide-react';
 
-export default function Navbar({ theme, onToggleTheme }) {
+export interface NavbarProps {
+  theme: 'light' | 'dark' | string;
+  onToggleTheme: () => void;
+}
+
+export default function Navbar({ theme, onToggleTheme }: NavbarProps) {
   return (
     <header className="border-b border-[#ededed] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#121212] sticky top-0 z-40 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">

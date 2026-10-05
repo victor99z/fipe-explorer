@@ -1,9 +1,15 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Calendar, Award, ShieldAlert } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
+import { Card, CardHeader, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
+import { HistorySummary, HistoryInfo } from '../types/vehicle';
 
-export default function SummaryCards({ summary, info }) {
+export interface SummaryCardsProps {
+  summary?: HistorySummary | null;
+  info?: HistoryInfo | null;
+}
+
+export default function SummaryCards({ summary, info: _info }: SummaryCardsProps) {
   if (!summary) return null;
 
   const isUp = summary.variacao_total_pct >= 0;

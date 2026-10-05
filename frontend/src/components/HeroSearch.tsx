@@ -1,25 +1,42 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Sparkles, Car, Calendar, ArrowRight, Zap } from 'lucide-react';
-import { Card, CardContent } from './ui/card';
+import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
+import { PresetItem, SuggestionItem } from '../types/vehicle';
+import { fetchSuggestions } from '../services/api';
 
-export default function HeroSearch({ onSelectVehicle, presets = [], currentSearch = "" }) {
-  const [searchTerm, setSearchTerm] = useState(currentSearch);
-  const [suggestions, setSuggestions] = useState([]);
-  const [isOpen, setIsOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const searchRef = useRef(null);
+export interface SelectedVehicleParams {
+  codigo_fipe?: string | null;
+  nome_marca?: string;
+  nome_modelo?: string;
+  ano_modelo?: number | null;
+  search_term?: string | null;
+  tipo_veiculo?: string;
+}
+
+export interface HeroSearchProps {
+  onSelectVehicle: (params: SelectedVehicleParams) => void;
+  presets?: PresetItem[];
+  currentSearch?: string;
+}
+
+export default function HeroSearch({ onSelectVehicle, presets = [], currentSearch = "" }: HeroSearchProps) {
+  const [searchTerm, setSearchTerm] = useState<string>(currentSearch);
+  const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
+  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [_loading, setLoading] = useState<boolean>(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSearchTerm(currentSearch);
   }, [currentSearch]);
 
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (searchRef.current && !searchRef.current.contains(e.target)) {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -36,13 +53,10 @@ export default function HeroSearch({ onSelectVehicle, presets = [], currentSearc
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/search/suggestions?q=${encodeURIComponent(searchTerm)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setSuggestions(data);
-          setIsOpen(true);
-        }
-      } catch (err) {
+        const data = await fetchSuggestions(searchTerm);
+        setSuggestions(data);
+        setIsOpen(true);
+      } catch (err: unknown) {
         console.error("Erro na busca:", err);
       } finally {
         setLoading(false);
@@ -52,7 +66,7 @@ export default function HeroSearch({ onSelectVehicle, presets = [], currentSearc
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const handleSelectSuggestion = (item, ano = null) => {
+  const handleSelectSuggestion = (item: SuggestionItem, ano: number | null = null) => {
     setIsOpen(false);
     onSelectVehicle({
       codigo_fipe: item.codigo_fipe,
@@ -63,14 +77,14 @@ export default function HeroSearch({ onSelectVehicle, presets = [], currentSearc
     });
   };
 
-  const handleCustomSubmit = (e) => {
+  const handleCustomSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchTerm.trim()) return;
     setIsOpen(false);
 
     const yearMatch = searchTerm.match(/\b(19\d\d|20\d\d)\b/);
-    let yearExtracted = yearMatch ? parseInt(yearMatch[1]) : null;
-    let cleanTerm = searchTerm.replace(/\b(19\d\d|20\d\d)\b/, '').trim();
+    const yearExtracted = yearMatch ? parseInt(yearMatch[1]) : null;
+    const cleanTerm = searchTerm.replace(/\b(19\d\d|20\d\d)\b/, '').trim();
 
     onSelectVehicle({
       search_term: cleanTerm || searchTerm,
@@ -112,7 +126,7 @@ export default function HeroSearch({ onSelectVehicle, presets = [], currentSearc
             type="submit"
             variant="default"
             size="lg"
-            className="absolute right-2 shadow-md rounded-xl"
+            className="absolute right-2 shadow-md rounded-xl cursor-pointer"
           >
             <span>Analisar</span>
             <ArrowRight className="w-4 h-4 ml-1" />
@@ -190,7 +204,7 @@ export default function HeroSearch({ onSelectVehicle, presets = [], currentSearc
                   codigo_fipe: null
                 });
               }}
-              className="rounded-full flex items-center gap-1.5"
+              className="rounded-full flex items-center gap-1.5 cursor-pointer"
             >
               <Car className="w-3.5 h-3.5 text-emerald-400" />
               <span>{preset.title}</span>

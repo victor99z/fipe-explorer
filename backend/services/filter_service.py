@@ -44,7 +44,7 @@ class FilterService:
         cache_store.set(cache_key, years, ttl_seconds=600)
         return years
 
-    def get_engine_sizes(self, tipo_veiculo: str = "carro") -> List[str]:
+    def get_engine_sizes(self, tipo_veiculo: str = "carro") -> List[Dict[str, Any]]:
         cache_key = f"engine_sizes:{tipo_veiculo}"
         cached = cache_store.get(cache_key)
         if cached is not None:
