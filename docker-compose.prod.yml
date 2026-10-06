@@ -88,16 +88,15 @@ services:
       - fipex-net
     depends_on:
       - backend
+    healthcheck:
+      disable: true
 
   # ----------------------------------------------------------------------------
   # Cloudflare Tunnel: Conexão segura de saída para a borda da Cloudflare
-  # (Ativado apenas quando especificado o profile 'tunnel' ou COMPOSE_PROFILES=tunnel)
   # ----------------------------------------------------------------------------
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: fipex-tunnel
-    profiles:
-      - tunnel
     restart: unless-stopped
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     environment:
