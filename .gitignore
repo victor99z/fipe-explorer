@@ -41,3 +41,4 @@ Thumbs.db
 !.vscode/extensions.json
 .idea/
 *.sw?
+.claude/
