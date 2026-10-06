@@ -2,7 +2,7 @@ import re
 from typing import List, Dict, Any
 
 TURBO_PATTERN = r'(\btb\b|\b([0-9]+)?tsi\b|\b([0-9]+)?tce\b|\btgdi\b|\bt-gdi\b|\bthp\b|\btfsi\b|\bt270\b|\bt200\b|\becoboost\b|\bturbo\b|\bbiturbo\b|\btwinpower\b|\btdi\b|\bcgi\b|\bkompressor\b)'
-AUTOMATIC_PATTERN = r'(\baut\b|\bautom[aá]tic[oac]?s?\b|\bautoshift\b|\bcvt\b|\be-cvt\b|\becvt\b|tiptronic|dualogic|powershift|i-motion|dsg|g-tronic|steptronic|s-tronic|pdk|multitronic|geartronic|\b[a-z]?[0-9]{3}[a-z]*a\b)'
+AUTOMATIC_PATTERN = r'(\baut\b|\bautom[aá]tic[oac]?s?\b|\bautoshift\b|\bcvt\b|\be-cvt\b|\becvt\b|tiptronic|dualogic|powershift|i-motion|dsg|g-tronic|steptronic|s-tronic|pdk|multitronic|geartronic|\b[a-z]?[0-9]{3}[a-z]*a\b|\b[1-8][0-9]{2}ia?\b)'
 MANUAL_PATTERN = r'(\bmec\b|\bmanual\b)'
 ENGINE_PATTERN = r'\b([0-9]\.[0-9])\b'
 

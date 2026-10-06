@@ -1,122 +1,189 @@
 # FIPEX Explorer 🚗💨
-> Visualizador Analítico e Consultor de Orçamento para a Tabela FIPE (9.42M de registros históricos em Parquet com DuckDB e UI inspirada no Supabase).
+> Visualizador Analítico e Consultor de Orçamento para a Tabela FIPE (9.58M de registros históricos em Parquet com DuckDB, Backend em Camadas, Frontend em TypeScript e Deploy de Produção com Cloudflare Tunnel).
 
-Agradecimento especial ao [alanwgt/fipex-veiculos-brasil](https://huggingface.co/datasets/alanwgt/fipex-veiculos-brasil) no Hugging Face pelo dataset FIPE atualizado.
-
----
-
-## ⚡ Ganhos de Performance & Otimizações
-
-A aplicação foi migrada de um modelo de expressões regulares em tempo de consulta para um **formato analítico pré-calculado e indexado em Parquet com compressão Zstandard**, resultando em ganhos massivos de desempenho:
-
-| Métrica | Antes (Regex em tempo de execução) | Depois (Colunas Nativas Pré-calculadas) | Ganho / Melhoria |
-| :--- | :--- | :--- | :--- |
-| **Consulta CTE com Paginação** | ~1.439 ms (1,44 s) | **41,7 ms** (0,04 s) | **~34,5x mais rápido** |
-| **Filtro Direto no Dataset** | ~1.175 ms (1,17 s) | **7,2 ms** | **~162x mais rápido** |
-| **Tempo Total Requisição HTTP** | ~1.600 ms | **~49 ms** | **Instantâneo (< 50ms)** |
-| **Tamanho do Arquivo Parquet** | 121,00 MB | **58,63 MB** (ZSTD) | **Redução de 51,5%** |
-| **CPU e Alocação de Memória** | Alta (múltiplas regexes por linha) | Mínima (filtros binários/numéricos) | **Extremamente leve** |
+Agradecimento especial ao [alanwgt/fipex-veiculos-brasil](https://huggingface.co/datasets/alanwgt/fipex-veiculos-brasil) no Hugging Face pelo dataset mensal atualizado da Tabela FIPE.
 
 ---
 
-## 🛠️ Detalhes das Otimizações Implementadas
+## 🏗️ Arquitetura do Sistema
 
-### 1. Script de Enriquecimento: `scripts/enrich_parquet.py`
-- Processou **9.427.367 linhas** em apenas **9,07 segundos** utilizando DuckDB com processamento paralelo (4 threads).
-- Gerou o novo dataset comprimido: `data/fipex-prices-enriched.parquet` (58,63 MB).
-- Pré-calculou as seguintes colunas nativas no arquivo Parquet:
-  - `is_turbo`: `BOOLEAN` (1.028.575 registros marcados como True)
-  - `is_automatico`: `BOOLEAN` (1.233.209 registros marcados como True)
-  - `is_manual`: `BOOLEAN` (503.762 registros marcados como True)
-  - `litragem`: `VARCHAR` (ex: `"1.0"`, `"1.4"`, `"2.0"`)
-  - `litragem_num`: `DOUBLE` (ex: `1.0`, `2.0`, permitindo operadores numéricos como `litragem_num >= 2.0`)
-
-### 2. Otimização do Backend: `server.py`
-- **Detecção Inteligente do Schema (`IS_ENRICHED`)**:
-  Detecta e prioriza automaticamente `data/fipex-prices-enriched.parquet`. Se o arquivo enriquecido não for encontrado, mantém fallback transparente para o arquivo original.
-- **Filtros Nativos SQL**:
-  - `motorizacao == "turbo"` ➔ `is_turbo = true`
-  - `motorizacao == "aspirado"` ➔ `is_turbo = false`
-  - `cambio == "automatico"` ➔ `is_automatico = true`
-  - `cambio == "manual"` ➔ `is_manual = true`
-  - `litragem == "2.0+"` ➔ `litragem_num >= 2.0`
-  - `litragem == "1.0"` ➔ `litragem = '1.0'`
-- **Remoção de Regex em `/api/filters/engine-sizes`**:
-  Agrupamento direto pela coluna `litragem` indexada.
-- **Eliminação de Regex no Pós-Processamento Python**:
-  O DuckDB projeta diretamente `litragem`, `is_turbo`, `is_automatico` e `is_manual`, eliminando o loop de `re.search` por linha antes da serialização JSON.
-
-### 3. Padronização Visual dos Dropdowns: `CustomDropdown.jsx`
-- **Eliminação de `<select>` nativos do sistema**:
-  Substituídos todos os elementos de seleção HTML nativos (que abriam popups do sistema operacional com realce azul genérico) por componentes de popover com o tema Supabase.
-- **Dropdown "Ano a partir de"**:
-  Menu flutuante elegante com bordas `#27272a`, sombra elevada, hover refinado e checkmark esmeralda (`#3ecf8e`) na opção selecionada.
-- **Dropdown "Motor (+ Outras)"**:
-  Menu flutuante com campo de busca integrado (`searchable`) para filtrar instantaneamente entre as mais de 65 cilindradas disponíveis no dataset. Quando uma opção alternativa é selecionada, o botão trigger assume o estilo ativo (`Motor 1.5`, etc.).
-- **Dropdown "Ordenar por"**:
-  Padronizado com o mesmo design flutuante.
-
-### 4. Correção da Variação Total: `VehicleHistoryModal.jsx`
-- Corrigida a extração da métrica de variação no modal de histórico de preços para suportar tanto `variacao_total_pct` quanto `variacao_pct`.
-- Ajustadas as referências de data inicial e atual (ex: `Ref: 06/2019` em vez de apenas `"Início"`).
-
-### 5. Correção de Falsos Positivos de Turbo (ex: Kwid Outsider)
-- O padrão regex anterior de turbo continha `tsi` sem delimitadores de palavra (`\b`). Com isso, a palavra `"ouTSIder"` (de modelos como *Kwid Outsider*) e `"CT200h"` (Lexus) eram capturadas incorretamente como turbo.
-- O padrão foi corrigido para utilizar limites estritos de palavra `\b([0-9]+)?tsi\b`, `\bt200\b`, etc., eliminando mais de 11.000 falsos positivos e reclassificando o Kwid Outsider como **Aspirado Manual** legítimo.
+```
+fipe-explorer/
+├── backend/                       # Backend Modular em Camadas (SOLID & DRY)
+│   ├── core/                      # Configurações, DuckDB jail, TTLCache, Rate Limiter
+│   ├── domain/                    # Cálculos puros (CAGR, desvalorização, regras de transmissão)
+│   ├── schemas/                   # DTOs e validações com Pydantic v2
+│   ├── repositories/              # Execuções SQL otimizadas no DuckDB
+│   ├── services/                  # Orquestração de negócio e caching TTL
+│   └── api/v1/                    # Endpoints REST (/api/health, /presets, /search, /history, /filters)
+├── frontend/                      # Frontend SPA Moderno em TypeScript
+│   ├── src/types/                 # Definições de domínio e DTOs tipados (TypeScript estrito)
+│   ├── src/services/api.ts        # Cliente de API centralizado e tipado
+│   ├── src/components/ui/         # Primitivas UI inspiradas no design system Supabase
+│   └── src/components/            # Telas de visualização, gráficos (Chart.js) e comparador
+├── scripts/
+│   ├── update_dataset.py          # Automação de checagem, download e atomic swap do Hugging Face
+│   └── enrich_parquet.py          # Pipeline DuckDB de pré-cálculo e enriquecimento
+├── data/                          # Armazenamento local do dataset Parquet (:ro no backend)
+├── docker-compose.yml             # Orquestração completa de produção (Backend + Frontend + Tunnel + Updater)
+└── server.py                      # Entrypoint Uvicorn
+```
 
 ---
 
-## 🚀 Como Executar Localmente
+## 🔄 Automação Mensal do Dataset FIPE (Hugging Face)
 
-### Pré-requisitos
-- Python 3.10+
-- Node.js 18+
+Todo início de mês, a FIPE publica novos preços e o repositório [`alanwgt/fipex-veiculos-brasil`](https://huggingface.co/datasets/alanwgt/fipex-veiculos-brasil) disponibiliza a base consolidada atualizada (`fipex-prices-latest.parquet`).
 
-### 1. Backend (FastAPI + DuckDB)
+O **FIPEX Explorer** possui um subsistema automatizado de atualização com **Zero Downtime**:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Updater as ⏱️ fipex-updater
+    participant HF as ☁️ Hugging Face API
+    participant Disk as 💾 Storage ./data
+    participant DuckDB as 🦆 Pipeline DuckDB
+    participant Backend as 🐍 fipex-backend
+
+    Updater->>HF: GET /api/datasets/alanwgt/fipex-veiculos-brasil (150ms)
+    HF-->>Updater: { sha: "...", lastModified: "..." }
+    Updater->>Disk: Lê data/.fipex_version.json (último commit local)
+    
+    alt Versão idêntica
+        Updater->>Updater: Dataset atualizado. Dorme até próximo ciclo.
+    else Nova versão publicada
+        Updater->>HF: Download streaming de fipex-prices-latest.parquet
+        HF-->>Disk: Grava data/fipex-prices.tmp.parquet
+        Updater->>Disk: Renomeia para data/fipex-prices.parquet
+        Updater->>DuckDB: Executa enriquecimento com compressão ZSTD
+        DuckDB->>Disk: Grava data/fipex-prices-enriched.tmp.parquet
+        Updater->>Disk: Atomic Swap (os.replace) -> fipex-prices-enriched.parquet
+        Updater->>Disk: Grava novo SHA em data/.fipex_version.json
+        Updater->>Backend: POST /api/internal/refresh (invalida caches em memória)
+        Backend-->>Updater: 200 OK (novos dados ativos instantaneamente)
+    end
+```
+
+### Como Executar a Atualização:
+
+#### 1. Modo Automático (Docker Compose)
+O serviço `updater` já roda em background no `docker-compose.yml`, checando o Hugging Face a cada 24 horas (ou no intervalo configurado em `UPDATE_INTERVAL_HOURS`):
 ```bash
-# Instalar dependências (caso não estejam instaladas)
-pip install -r requirements.txt
+docker compose up -d
+```
 
-# (Opcional) Gerar o dataset enriquecido de alta performance
-python scripts/enrich_parquet.py
+#### 2. Execução Manual Sob Demanda (CLI)
+Para verificar ou forçar a atualização imediata:
 
-# Iniciar o servidor da API
+```bash
+# Apenas verificar se há nova versão sem baixar
+python scripts/update_dataset.py --check
+
+# Forçar download imediato e enriquecimento completo
+python scripts/update_dataset.py --force
+
+# Ou via Docker Compose
+docker compose run --rm updater python scripts/update_dataset.py --force
+```
+
+---
+
+## ⚡ Performance & Enriquecimento Pré-calculado
+
+A aplicação utiliza um **formato analítico pré-calculado em Parquet com compressão Zstandard**, eliminando expressões regulares em tempo de consulta:
+
+| Métrica | Antes (Regex em tempo real) | Depois (Colunas Pré-calculadas DuckDB) | Ganho |
+| :--- | :--- | :--- | :--- |
+| **Consulta Paginada** | ~1.440 ms | **41,7 ms** | **~34,5x mais rápido** |
+| **Filtro Direto no Dataset** | ~1.175 ms | **7,2 ms** | **~162x mais rápido** |
+| **Tamanho em Disco** | ~129 MB | **~59 MB** (ZSTD) | **Redução de 54%** |
+| **Registros Totais** | - | **9.580.464 linhas históricas** | **Base completa** |
+
+Colunas pré-calculadas pelo script `scripts/enrich_parquet.py`:
+- `is_turbo`: Identificação precisa de turbos (`tsi`, `tgdi`, `thp`, `ecoboost`, etc.), sem falsos positivos.
+- `is_automatico`: Transmissões automáticas (`aut`, `cvt`, `dsg`, `tiptronic`, e linhas BMW como `320i`, `328i`, `330i`, `118i`).
+- `is_manual`: Câmbios manuais explicitamente rotulados.
+- `litragem` e `litragem_num`: Cilindrada padronizada (`1.0`, `1.4`, `2.0`), permitindo filtros numéricos indexados.
+
+---
+
+## 🚀 Deploy de Produção (Docker Compose & Cloudflare Tunnel)
+
+### 1. Configurar Variáveis de Ambiente
+Copie o arquivo de exemplo e preencha suas variáveis:
+```bash
+cp .env.example .env
+```
+
+Parâmetros principais no `.env`:
+```env
+# Porta HTTP local exposta no host
+FRONTEND_PORT=8080
+
+# Token do Cloudflare Zero Trust (Networks > Tunnels)
+CLOUDFLARE_TUNNEL_TOKEN=ey...
+
+# Intervalo de checagem de atualizações do dataset (em horas)
+UPDATE_INTERVAL_HOURS=24
+```
+
+### 2. Iniciar os Serviços
+
+#### Produção Completa (com Cloudflare Tunnel)
+Conecta sua aplicação de forma segura e criptografada à borda da Cloudflare sem precisar abrir portas no roteador/firewall:
+```bash
+docker compose up -d
+```
+> **No painel do Cloudflare Zero Trust:** Aponte o Public Hostname do túnel para `http://frontend:80`.
+
+#### Execução Local (sem Cloudflare Tunnel)
+```bash
+docker compose up -d backend frontend
+```
+Acesse no navegador: `http://localhost:8080`.
+
+---
+
+## 💻 Desenvolvimento Local
+
+### 1. Backend (Python + FastAPI)
+```bash
+# Ativar ambiente virtual
+source .venv/bin/activate
+
+# Instalar dependências
+pip install -r backend/requirements.txt
+
+# Iniciar backend com auto-reload
 uvicorn server:app --host 0.0.0.0 --port 8000 --reload
 ```
-A API estará acessível em `http://localhost:8000`.
+Acesse a documentação Swagger em: `http://localhost:8000/docs`.
 
-### 2. Frontend (React + Vite + Tailwind)
+### 2. Frontend (React + TypeScript + Vite)
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-A interface do usuário estará acessível em `http://localhost:3000` (ou `http://localhost:5173`).
+Acesse a aplicação em: `http://localhost:3000`.
+
+Para validar a tipagem TypeScript estrita e build:
+```bash
+npm run typecheck    # tsc --noEmit
+npm run build        # tsc --noEmit && vite build
+```
 
 ---
 
-## 📋 Checklist de Produção (Roadmap)
+## 🛡️ Segurança e Proteção de Recursos
+- **DuckDB Jail**: Limites configuráveis de memória RAM (`DUCKDB_MAX_MEMORY=1GB`) e threads paralelas (`DUCKDB_THREADS=2`).
+- **Semáforo de Concorrência**: Limite máximo de consultas simultâneas no DuckDB com fila de espera e timeout para evitar exaustão de CPU.
+- **Sliding Window Rate Limiter**: Proteção contra DDoS e scraping abusivo com suporte nativo aos cabeçalhos `CF-Connecting-IP` e `X-Forwarded-For`.
+- **Contêineres Não-Root**: O backend executa com o usuário de sistema não-privilegiado `appuser` (UID 1000).
+- **Montagem Somente Leitura**: O contêiner da API acessa o diretório de dados em modo `:ro` (`./data:/app/data:ro`), garantindo que a base de dados nunca seja alterada em tempo de requisição.
 
-- [x] **Fase 4: Pré-computação e Otimização de Performance (CONCLUÍDA)**
-  - [x] Criar script de enriquecimento `scripts/enrich_parquet.py`
-  - [x] Gerar `data/fipex-prices-enriched.parquet` (58.6 MB compactado em ZSTD)
-  - [x] Atualizar `server.py` com filtros nativos booleanos e numéricos
-  - [x] Eliminar regex no loop de pós-processamento Python
-  - [x] Padronizar todos os dropdowns de filtro com o design system Supabase
-  - [x] Benchmarks e validação de contratos da API
-- [ ] **Fase 1: Segurança e Otimização do Backend**
-  - [ ] Restringir CORS no FastAPI (apenas seu domínio de produção e métodos GET)
-  - [ ] Rate Limiting (anti-abuso de CPU por IP com `slowapi`)
-  - [ ] Validações estritas de entrada (`limit <= 100`, etc.)
-  - [ ] Cache em memória (`@lru_cache`) para metadados estáticos (`/brands`, `/engine-sizes`)
-  - [ ] Desativar `/docs` em produção
-  - [ ] Limites de memória e threads do DuckDB (`memory_limit = 1.5GB`, `threads = 2`)
-- [ ] **Fase 2: Build e Empacotamento**
-  - [ ] Executar `npm run build` do frontend
-  - [ ] Definir arquivo Parquet como somente leitura (`chmod 444`)
-  - [ ] Rodar container como usuário não-root
-- [ ] **Fase 3: Infraestrutura (VPS + Caddy/Nginx + Cloudflare)**
-  - [ ] Provisionar VPS (2 vCPU, 2-4GB RAM)
-  - [ ] Configurar Uvicorn multi-worker (`--workers 2 --proxy-headers`)
-  - [ ] Configurar Caddy para servir assets estáticos diretamente e proxy reverso para `/api`
-  - [ ] Ativar Cloudflare com proteção DDoS e SSL universal
+---
+
+## 📄 Licença
+Distribuído sob a licença MIT. Veja `LICENSE` para mais informações.

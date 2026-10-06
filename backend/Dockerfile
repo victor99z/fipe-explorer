@@ -28,6 +28,7 @@ RUN groupadd -g 1000 appgroup && \
 
 # Copy application source code
 COPY backend/ /app/backend/
+COPY scripts/ /app/scripts/
 COPY server.py /app/server.py
 
 # Switch to unprivileged user

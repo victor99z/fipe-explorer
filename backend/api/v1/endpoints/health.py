@@ -18,3 +18,17 @@ def health_check(vehicle_service: VehicleService = Depends(get_vehicle_service))
         "total_records": count,
         "is_enriched": IS_ENRICHED
     }
+
+@router.post("/internal/refresh", summary="Invalida caches em memória e recarrega dataset")
+def refresh_dataset(vehicle_service: VehicleService = Depends(get_vehicle_service)):
+    from backend.core.cache import cache_store
+    cache_store.clear()
+    settings.PARQUET_FILE = settings.resolve_parquet_file()
+    count = vehicle_service.get_total_records()
+    return {
+        "status": "ok",
+        "message": "Caches invalidados e dataset recarregado com sucesso",
+        "total_records": count,
+        "parquet_file": settings.PARQUET_FILE
+    }
+

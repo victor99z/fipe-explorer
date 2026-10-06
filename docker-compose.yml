@@ -66,6 +66,28 @@ services:
       start_period: 5s
 
   # ----------------------------------------------------------------------------
+  # Dataset Auto-Updater: Monitora Hugging Face e atualiza Parquet mensalmente
+  # ----------------------------------------------------------------------------
+  updater:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: fipex-updater
+    restart: unless-stopped
+    command: ["python", "scripts/update_dataset.py", "--daemon"]
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - UPDATE_INTERVAL_HOURS=${UPDATE_INTERVAL_HOURS:-24}
+    volumes:
+      # Volume com permissão de escrita para atualizar o dataset
+      - ./data:/app/data
+    networks:
+      - fipex-net
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ----------------------------------------------------------------------------
   # Cloudflare Tunnel: Conexão segura de saída para a borda da Cloudflare
   # ----------------------------------------------------------------------------
   cloudflared:
