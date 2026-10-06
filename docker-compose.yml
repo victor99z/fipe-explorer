@@ -1,15 +1,18 @@
 # ==============================================================================
-# FIPEX EXPLORER - DOCKER COMPOSE DE PRODUÇÃO
+# FIPEX EXPLORER - DOCKER COMPOSE DE PRODUÇÃO (COOLIFY / VPS / LOCAL)
 # ==============================================================================
 #
 # Modo de uso:
-#   1. Produção completa (com Cloudflare Tunnel):
-#      Defina CLOUDFLARE_TUNNEL_TOKEN no arquivo .env e execute:
+#   1. Produção padrão (Coolify / Reverse Proxy / Local):
 #      docker compose up -d
-#
-#   2. Execução local / sem Cloudflare Tunnel:
-#      docker compose up -d backend frontend
 #      Acesse em http://localhost:8080 (ou na porta definida em FRONTEND_PORT)
+#      Os dados são persistidos no volume nomeado 'fipex-data'.
+#
+#   2. Com Cloudflare Tunnel gerenciado pelo Compose:
+#      Defina no .env:
+#        COMPOSE_PROFILES=tunnel
+#        CLOUDFLARE_TUNNEL_TOKEN=<seu_token>
+#      docker compose --profile tunnel up -d
 # ==============================================================================
 
 services:
@@ -30,16 +33,16 @@ services:
       - PORT=8000
       - PARQUET_FILE=/app/data/fipex-prices-enriched.parquet
     volumes:
-      # Dataset montado em modo somente leitura (:ro)
-      - ./data:/app/data:ro
+      # Volume nomeado persistente (compatível com Coolify, Docker Compose e produção)
+      - fipex-data:/app/data:ro
     networks:
       - fipex-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 10s
       timeout: 5s
-      retries: 3
-      start_period: 5s
+      retries: 5
+      start_period: 10s
 
   # ----------------------------------------------------------------------------
   # Frontend & Gateway: Nginx Alpine servindo Vite SPA + Reverse Proxy /api/
@@ -80,19 +83,21 @@ services:
       - UPDATE_INTERVAL_HOURS=${UPDATE_INTERVAL_HOURS:-24}
     volumes:
       # Volume com permissão de escrita para atualizar o dataset
-      - ./data:/app/data
+      - fipex-data:/app/data
     networks:
       - fipex-net
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
 
   # ----------------------------------------------------------------------------
   # Cloudflare Tunnel: Conexão segura de saída para a borda da Cloudflare
+  # (Ativado apenas quando especificado o profile 'tunnel' ou COMPOSE_PROFILES=tunnel)
   # ----------------------------------------------------------------------------
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: fipex-tunnel
+    profiles:
+      - tunnel
     restart: unless-stopped
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     environment:
@@ -103,8 +108,12 @@ services:
       - frontend
 
 # ------------------------------------------------------------------------------
-# Rede Interna Isolada
+# Volumes Persistentes e Rede Interna
 # ------------------------------------------------------------------------------
+volumes:
+  fipex-data:
+    name: fipex-data
+
 networks:
   fipex-net:
     name: fipex-net

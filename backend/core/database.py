@@ -9,14 +9,23 @@ DB_SEMAPHORE = threading.BoundedSemaphore(settings.MAX_CONCURRENT_QUERIES)
 
 # Detect if the parquet file has precomputed columns (is_turbo, is_automatico, litragem)
 IS_ENRICHED = False
+
+def check_is_enriched() -> bool:
+    global IS_ENRICHED
+    if not os.path.exists(settings.PARQUET_FILE):
+        settings.PARQUET_FILE = settings.resolve_parquet_file()
+    if os.path.exists(settings.PARQUET_FILE):
+        try:
+            _chk = duckdb.connect()
+            _cols = [c[0] for c in _chk.execute(f"DESCRIBE SELECT * FROM '{settings.PARQUET_FILE}' LIMIT 1").fetchall()]
+            IS_ENRICHED = "is_turbo" in _cols and "is_automatico" in _cols and "litragem" in _cols
+            _chk.close()
+        except Exception as _e:
+            print(f"Aviso ao verificar colunas do parquet: {_e}")
+    return IS_ENRICHED
+
 if os.path.exists(settings.PARQUET_FILE):
-    try:
-        _chk = duckdb.connect()
-        _cols = [c[0] for c in _chk.execute(f"DESCRIBE SELECT * FROM '{settings.PARQUET_FILE}' LIMIT 1").fetchall()]
-        IS_ENRICHED = "is_turbo" in _cols and "is_automatico" in _cols and "litragem" in _cols
-        _chk.close()
-    except Exception as _e:
-        print(f"Aviso ao verificar colunas do parquet: {_e}")
+    check_is_enriched()
 
 class SafeDuckDBConnection:
     """
@@ -29,6 +38,13 @@ class SafeDuckDBConnection:
     def __init__(self, timeout: float = settings.QUERY_TIMEOUT_SECONDS):
         self._closed = True
         self._con = None
+        if not os.path.exists(settings.PARQUET_FILE):
+            settings.PARQUET_FILE = settings.resolve_parquet_file()
+            if not os.path.exists(settings.PARQUET_FILE):
+                raise HTTPException(
+                    status_code=503,
+                    detail="O dataset da Tabela FIPE está sendo baixado e inicializado pela primeira vez. Por favor, aguarde alguns instantes e atualize a página."
+                )
         acquired = DB_SEMAPHORE.acquire(timeout=timeout)
         if not acquired:
             raise HTTPException(

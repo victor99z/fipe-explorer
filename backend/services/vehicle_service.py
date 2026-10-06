@@ -1,5 +1,7 @@
+import os
 import math
 from typing import List, Dict, Any, Optional
+from backend.core.config import settings
 from backend.core.cache import cache_store
 from backend.repositories.vehicle_repository import VehicleRepository
 
@@ -10,6 +12,11 @@ class VehicleService:
         self.repo = repository or VehicleRepository()
 
     def get_total_records(self) -> int:
+        if not os.path.exists(settings.PARQUET_FILE):
+            settings.PARQUET_FILE = settings.resolve_parquet_file()
+            if not os.path.exists(settings.PARQUET_FILE):
+                return 0
+
         cache_key = "total_records_count"
         cached = cache_store.get(cache_key)
         if cached is not None:
