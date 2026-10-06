@@ -1,0 +1,89 @@
+# ==============================================================================
+# FIPEX EXPLORER - DOCKER COMPOSE DE PRODUÇÃO
+# ==============================================================================
+#
+# Modo de uso:
+#   1. Produção completa (com Cloudflare Tunnel):
+#      Defina CLOUDFLARE_TUNNEL_TOKEN no arquivo .env e execute:
+#      docker compose up -d
+#
+#   2. Execução local / sem Cloudflare Tunnel:
+#      docker compose up -d backend frontend
+#      Acesse em http://localhost:8080 (ou na porta definida em FRONTEND_PORT)
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # Backend API: FastAPI + Uvicorn + DuckDB Parquet Analytics
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: fipex-backend
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - PARQUET_FILE=/app/data/fipex-prices-enriched.parquet
+    volumes:
+      # Dataset montado em modo somente leitura (:ro)
+      - ./data:/app/data:ro
+    networks:
+      - fipex-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ----------------------------------------------------------------------------
+  # Frontend & Gateway: Nginx Alpine servindo Vite SPA + Reverse Proxy /api/
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fipex-frontend
+    restart: unless-stopped
+    ports:
+      # Porta HTTP mapeada no host (padrão 8080 para evitar conflitos locais)
+      - "${FRONTEND_PORT:-8080}:80"
+    networks:
+      - fipex-net
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # ----------------------------------------------------------------------------
+  # Cloudflare Tunnel: Conexão segura de saída para a borda da Cloudflare
+  # ----------------------------------------------------------------------------
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: fipex-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - fipex-net
+    depends_on:
+      - frontend
+
+# ------------------------------------------------------------------------------
+# Rede Interna Isolada
+# ------------------------------------------------------------------------------
+networks:
+  fipex-net:
+    name: fipex-net
+    driver: bridge

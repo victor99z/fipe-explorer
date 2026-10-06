@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from backend.core.cache import cache_store
 from backend.repositories.filter_repository import FilterRepository
 
