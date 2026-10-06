@@ -1,13 +1,14 @@
 import os
-from fastapi import APIRouter, Depends
+from typing import Optional
+from fastapi import APIRouter, Depends, Header, HTTPException
 from backend.core.config import settings
 from backend.core.database import check_is_enriched, IS_ENRICHED
 from backend.services.vehicle_service import VehicleService
 from backend.api.deps import get_vehicle_service
 
-router = APIRouter(tags=["Sistema"])
+router = APIRouter()
 
-@router.get("/health")
+@router.get("/health", include_in_schema=False)
 def health_check(vehicle_service: VehicleService = Depends(get_vehicle_service)):
     # Reavalia o caminho caso o arquivo tenha sido baixado em background
     if not os.path.exists(settings.PARQUET_FILE):
@@ -41,8 +42,18 @@ def health_check(vehicle_service: VehicleService = Depends(get_vehicle_service))
             "is_enriched": False
         }
 
-@router.post("/internal/refresh", summary="Invalida caches em memória e recarrega dataset")
-def refresh_dataset(vehicle_service: VehicleService = Depends(get_vehicle_service)):
+@router.post("/internal/refresh", include_in_schema=False)
+def refresh_dataset(
+    x_internal_token: Optional[str] = Header(None, alias="X-Internal-Token"),
+    vehicle_service: VehicleService = Depends(get_vehicle_service)
+):
+    # Proteção de acesso administrativo interno
+    if settings.INTERNAL_API_KEY and x_internal_token != settings.INTERNAL_API_KEY:
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso não autorizado: endpoint de uso exclusivamente interno do sistema."
+        )
+
     from backend.core.cache import cache_store
     cache_store.clear()
     settings.PARQUET_FILE = settings.resolve_parquet_file()

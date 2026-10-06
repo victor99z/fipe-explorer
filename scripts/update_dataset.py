@@ -107,9 +107,14 @@ def notify_backend(backend_url: str):
     if not backend_url:
         return
     endpoint = f"{backend_url.rstrip('/')}/api/internal/refresh"
+    token = os.getenv("INTERNAL_API_KEY", "fipex-internal-secret-token")
+    headers = {
+        "User-Agent": "fipex-updater/1.0",
+        "X-Internal-Token": token
+    }
     print(f"[*] Notificando backend em: {endpoint}")
     try:
-        res = requests.post(endpoint, timeout=10)
+        res = requests.post(endpoint, headers=headers, timeout=10)
         if res.ok:
             data = res.json()
             print(f"[✓] Backend respondeu: {data.get('message')} (Total registros: {data.get('total_records'):,})")

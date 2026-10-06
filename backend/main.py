@@ -24,8 +24,8 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Root status endpoint
-    @app.get("/", tags=["Sistema"], summary="Status e Metadados do Serviço")
+    # Root status endpoint (oculto da documentação pública)
+    @app.get("/", include_in_schema=False)
     def root():
         return {
             "service": "FIPEX Explorer API",

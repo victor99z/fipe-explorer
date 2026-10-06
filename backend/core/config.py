@@ -27,6 +27,9 @@ class Settings:
     # Caching
     CACHE_DEFAULT_TTL: float = float(os.getenv("CACHE_DEFAULT_TTL", "300.0"))
 
+    # Internal Administrative Secret
+    INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "fipex-internal-secret-token")
+
     def resolve_parquet_file(self) -> str:
         """Finds the enriched or base parquet file from known paths."""
         candidates: List[str] = [
