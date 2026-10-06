@@ -108,7 +108,7 @@ Colunas pré-calculadas pelo script `scripts/enrich_parquet.py`:
 
 ---
 
-## 🚀 Deploy de Produção (Docker Compose & Cloudflare Tunnel)
+## 🚀 Deploy de Produção (Coolify / VPS / Docker Compose)
 
 ### 1. Configurar Variáveis de Ambiente
 Copie o arquivo de exemplo e preencha suas variáveis:
@@ -118,30 +118,46 @@ cp .env.example .env
 
 Parâmetros principais no `.env`:
 ```env
-# Porta HTTP local exposta no host
-FRONTEND_PORT=8080
-
-# Token do Cloudflare Zero Trust (Networks > Tunnels)
-CLOUDFLARE_TUNNEL_TOKEN=ey...
+# Porta HTTP local exposta no host (padrão 8085)
+FRONTEND_PORT=8085
 
 # Intervalo de checagem de atualizações do dataset (em horas)
 UPDATE_INTERVAL_HOURS=24
+
+# Cloudflare Tunnel (opcional, ativado com profile 'tunnel')
+# COMPOSE_PROFILES=tunnel
+# CLOUDFLARE_TUNNEL_TOKEN=ey...
 ```
 
-### 2. Iniciar os Serviços
+### 2. Iniciar em Produção
 
-#### Produção Completa (com Cloudflare Tunnel)
-Conecta sua aplicação de forma segura e criptografada à borda da Cloudflare sem precisar abrir portas no roteador/firewall:
 ```bash
+# Via arquivo padrão (Coolify / Docker Compose):
 docker compose up -d
-```
-> **No painel do Cloudflare Zero Trust:** Aponte o Public Hostname do túnel para `http://frontend:80`.
 
-#### Execução Local (sem Cloudflare Tunnel)
-```bash
-docker compose up -d backend frontend
+# Ou explicitamente via docker-compose.prod.yml:
+docker compose -f docker-compose.prod.yml up -d
 ```
-Acesse no navegador: `http://localhost:8080`.
+Acesse no navegador: `http://localhost:8085` (ou na porta configurada em `FRONTEND_PORT`).
+
+> **Com Cloudflare Tunnel:**
+> ```bash
+> docker compose --profile tunnel up -d
+> ```
+
+---
+
+## 💻 Desenvolvimento com Docker (Dev Compose com Hot-Reload)
+
+Para iterar rapidamente no código com **Hot Module Replacement (HMR)** no frontend e **Uvicorn --reload** no backend:
+
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+- **Frontend Vite (HMR):** `http://localhost:3000`
+- **Backend FastAPI (--reload):** `http://localhost:8000`
+- **Swagger Docs:** `http://localhost:8000/docs`
+- As alterações em `frontend/src/`, `backend/` e `server.py` refletem instantaneamente no navegador sem rebuild.
 
 ---
 

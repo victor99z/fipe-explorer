@@ -1,0 +1,77 @@
+# ==============================================================================
+# FIPEX EXPLORER - DOCKER COMPOSE DE DESENVOLVIMENTO (DEV)
+# ==============================================================================
+#
+# Modo de uso:
+#   docker compose -f docker-compose.dev.yml up --build
+#
+# Recursos em desenvolvimento:
+#   - Frontend com Hot Module Replacement (HMR) e Vite ativo na porta 3000
+#   - Backend FastAPI com Uvicorn --reload ativo na porta 8000
+#   - Swagger UI interativo em http://localhost:8000/docs
+#   - Bind mount dos diretórios de código para reflexo instantâneo de alterações
+#   - Volume do dataset montado diretamente de ./data local
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # Backend Dev: FastAPI + Uvicorn com hot-reload ativo
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: fipex-dev-backend
+    restart: unless-stopped
+    command: ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+      - DEBUG=true
+      - HOST=0.0.0.0
+      - PORT=8000
+      - PARQUET_FILE=/app/data/fipex-prices-enriched.parquet
+      - RATE_LIMIT_ENABLED=false
+    volumes:
+      - ./backend:/app/backend
+      - ./server.py:/app/server.py
+      - ./scripts:/app/scripts
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+    networks:
+      - fipex-dev-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ----------------------------------------------------------------------------
+  # Frontend Dev: Vite Dev Server com HMR em tempo real
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: fipex-dev-frontend
+    restart: unless-stopped
+    environment:
+      - VITE_BACKEND_URL=http://backend:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    networks:
+      - fipex-dev-net
+    depends_on:
+      backend:
+        condition: service_healthy
+
+# ------------------------------------------------------------------------------
+# Rede Interna Isolada de Desenvolvimento
+# ------------------------------------------------------------------------------
+networks:
+  fipex-dev-net:
+    name: fipex-dev-net
+    driver: bridge
