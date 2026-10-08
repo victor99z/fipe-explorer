@@ -145,3 +145,9 @@ export interface EngineSizeItem {
   total_modelos: number;
 }
 
+export interface FuelItem {
+  nome: string;
+  sigla: string;
+  total_modelos: number;
+}
+

@@ -100,3 +100,12 @@ body {
 .font-mono-code {
   font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
+
+/* Hide scrollbar for clean horizontal mobile swipe */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

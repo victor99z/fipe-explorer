@@ -75,6 +75,42 @@ export default function CustomDropdown<T extends string | number = string>({
     };
   }, [isOpen]);
 
+  // Dynamic safe viewport positioning so dropdown never overflows left or right
+  const [dropdownPositionStyle, setDropdownPositionStyle] = useState<React.CSSProperties>({});
+
+  useEffect(() => {
+    if (isOpen && dropdownRef.current) {
+      const updatePosition = () => {
+        if (!dropdownRef.current) return;
+        const rect = dropdownRef.current.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const menuWidth = Math.min(280, viewportWidth - 24);
+        
+        let targetLeft = rect.left;
+        if (align === 'right' || rect.left + menuWidth > viewportWidth - 12) {
+          targetLeft = rect.right - menuWidth;
+        }
+        
+        const clampedLeft = Math.max(12, Math.min(targetLeft, viewportWidth - menuWidth - 12));
+        const offsetLeft = clampedLeft - rect.left;
+        
+        setDropdownPositionStyle({
+          left: `${offsetLeft}px`,
+          minWidth: `${Math.max(rect.width, Math.min(220, menuWidth))}px`,
+          maxWidth: `${viewportWidth - 24}px`,
+        });
+      };
+      
+      updatePosition();
+      window.addEventListener('resize', updatePosition);
+      window.addEventListener('scroll', updatePosition, true);
+      return () => {
+        window.removeEventListener('resize', updatePosition);
+        window.removeEventListener('scroll', updatePosition, true);
+      };
+    }
+  }, [isOpen, align]);
+
   // Focus search input when open
   useEffect(() => {
     if (isOpen && searchable && searchInputRef.current) {
@@ -123,9 +159,9 @@ export default function CustomDropdown<T extends string | number = string>({
 
       {isOpen && (
         <div
+          style={dropdownPositionStyle}
           className={cn(
-            "absolute top-full mt-1.5 min-w-full bg-[#ffffff] dark:bg-[#18181b] border border-[#dfdfdf] dark:border-[#27272a] rounded-[8px] shadow-2xl z-50 p-1.5 flex flex-col animate-in fade-in duration-100",
-            align === "right" ? "right-0" : "left-0",
+            "absolute top-full mt-1.5 bg-[#ffffff] dark:bg-[#18181b] border border-[#dfdfdf] dark:border-[#27272a] rounded-[8px] shadow-2xl z-50 p-1.5 flex flex-col animate-in fade-in duration-100",
             menuClassName
           )}
         >

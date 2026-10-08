@@ -58,6 +58,24 @@ PRESETS_DATA: List[Dict[str, Any]] = [
         "badge": "Popular"
     },
     {
+        "id": "byd-dolphin-2024",
+        "title": "BYD Dolphin EV 2024",
+        "subtitle": "100% Elétrico pioneiro e líder de vendas",
+        "tipo_veiculo": "carro",
+        "search_term": "dolphin",
+        "ano_modelo": 2024,
+        "badge": "Elétrico"
+    },
+    {
+        "id": "corolla-hybrid-2020",
+        "title": "Toyota Corolla Altis Hybrid 2020",
+        "subtitle": "Sedã híbrido flex com alta economia",
+        "tipo_veiculo": "carro",
+        "search_term": "corolla altis hybrid",
+        "ano_modelo": 2020,
+        "badge": "Híbrido"
+    },
+    {
         "id": "hornet-600-2012",
         "title": "Honda CB 600F Hornet 2012",
         "subtitle": "Moto 4 cilindros valorizada",

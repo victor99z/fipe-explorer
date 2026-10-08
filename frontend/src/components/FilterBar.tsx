@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Filter, Calendar, BarChart3, RefreshCw, Car, Bike, Truck, ChevronDown, Flame, Gauge, Check, X, Search } from 'lucide-react';
+import { Filter, Calendar, BarChart3, RefreshCw, Car, Bike, Truck, ChevronDown, Flame, Gauge, Check, X, Search, Zap, Leaf } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -16,6 +16,7 @@ export interface FilterBarState {
   ano_modelo?: number | null;
   motorizacao?: string;
   cambio?: string;
+  combustivel?: string;
   groupby?: string;
   metrica_ano?: string;
   codigo_fipe?: string | null;
@@ -391,6 +392,60 @@ export default function FilterBar({ filters, onChange, onReset }: FilterBarProps
               <option value="max">Maior Valor</option>
               <option value="min">Menor Valor</option>
             </Select>
+          </div>
+        </div>
+
+        {/* Row 3: Combustível & Eletrificados */}
+        <div className="pt-2">
+          <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            Propulsão / Combustível
+          </label>
+          <div className="flex flex-wrap gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+            <Button
+              type="button"
+              variant={filters.combustivel === 'todos' || !filters.combustivel ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => onChange({ combustivel: 'todos' })}
+              className="h-8 text-[11px] cursor-pointer"
+            >
+              Todos
+            </Button>
+            <Button
+              type="button"
+              variant={filters.combustivel === 'flex,gasolina' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => onChange({ combustivel: 'flex,gasolina' })}
+              className="h-8 text-[11px] cursor-pointer"
+            >
+              Flex & Gasolina
+            </Button>
+            <Button
+              type="button"
+              variant={filters.combustivel === 'hibrido_eletrico' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => onChange({ combustivel: 'hibrido_eletrico' })}
+              className={`h-8 text-[11px] cursor-pointer ${filters.combustivel === 'hibrido_eletrico' ? 'bg-emerald-600 hover:bg-emerald-500' : 'text-emerald-400'}`}
+            >
+              ⚡ Híbridos & Elétricos
+            </Button>
+            <Button
+              type="button"
+              variant={filters.combustivel === 'hibrido' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => onChange({ combustivel: 'hibrido' })}
+              className="h-8 text-[11px] cursor-pointer"
+            >
+              <Leaf className="w-3 h-3 mr-1 text-emerald-400" /> Híbrido
+            </Button>
+            <Button
+              type="button"
+              variant={filters.combustivel === 'eletrico' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => onChange({ combustivel: 'eletrico' })}
+              className="h-8 text-[11px] cursor-pointer"
+            >
+              <Zap className="w-3 h-3 mr-1 text-cyan-400" /> Elétrico
+            </Button>
           </div>
         </div>
       </CardContent>
