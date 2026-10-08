@@ -113,9 +113,58 @@ class SqlQueryBuilder:
                 params.append(float(ano_max))
 
         # Fuel
-        if combustivel:
-            where_clauses.append("lower(nome_combustivel) LIKE ?")
-            params.append(f"%{combustivel.lower()}%")
+        if combustivel and combustivel.strip() and combustivel.strip().lower() not in ("todos", "todas", "all"):
+            clean_comb = combustivel.strip().lower()
+            tokens = [t.strip() for t in clean_comb.split(",") if t.strip()]
+            fuel_subclauses = []
+            siglas = set()
+            name_patterns = []
+
+            for token in tokens:
+                if token in ("hibrido_eletrico", "eletrificado", "eletrificados", "hibridos_eletricos", "eletrificado_hibrido"):
+                    siglas.add("h")
+                    siglas.add("l")
+                    name_patterns.append("%híbrido%")
+                    name_patterns.append("%elétrico%")
+                elif token in ("flex_gasolina", "gasolina_flex"):
+                    siglas.add("f")
+                    siglas.add("g")
+                    name_patterns.append("%flex%")
+                    name_patterns.append("%gasolina%")
+                elif token in ("hibrido", "híbrido"):
+                    siglas.add("h")
+                    name_patterns.append("%híbrido%")
+                elif token in ("eletrico", "elétrico"):
+                    siglas.add("l")
+                    name_patterns.append("%elétrico%")
+                elif token == "flex":
+                    siglas.add("f")
+                    name_patterns.append("%flex%")
+                elif token == "gasolina":
+                    siglas.add("g")
+                    name_patterns.append("%gasolina%")
+                elif token == "diesel":
+                    siglas.add("d")
+                    name_patterns.append("%diesel%")
+                elif token in ("alcool", "álcool", "etanol"):
+                    siglas.add("e")
+                    name_patterns.append("%álcool%")
+                elif token in ("gnv", "gas", "gás", "gás natural"):
+                    siglas.add("n")
+                    name_patterns.append("%gás%")
+                else:
+                    name_patterns.append(f"%{token}%")
+
+            if siglas:
+                placeholders = ", ".join(["?"] * len(siglas))
+                fuel_subclauses.append(f"sigla_combustivel IN ({placeholders})")
+                params.extend(sorted(list(siglas)))
+            for pat in name_patterns:
+                fuel_subclauses.append("lower(nome_combustivel) LIKE ?")
+                params.append(pat)
+
+            if fuel_subclauses:
+                where_clauses.append(f"({' OR '.join(fuel_subclauses)})")
 
         # Motorization (Turbo vs Aspirated)
         if motorizacao == "turbo":

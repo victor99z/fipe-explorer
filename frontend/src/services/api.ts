@@ -5,7 +5,8 @@ import {
   HistoryQueryParams,
   PresetItem,
   SuggestionItem,
-  EngineSizeItem
+  EngineSizeItem,
+  FuelItem
 } from '../types/vehicle';
 
 /**
@@ -24,6 +25,14 @@ export async function fetchEngineSizes(tipoVeiculo: string = 'carro'): Promise<E
   const res = await fetch(`/api/filters/engine-sizes?tipo_veiculo=${encodeURIComponent(tipoVeiculo)}`);
   if (!res.ok) {
     throw new Error(`Falha ao carregar litragens: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function fetchFuels(tipoVeiculo: string = 'carro'): Promise<FuelItem[]> {
+  const res = await fetch(`/api/filters/fuels?tipo_veiculo=${encodeURIComponent(tipoVeiculo)}`);
+  if (!res.ok) {
+    throw new Error(`Falha ao carregar combustíveis: ${res.statusText}`);
   }
   return res.json();
 }

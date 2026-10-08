@@ -53,3 +53,13 @@ class FilterService:
         sizes = self.repo.get_engine_sizes(tipo_veiculo)
         cache_store.set(cache_key, sizes, ttl_seconds=3600)
         return sizes
+
+    def get_fuels(self, tipo_veiculo: str = "carro") -> List[Dict[str, Any]]:
+        cache_key = f"fuels:{tipo_veiculo}"
+        cached = cache_store.get(cache_key)
+        if cached is not None:
+            return cached
+
+        fuels = self.repo.get_fuels(tipo_veiculo)
+        cache_store.set(cache_key, fuels, ttl_seconds=3600)
+        return fuels

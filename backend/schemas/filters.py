@@ -22,3 +22,8 @@ class EngineSizeItem(BaseModel):
     litragem: str
     total_modelos: int
 
+class FuelItem(BaseModel):
+    nome: str
+    sigla: str
+    total_modelos: int
+

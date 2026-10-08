@@ -100,3 +100,26 @@ class FilterRepository:
                     ORDER BY TRY_CAST(litragem AS DOUBLE) ASC
                 """, [tipo_veiculo]).fetchall()
         return [{"litragem": row[0], "total_modelos": row[1]} for row in res if row[0]]
+
+    @staticmethod
+    def get_fuels(tipo_veiculo: str = "carro") -> List[Dict[str, Any]]:
+        with db_session() as con:
+            res = con.execute(f"""
+                SELECT 
+                    nome_combustivel,
+                    sigla_combustivel,
+                    COUNT(DISTINCT codigo_fipe) as total_modelos
+                FROM '{settings.PARQUET_FILE}'
+                WHERE tipo_veiculo = ? 
+                  AND nome_combustivel IS NOT NULL AND nome_combustivel != ''
+                GROUP BY nome_combustivel, sigla_combustivel
+                ORDER BY total_modelos DESC
+            """, [tipo_veiculo]).fetchall()
+        return [
+            {
+                "nome": row[0],
+                "sigla": row[1],
+                "total_modelos": row[2]
+            }
+            for row in res if row[0]
+        ]

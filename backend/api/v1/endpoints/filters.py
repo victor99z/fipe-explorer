@@ -2,7 +2,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Query, Depends
 from backend.services.filter_service import FilterService
 from backend.api.deps import get_filter_service
-from backend.schemas.filters import EngineSizeItem
+from backend.schemas.filters import EngineSizeItem, FuelItem
 
 router = APIRouter(prefix="/filters", tags=["Filters"])
 
@@ -43,3 +43,10 @@ def get_engine_sizes(
     service: FilterService = Depends(get_filter_service)
 ):
     return service.get_engine_sizes(tipo_veiculo=tipo_veiculo)
+
+@router.get("/fuels", response_model=List[FuelItem])
+def get_fuels(
+    tipo_veiculo: str = Query("carro", description="carro, moto ou caminhao"),
+    service: FilterService = Depends(get_filter_service)
+):
+    return service.get_fuels(tipo_veiculo=tipo_veiculo)

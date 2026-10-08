@@ -31,7 +31,7 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-[#ffffff] dark:bg-[#121212] text-[#171717] dark:text-[#ededed] transition-colors">
       <Navbar theme={theme} onToggleTheme={toggleTheme} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
         <BudgetFinderView />
       </main>
 
