@@ -17,6 +17,16 @@ class VehicleItem(BaseModel):
     is_turbo: bool = False
     is_automatico: bool = False
     tipo_cambio: str = "Manual/Indefinido"
+    consumo_urbano_gasolina: Optional[float] = None
+    consumo_rodoviario_gasolina: Optional[float] = None
+    consumo_urbano_etanol: Optional[float] = None
+    consumo_rodoviario_etanol: Optional[float] = None
+    consumo_urbano_eletrico: Optional[float] = None
+    consumo_rodoviario_eletrico: Optional[float] = None
+    eficiencia_mj_km: Optional[float] = None
+    autonomia_km: Optional[int] = None
+    nota_pbe: Optional[str] = None
+    match_consumo: Optional[str] = None
 
 class VehicleSearchResponse(BaseModel):
     total_encontrados: int

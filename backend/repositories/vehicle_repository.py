@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Tuple
 from backend.core.config import settings
-from backend.core.database import db_session, IS_ENRICHED
+from backend.core import database
+from backend.core.database import db_session
 from backend.repositories.query_builder import SqlQueryBuilder
 from backend.domain.calculations import format_currency
 from backend.domain.vehicle_rules import determine_transmission_label, infer_specs_from_name
@@ -104,7 +105,8 @@ class VehicleRepository:
             "variacao_asc": "variacao_pct ASC",
             "desvalorizacao_desc": "variacao_pct ASC",
             "desvalorizacao_asc": "variacao_pct DESC",
-            "modelo_asc": "nome_modelo ASC"
+            "modelo_asc": "nome_modelo ASC",
+            "consumo_desc": "COALESCE(consumo_urbano_gasolina, consumo_urbano_eletrico, consumo_urbano_etanol) DESC NULLS LAST, valor ASC",
         }
         order_sql = order_map.get(ordenacao, "valor DESC")
 
@@ -126,15 +128,30 @@ class VehicleRepository:
             var_pct = row[10]
             nome_mod = row[2] or ""
 
-            if IS_ENRICHED and len(row) >= 15:
+            is_enriched = database.IS_ENRICHED
+            if is_enriched and len(row) >= 15:
                 eng_size = row[11]
                 is_turbo = bool(row[12])
                 is_auto = bool(row[13])
                 is_manual = bool(row[14])
+                cons_offset = 15
             else:
                 eng_size, is_turbo, is_auto, is_manual = infer_specs_from_name(nome_mod)
+                cons_offset = 11
 
             tipo_cambio = determine_transmission_label(is_auto, is_manual)
+
+            has_cons_cols = len(row) >= cons_offset + 10
+            c_urb_gas = float(row[cons_offset]) if has_cons_cols and row[cons_offset] is not None else None
+            c_rod_gas = float(row[cons_offset + 1]) if has_cons_cols and row[cons_offset + 1] is not None else None
+            c_urb_eta = float(row[cons_offset + 2]) if has_cons_cols and row[cons_offset + 2] is not None else None
+            c_rod_eta = float(row[cons_offset + 3]) if has_cons_cols and row[cons_offset + 3] is not None else None
+            c_urb_ele = float(row[cons_offset + 4]) if has_cons_cols and row[cons_offset + 4] is not None else None
+            c_rod_ele = float(row[cons_offset + 5]) if has_cons_cols and row[cons_offset + 5] is not None else None
+            eficiencia_mj = float(row[cons_offset + 6]) if has_cons_cols and row[cons_offset + 6] is not None else None
+            autonomia_km = int(row[cons_offset + 7]) if has_cons_cols and row[cons_offset + 7] is not None else None
+            nota_pbe = row[cons_offset + 8] if has_cons_cols else None
+            match_consumo = row[cons_offset + 9] if has_cons_cols else None
 
             items.append({
                 "codigo_fipe": row[0],
@@ -151,7 +168,17 @@ class VehicleRepository:
                 "litragem": eng_size,
                 "is_turbo": is_turbo,
                 "is_automatico": is_auto,
-                "tipo_cambio": tipo_cambio
+                "tipo_cambio": tipo_cambio,
+                "consumo_urbano_gasolina": c_urb_gas,
+                "consumo_rodoviario_gasolina": c_rod_gas,
+                "consumo_urbano_etanol": c_urb_eta,
+                "consumo_rodoviario_etanol": c_rod_eta,
+                "consumo_urbano_eletrico": c_urb_ele,
+                "consumo_rodoviario_eletrico": c_rod_ele,
+                "eficiencia_mj_km": eficiencia_mj,
+                "autonomia_km": autonomia_km,
+                "nota_pbe": nota_pbe,
+                "match_consumo": match_consumo,
             })
 
         return total, items

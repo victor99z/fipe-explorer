@@ -20,7 +20,7 @@ def search_by_price(
     cambio: Optional[str] = Query("todos", description="todos, automatico, manual"),
     litragem: Optional[str] = Query("todos", description="todos, 1.0, 1.3, 1.4, 1.5, 1.6, 1.8, 2.0, 2.0+"),
     search: Optional[str] = None,
-    ordenacao: str = Query("preco_desc", description="preco_asc, preco_desc, ano_asc, ano_desc, desvalorizacao_asc, desvalorizacao_desc, modelo_asc"),
+    ordenacao: str = Query("preco_desc", description="preco_asc, preco_desc, ano_asc, ano_desc, desvalorizacao_asc, desvalorizacao_desc, modelo_asc, consumo_desc"),
     page: int = Query(1, ge=1, le=1000, description="Página atual"),
     limit: int = Query(24, ge=1, le=100, description="Itens por página"),
     service: VehicleService = Depends(get_vehicle_service)

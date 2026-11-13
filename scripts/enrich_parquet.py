@@ -34,28 +34,100 @@ def enrich_dataset(input_file: str, output_file: str, threads: int = 4) -> dict:
     total_rows = con.execute(f"SELECT COUNT(*) FROM read_parquet('{input_file}')").fetchone()[0]
     print(f"[*] Total de linhas a processar: {total_rows:,}")
 
+    # Localizar ou gerar matches do INMETRO (PBE Veicular)
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    data_dir = os.path.dirname(os.path.abspath(output_file))
+    matches_candidates = [
+        os.path.join(data_dir, "fipe-inmetro-matches.parquet"),
+        os.path.join(root_dir, "data", "fipe-inmetro-matches.parquet"),
+    ]
+    matches_file = next((p for p in matches_candidates if os.path.exists(p)), None)
+
+    if matches_file is None:
+        inmetro_candidates = [
+            os.path.join(data_dir, "inmetro-pbev.parquet"),
+            os.path.join(root_dir, "data", "inmetro-pbev.parquet"),
+        ]
+        try:
+            if root_dir not in sys.path:
+                sys.path.insert(0, root_dir)
+            from scripts.parse_inmetro_pbev import (
+                build_inmetro_parquet,
+                match_fipe_with_inmetro,
+                MATCHES_PARQUET,
+            )
+            inmetro_df = None
+            existing_inmetro = next((p for p in inmetro_candidates if os.path.exists(p)), None)
+            if existing_inmetro is None:
+                print("[*] Base INMETRO não encontrada; baixando e processando tabelas PBEV...")
+                inmetro_df = build_inmetro_parquet(force_download=False)
+            print("[*] Gerando cruzamento INMETRO x FIPE automaticamente...")
+            match_fipe_with_inmetro(input_file, inmetro_df)
+            if os.path.exists(MATCHES_PARQUET):
+                matches_file = MATCHES_PARQUET
+        except Exception as exc:
+            print(f"[!] Aviso: Não foi possível cruzar dados do INMETRO: {exc}")
+
+    if matches_file and os.path.exists(matches_file):
+        print(f"[*] Enriquecendo com consumo INMETRO: {matches_file}")
+        inmetro_select = """
+            m.consumo_urbano_gasolina,
+            m.consumo_rodoviario_gasolina,
+            m.consumo_urbano_etanol,
+            m.consumo_rodoviario_etanol,
+            m.consumo_urbano_eletrico,
+            m.consumo_rodoviario_eletrico,
+            m.eficiencia_mj_km,
+            CAST(m.autonomia_km AS INTEGER) AS autonomia_km,
+            m.nota_pbe,
+            m.match_consumo
+        """
+        inmetro_join = f"""
+        LEFT JOIN read_parquet('{matches_file}') m
+            ON p.codigo_fipe = m.codigo_fipe
+           AND CAST(p.ano_modelo AS BIGINT) = CAST(m.ano_modelo AS BIGINT)
+        """
+    else:
+        print("[!] Arquivo de matches INMETRO não encontrado; colunas de consumo ficarão nulas.")
+        inmetro_select = """
+            CAST(NULL AS DOUBLE) AS consumo_urbano_gasolina,
+            CAST(NULL AS DOUBLE) AS consumo_rodoviario_gasolina,
+            CAST(NULL AS DOUBLE) AS consumo_urbano_etanol,
+            CAST(NULL AS DOUBLE) AS consumo_rodoviario_etanol,
+            CAST(NULL AS DOUBLE) AS consumo_urbano_eletrico,
+            CAST(NULL AS DOUBLE) AS consumo_rodoviario_eletrico,
+            CAST(NULL AS DOUBLE) AS eficiencia_mj_km,
+            CAST(NULL AS INTEGER) AS autonomia_km,
+            CAST(NULL AS VARCHAR) AS nota_pbe,
+            CAST(NULL AS VARCHAR) AS match_consumo
+        """
+        inmetro_join = ""
+
     query = f"""
     COPY (
         SELECT 
-            tipo_veiculo,
-            codigo_fipe,
-            nome_modelo,
-            nome_marca,
-            nome_combustivel,
-            sigla_combustivel,
-            CAST(ano_modelo AS BIGINT) AS ano_modelo,
-            zero_km,
-            valor_centavos,
-            valor_formatado,
-            mes_referencia,
-            ano_referencia,
+            p.tipo_veiculo,
+            p.codigo_fipe,
+            p.nome_modelo,
+            p.nome_marca,
+            p.nome_combustivel,
+            p.sigla_combustivel,
+            CAST(p.ano_modelo AS BIGINT) AS ano_modelo,
+            p.zero_km,
+            p.valor_centavos,
+            p.valor_formatado,
+            p.mes_referencia,
+            p.ano_referencia,
             -- Colunas pré-calculadas
-            CAST(regexp_extract(nome_modelo, '([0-9]\\.[0-9])', 1) AS VARCHAR) AS litragem,
-            TRY_CAST(regexp_extract(nome_modelo, '([0-9]\\.[0-9])', 1) AS DOUBLE) AS litragem_num,
-            CAST(regexp_matches(lower(nome_modelo), '{TURBO_PATTERN}') AS BOOLEAN) AS is_turbo,
-            CAST(regexp_matches(lower(nome_modelo), '{AUTOMATIC_PATTERN}') AS BOOLEAN) AS is_automatico,
-            CAST(regexp_matches(lower(nome_modelo), '{MANUAL_PATTERN}') AS BOOLEAN) AS is_manual
-        FROM read_parquet('{input_file}')
+            CAST(regexp_extract(p.nome_modelo, '([0-9]\\.[0-9])', 1) AS VARCHAR) AS litragem,
+            TRY_CAST(regexp_extract(p.nome_modelo, '([0-9]\\.[0-9])', 1) AS DOUBLE) AS litragem_num,
+            CAST(regexp_matches(lower(p.nome_modelo), '{TURBO_PATTERN}') AS BOOLEAN) AS is_turbo,
+            CAST(regexp_matches(lower(p.nome_modelo), '{AUTOMATIC_PATTERN}') AS BOOLEAN) AS is_automatico,
+            CAST(regexp_matches(lower(p.nome_modelo), '{MANUAL_PATTERN}') AS BOOLEAN) AS is_manual,
+            -- Consumo & Eficiência INMETRO PBEV
+            {inmetro_select}
+        FROM read_parquet('{input_file}') p
+        {inmetro_join}
     ) TO '{output_file}' (FORMAT PARQUET, COMPRESSION ZSTD);
     """
 
@@ -75,7 +147,9 @@ def enrich_dataset(input_file: str, output_file: str, threads: int = 4) -> dict:
             COUNT(*) FILTER (WHERE is_turbo = true) as total_turbo,
             COUNT(*) FILTER (WHERE is_automatico = true) as total_automatico,
             COUNT(*) FILTER (WHERE is_manual = true) as total_manual,
-            COUNT(DISTINCT litragem) as total_litragens
+            COUNT(DISTINCT litragem) as total_litragens,
+            COUNT(*) FILTER (WHERE match_consumo IS NOT NULL) as total_com_consumo,
+            COUNT(DISTINCT (codigo_fipe, ano_modelo)) FILTER (WHERE match_consumo IS NOT NULL) as modelos_com_consumo
         FROM read_parquet('{output_file}')
     """).fetchone()
 
@@ -89,13 +163,16 @@ def enrich_dataset(input_file: str, output_file: str, threads: int = 4) -> dict:
         "total_turbo": stats[0],
         "total_automatico": stats[1],
         "total_manual": stats[2],
-        "total_litragens": stats[3]
+        "total_litragens": stats[3],
+        "total_com_consumo": stats[4],
+        "modelos_com_consumo": stats[5],
     }
 
     print(f"    - Veículos Turbo: {stats[0]:,}")
     print(f"    - Veículos Automáticos: {stats[1]:,}")
     print(f"    - Veículos Manuais: {stats[2]:,}")
     print(f"    - Variações de Litragem: {stats[3]:,}")
+    print(f"    - Linhas com Consumo INMETRO: {stats[4]:,} ({stats[5]:,} pares modelo/ano)")
     print(f"[✓] Validação concluída com sucesso em {total_time:.2f}s!")
 
     return result

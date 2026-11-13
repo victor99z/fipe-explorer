@@ -14,6 +14,16 @@ export interface Vehicle {
   is_turbo?: boolean;
   is_automatico?: boolean;
   tipo_cambio?: string;
+  consumo_urbano_gasolina?: number | null;
+  consumo_rodoviario_gasolina?: number | null;
+  consumo_urbano_etanol?: number | null;
+  consumo_rodoviario_etanol?: number | null;
+  consumo_urbano_eletrico?: number | null;
+  consumo_rodoviario_eletrico?: number | null;
+  eficiencia_mj_km?: number | null;
+  autonomia_km?: number | null;
+  nota_pbe?: string | null;
+  match_consumo?: string | null;
 }
 
 export interface VehicleSearchResponse {

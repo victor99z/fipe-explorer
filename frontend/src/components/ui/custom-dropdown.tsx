@@ -138,6 +138,8 @@ export default function CustomDropdown<T extends string | number = string>({
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
           className={cn(
             "h-8 w-full inline-flex items-center justify-between gap-2 px-2.5 rounded-[6px] text-xs transition-colors border cursor-pointer focus:outline-none",
             isOpen

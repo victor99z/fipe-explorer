@@ -21,7 +21,6 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: fipex-dev-backend
     restart: unless-stopped
     command: ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     environment:
@@ -53,7 +52,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
-    container_name: fipex-dev-frontend
     restart: unless-stopped
     environment:
       - VITE_BACKEND_URL=http://backend:8000
@@ -73,5 +71,4 @@ services:
 # ------------------------------------------------------------------------------
 networks:
   fipex-dev-net:
-    name: fipex-dev-net
     driver: bridge

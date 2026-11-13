@@ -7,11 +7,12 @@ from backend.core.config import settings
 # Concurrency semaphore for DuckDB query throttling
 DB_SEMAPHORE = threading.BoundedSemaphore(settings.MAX_CONCURRENT_QUERIES)
 
-# Detect if the parquet file has precomputed columns (is_turbo, is_automatico, litragem)
+# Detect if the parquet file has precomputed columns (is_turbo, is_automatico, litragem) and INMETRO consumption
 IS_ENRICHED = False
+HAS_CONSUMPTION = False
 
 def check_is_enriched() -> bool:
-    global IS_ENRICHED
+    global IS_ENRICHED, HAS_CONSUMPTION
     if not os.path.exists(settings.PARQUET_FILE):
         settings.PARQUET_FILE = settings.resolve_parquet_file()
     if os.path.exists(settings.PARQUET_FILE):
@@ -19,6 +20,7 @@ def check_is_enriched() -> bool:
             _chk = duckdb.connect()
             _cols = [c[0] for c in _chk.execute(f"DESCRIBE SELECT * FROM '{settings.PARQUET_FILE}' LIMIT 1").fetchall()]
             IS_ENRICHED = "is_turbo" in _cols and "is_automatico" in _cols and "litragem" in _cols
+            HAS_CONSUMPTION = "consumo_urbano_gasolina" in _cols and "nota_pbe" in _cols
             _chk.close()
         except Exception as _e:
             print(f"Aviso ao verificar colunas do parquet: {_e}")

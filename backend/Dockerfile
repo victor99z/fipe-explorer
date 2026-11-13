@@ -10,9 +10,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install security updates and curl for container healthcheck
+# Install security updates, curl for container healthcheck, and poppler-utils for pdftotext
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python dependencies

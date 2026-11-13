@@ -2,7 +2,7 @@ import re
 from typing import Tuple, List, Any, Optional
 from backend.core.config import settings
 from backend.core.constants import TURBO_PATTERN, AUTOMATIC_PATTERN, MANUAL_PATTERN
-from backend.core.database import IS_ENRICHED
+from backend.core import database
 
 class SqlQueryBuilder:
     """
@@ -167,23 +167,24 @@ class SqlQueryBuilder:
                 where_clauses.append(f"({' OR '.join(fuel_subclauses)})")
 
         # Motorization (Turbo vs Aspirated)
+        is_enriched = database.IS_ENRICHED
         if motorizacao == "turbo":
-            where_clauses.append("is_turbo = true" if IS_ENRICHED else f"regexp_matches(lower(nome_modelo), '{TURBO_PATTERN}')")
+            where_clauses.append("is_turbo = true" if is_enriched else f"regexp_matches(lower(nome_modelo), '{TURBO_PATTERN}')")
         elif motorizacao == "aspirado":
-            where_clauses.append("is_turbo = false" if IS_ENRICHED else f"NOT regexp_matches(lower(nome_modelo), '{TURBO_PATTERN}')")
+            where_clauses.append("is_turbo = false" if is_enriched else f"NOT regexp_matches(lower(nome_modelo), '{TURBO_PATTERN}')")
 
         # Transmission (Automatic vs Manual)
         if cambio == "automatico":
-            where_clauses.append("is_automatico = true" if IS_ENRICHED else f"regexp_matches(lower(nome_modelo), '{AUTOMATIC_PATTERN}')")
+            where_clauses.append("is_automatico = true" if is_enriched else f"regexp_matches(lower(nome_modelo), '{AUTOMATIC_PATTERN}')")
         elif cambio == "manual":
-            where_clauses.append("is_manual = true" if IS_ENRICHED else f"regexp_matches(lower(nome_modelo), '{MANUAL_PATTERN}')")
+            where_clauses.append("is_manual = true" if is_enriched else f"regexp_matches(lower(nome_modelo), '{MANUAL_PATTERN}')")
 
         # Engine Displacement (litragem)
         if litragem and litragem != "todos":
             if litragem == "2.0+":
-                where_clauses.append("litragem_num >= 2.0" if IS_ENRICHED else "TRY_CAST(regexp_extract(nome_modelo, '([0-9]\\.[0-9])', 1) AS DOUBLE) >= 2.0")
+                where_clauses.append("litragem_num >= 2.0" if is_enriched else "TRY_CAST(regexp_extract(nome_modelo, '([0-9]\\.[0-9])', 1) AS DOUBLE) >= 2.0")
             else:
-                if IS_ENRICHED:
+                if is_enriched:
                     where_clauses.append("litragem = ?")
                     params.append(litragem)
                 else:
@@ -195,11 +196,37 @@ class SqlQueryBuilder:
     @staticmethod
     def build_current_vehicles_cte(where_sql: str, price_where_sql: str) -> str:
         """Constructs reusable base CTE extracting each unique vehicle's latest and initial price."""
-        enriched_cols = ""
-        enriched_sel_cols = ""
-        if IS_ENRICHED:
-            enriched_cols = ", litragem, is_turbo, is_automatico, is_manual"
-            enriched_sel_cols = ", litragem, is_turbo, is_automatico, is_manual"
+        is_enriched = database.IS_ENRICHED
+        has_consumption = database.HAS_CONSUMPTION
+
+        enriched_sel_cols = ", litragem, is_turbo, is_automatico, is_manual" if is_enriched else ""
+        if has_consumption:
+            consumption_inner = (
+                "consumo_urbano_gasolina, consumo_rodoviario_gasolina, "
+                "consumo_urbano_etanol, consumo_rodoviario_etanol, "
+                "consumo_urbano_eletrico, consumo_rodoviario_eletrico, "
+                "eficiencia_mj_km, autonomia_km, nota_pbe, match_consumo,"
+            )
+            consumption_outer = (
+                ", consumo_urbano_gasolina, consumo_rodoviario_gasolina, "
+                "consumo_urbano_etanol, consumo_rodoviario_etanol, "
+                "consumo_urbano_eletrico, consumo_rodoviario_eletrico, "
+                "eficiencia_mj_km, autonomia_km, nota_pbe, match_consumo"
+            )
+        else:
+            consumption_inner = ""
+            consumption_outer = (
+                ", CAST(NULL AS DOUBLE) AS consumo_urbano_gasolina, "
+                "CAST(NULL AS DOUBLE) AS consumo_rodoviario_gasolina, "
+                "CAST(NULL AS DOUBLE) AS consumo_urbano_etanol, "
+                "CAST(NULL AS DOUBLE) AS consumo_rodoviario_etanol, "
+                "CAST(NULL AS DOUBLE) AS consumo_urbano_eletrico, "
+                "CAST(NULL AS DOUBLE) AS consumo_rodoviario_eletrico, "
+                "CAST(NULL AS DOUBLE) AS eficiencia_mj_km, "
+                "CAST(NULL AS INTEGER) AS autonomia_km, "
+                "CAST(NULL AS VARCHAR) AS nota_pbe, "
+                "CAST(NULL AS VARCHAR) AS match_consumo"
+            )
 
         return f"""
             WITH latest_prices AS (
@@ -209,7 +236,8 @@ class SqlQueryBuilder:
                     nome_modelo,
                     CAST(ano_modelo AS INT) as ano_modelo,
                     nome_combustivel,
-                    { 'litragem, is_turbo, is_automatico, is_manual,' if IS_ENRICHED else '' }
+                    { 'litragem, is_turbo, is_automatico, is_manual,' if is_enriched else '' }
+                    {consumption_inner}
                     valor_centavos / 100.0 as valor,
                     valor_formatado,
                     ano_referencia,
@@ -232,7 +260,8 @@ class SqlQueryBuilder:
                     nome_modelo,
                     ano_modelo,
                     nome_combustivel,
-                    { 'litragem, is_turbo, is_automatico, is_manual,' if IS_ENRICHED else '' }
+                    { 'litragem, is_turbo, is_automatico, is_manual,' if is_enriched else '' }
+                    {consumption_inner}
                     valor,
                     valor_formatado,
                     mes_referencia,
@@ -255,6 +284,7 @@ class SqlQueryBuilder:
                 valor_inicial,
                 variacao_pct
                 {enriched_sel_cols}
+                {consumption_outer}
             FROM current_vehicles
             WHERE {price_where_sql}
         """
