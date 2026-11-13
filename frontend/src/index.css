@@ -8,6 +8,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  color-scheme: light;
   --primary: #3ecf8e;
   --primary-deep: #24b47e;
   --primary-soft: #4ade80;
@@ -35,6 +36,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --primary: #3ecf8e;
   --primary-deep: #24b47e;
   --primary-soft: #4ade80;
@@ -94,9 +96,22 @@ p, li {
   text-wrap: pretty;
 }
 
-:where(a, button, input, select, textarea, [role="button"]):focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+@layer base {
+  :where(a, button, [role="button"]):focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
 }
 
 /* Subtle scrollbar */

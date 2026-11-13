@@ -168,7 +168,7 @@ export default function CustomDropdown<T extends string | number = string>({
           )}
         >
           {searchable && (
-            <div className="relative mb-1.5 px-0.5 pt-0.5">
+            <div className="relative mb-1.5 px-0.5">
               <Search className="w-3.5 h-3.5 text-[#9a9a9a] dark:text-[#71717a] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 ref={searchInputRef}
@@ -176,7 +176,7 @@ export default function CustomDropdown<T extends string | number = string>({
                 placeholder={searchPlaceholder}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-7 w-full rounded-[4px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] pl-7 pr-6 text-xs text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:outline-none focus:ring-1 focus:ring-[#3ecf8e] transition-colors"
+                className="h-7 w-full rounded-[4px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] pl-7 pr-6 text-xs text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:outline-none focus-visible:outline-none focus:ring-1 focus:ring-[#3ecf8e] transition-colors"
               />
               {searchTerm && (
                 <button

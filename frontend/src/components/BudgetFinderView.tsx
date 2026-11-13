@@ -83,10 +83,26 @@ export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFi
   // Modal vehicle history
   const [selectedVehicleForHistory, setSelectedVehicleForHistory] = useState<Vehicle | null>(null);
 
+  const parsePriceInput = (raw: string): string => raw.replace(/\D/g, '');
+
+  const formatPriceInput = (val: string): string => {
+    const digits = val.replace(/\D/g, '');
+    if (!digits) return '';
+    const num = Number(digits);
+    return Number.isNaN(num) ? '' : num.toLocaleString('pt-BR');
+  };
+
   // Sync smart range when budget changes
-  const applyBudget = (val: string, isSmart: boolean = useSmartRange) => {
-    const num = Number(val);
-    setBudgetValue(val);
+  const applyBudget = (rawVal: string, isSmart: boolean = useSmartRange) => {
+    const clean = parsePriceInput(rawVal);
+    setBudgetValue(clean);
+    if (!clean) {
+      setMinPrice('0');
+      setMaxPrice('');
+      setPage(1);
+      return;
+    }
+    const num = Number(clean);
     if (!isNaN(num) && num > 0) {
       if (isSmart) {
         setMinPrice(Math.round(num * 0.8).toString());
@@ -368,18 +384,26 @@ export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFi
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
               <div className="relative flex-1 flex items-center rounded-[6px] bg-[#ffffff] dark:bg-[#121212] border border-[#dfdfdf] dark:border-[#27272a] px-3 py-1.5 shadow-xs focus-within:border-[#3ecf8e] dark:focus-within:border-[#3ecf8e] focus-within:ring-1 focus-within:ring-[#3ecf8e] transition-colors">
-                <span className="text-sm font-medium text-[#707070] dark:text-[#a1a1aa] mr-2">R$</span>
+                <span className="text-sm font-medium text-[#707070] dark:text-[#a1a1aa] mr-2 select-none">R$</span>
                 <input
                   id="budget-input"
-                  type="number"
-                  step="5000"
-                  min="5000"
-                  max="2000000"
-                  value={budgetValue}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatPriceInput(budgetValue)}
                   onChange={(e) => applyBudget(e.target.value)}
                   placeholder="Ex: 80.000"
-                  className="w-full bg-transparent text-[#171717] dark:text-[#ededed] font-semibold tabular-nums text-base sm:text-lg focus:outline-none placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a]"
+                  className={`w-full bg-transparent text-[#171717] dark:text-[#ededed] font-semibold tabular-nums text-base sm:text-lg focus:outline-none focus-visible:outline-none placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] ${budgetValue ? 'pr-6' : ''}`}
                 />
+                {budgetValue && (
+                  <button
+                    type="button"
+                    aria-label="Limpar orçamento"
+                    onClick={() => applyBudget('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9a9a9a] dark:text-[#71717a] hover:text-[#171717] dark:hover:text-[#ededed] p-0.5 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                )}
               </div>
 
               {/* Quick shortcut pills */}
@@ -409,25 +433,27 @@ export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFi
             {showAdvancedPricing && (
               <div className="grid grid-cols-2 gap-3 p-3 rounded-[6px] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a] mt-2">
                 <div>
-                  <label className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] mb-1">Preço Mínimo (R$)</label>
+                  <label htmlFor="min-price-input" className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] mb-1">Preço Mínimo (R$)</label>
                   <Input
-                    type="number"
-                    step="5000"
+                    id="min-price-input"
+                    type="text"
+                    inputMode="numeric"
                     placeholder="0"
-                    value={minPrice}
-                    onChange={(e) => { setMinPrice(e.target.value); setPage(1); }}
-                    className="h-8 text-xs"
+                    value={formatPriceInput(minPrice)}
+                    onChange={(e) => { setMinPrice(parsePriceInput(e.target.value)); setPage(1); }}
+                    className="h-8 text-xs tabular-nums"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] mb-1">Preço Máximo (R$)</label>
+                  <label htmlFor="max-price-input" className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] mb-1">Preço Máximo (R$)</label>
                   <Input
-                    type="number"
-                    step="5000"
+                    id="max-price-input"
+                    type="text"
+                    inputMode="numeric"
                     placeholder="100.000"
-                    value={maxPrice}
-                    onChange={(e) => { setMaxPrice(e.target.value); setPage(1); }}
-                    className="h-8 text-xs"
+                    value={formatPriceInput(maxPrice)}
+                    onChange={(e) => { setMaxPrice(parsePriceInput(e.target.value)); setPage(1); }}
+                    className="h-8 text-xs tabular-nums"
                   />
                 </div>
               </div>
@@ -842,7 +868,7 @@ export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFi
                           placeholder="Buscar marca..."
                           value={brandSearchTerm}
                           onChange={(e) => setBrandSearchTerm(e.target.value)}
-                          className="h-8 w-full rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] pl-8 pr-7 text-xs text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:outline-none focus:ring-1 focus:ring-[#3ecf8e] transition-colors"
+                          className="h-8 w-full rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] pl-8 pr-7 text-xs text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:outline-none focus-visible:outline-none focus:ring-1 focus:ring-[#3ecf8e] transition-colors"
                           autoFocus
                         />
                         {brandSearchTerm && (
@@ -911,7 +937,7 @@ export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFi
                   placeholder="Ex: Polo, Civic, Onix..."
                   value={searchModel}
                   onChange={(e) => { setSearchModel(e.target.value); setPage(1); }}
-                  className="pl-8 text-xs h-8"
+                  className="pl-8 pr-7 text-xs h-8"
                 />
                 {searchModel && (
                   <button 
