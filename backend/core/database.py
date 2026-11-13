@@ -10,9 +10,22 @@ DB_SEMAPHORE = threading.BoundedSemaphore(settings.MAX_CONCURRENT_QUERIES)
 # Detect if the parquet file has precomputed columns (is_turbo, is_automatico, litragem) and INMETRO consumption
 IS_ENRICHED = False
 HAS_CONSUMPTION = False
+INMETRO_MATCHES_FILE: str | None = None
+
+def _resolve_inmetro_matches_file() -> str | None:
+    """Locate fipe-inmetro-matches.parquet alongside data/ or bundled under backend/data/."""
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(settings.PARQUET_FILE)), "fipe-inmetro-matches.parquet"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "fipe-inmetro-matches.parquet"),
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return path.replace("\\", "/")
+    return None
 
 def check_is_enriched() -> bool:
-    global IS_ENRICHED, HAS_CONSUMPTION
+    global IS_ENRICHED, HAS_CONSUMPTION, INMETRO_MATCHES_FILE
+    INMETRO_MATCHES_FILE = _resolve_inmetro_matches_file()
     if not os.path.exists(settings.PARQUET_FILE):
         settings.PARQUET_FILE = settings.resolve_parquet_file()
     if os.path.exists(settings.PARQUET_FILE):
@@ -26,6 +39,7 @@ def check_is_enriched() -> bool:
             print(f"Aviso ao verificar colunas do parquet: {_e}")
     return IS_ENRICHED
 
+INMETRO_MATCHES_FILE = _resolve_inmetro_matches_file()
 if os.path.exists(settings.PARQUET_FILE):
     check_is_enriched()
 

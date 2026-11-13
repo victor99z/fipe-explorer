@@ -198,8 +198,9 @@ class SqlQueryBuilder:
         """Constructs reusable base CTE extracting each unique vehicle's latest and initial price."""
         is_enriched = database.IS_ENRICHED
         has_consumption = database.HAS_CONSUMPTION
+        inmetro_matches_file = getattr(database, "INMETRO_MATCHES_FILE", None)
 
-        enriched_sel_cols = ", litragem, is_turbo, is_automatico, is_manual" if is_enriched else ""
+        enriched_sel_cols = ", cv.litragem, cv.is_turbo, cv.is_automatico, cv.is_manual" if is_enriched else ""
         if has_consumption:
             consumption_inner = (
                 "consumo_urbano_gasolina, consumo_rodoviario_gasolina, "
@@ -208,10 +209,25 @@ class SqlQueryBuilder:
                 "eficiencia_mj_km, autonomia_km, nota_pbe, match_consumo,"
             )
             consumption_outer = (
-                ", consumo_urbano_gasolina, consumo_rodoviario_gasolina, "
-                "consumo_urbano_etanol, consumo_rodoviario_etanol, "
-                "consumo_urbano_eletrico, consumo_rodoviario_eletrico, "
-                "eficiencia_mj_km, autonomia_km, nota_pbe, match_consumo"
+                ", cv.consumo_urbano_gasolina, cv.consumo_rodoviario_gasolina, "
+                "cv.consumo_urbano_etanol, cv.consumo_rodoviario_etanol, "
+                "cv.consumo_urbano_eletrico, cv.consumo_rodoviario_eletrico, "
+                "cv.eficiencia_mj_km, cv.autonomia_km, cv.nota_pbe, cv.match_consumo"
+            )
+            consumption_join = ""
+        elif inmetro_matches_file:
+            consumption_inner = ""
+            consumption_outer = (
+                ", m.consumo_urbano_gasolina, m.consumo_rodoviario_gasolina, "
+                "m.consumo_urbano_etanol, m.consumo_rodoviario_etanol, "
+                "m.consumo_urbano_eletrico, m.consumo_rodoviario_eletrico, "
+                "m.eficiencia_mj_km, CAST(m.autonomia_km AS INTEGER) AS autonomia_km, "
+                "m.nota_pbe, m.match_consumo"
+            )
+            consumption_join = (
+                f"\n            LEFT JOIN read_parquet('{inmetro_matches_file}') m\n"
+                "                ON cv.codigo_fipe = m.codigo_fipe\n"
+                "               AND CAST(cv.ano_modelo AS BIGINT) = CAST(m.ano_modelo AS BIGINT)"
             )
         else:
             consumption_inner = ""
@@ -227,6 +243,7 @@ class SqlQueryBuilder:
                 "CAST(NULL AS VARCHAR) AS nota_pbe, "
                 "CAST(NULL AS VARCHAR) AS match_consumo"
             )
+            consumption_join = ""
 
         return f"""
             WITH latest_prices AS (
@@ -272,19 +289,19 @@ class SqlQueryBuilder:
                 WHERE rn = 1
             )
             SELECT 
-                codigo_fipe,
-                nome_marca,
-                nome_modelo,
-                ano_modelo,
-                nome_combustivel,
-                valor,
-                valor_formatado,
-                mes_referencia,
-                ano_referencia,
-                valor_inicial,
-                variacao_pct
+                cv.codigo_fipe,
+                cv.nome_marca,
+                cv.nome_modelo,
+                cv.ano_modelo,
+                cv.nome_combustivel,
+                cv.valor,
+                cv.valor_formatado,
+                cv.mes_referencia,
+                cv.ano_referencia,
+                cv.valor_inicial,
+                cv.variacao_pct
                 {enriched_sel_cols}
                 {consumption_outer}
-            FROM current_vehicles
+            FROM current_vehicles cv{consumption_join}
             WHERE {price_where_sql}
         """

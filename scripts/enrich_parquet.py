@@ -40,6 +40,7 @@ def enrich_dataset(input_file: str, output_file: str, threads: int = 4) -> dict:
     matches_candidates = [
         os.path.join(data_dir, "fipe-inmetro-matches.parquet"),
         os.path.join(root_dir, "data", "fipe-inmetro-matches.parquet"),
+        os.path.join(root_dir, "backend", "data", "fipe-inmetro-matches.parquet"),
     ]
     matches_file = next((p for p in matches_candidates if os.path.exists(p)), None)
 
@@ -47,6 +48,7 @@ def enrich_dataset(input_file: str, output_file: str, threads: int = 4) -> dict:
         inmetro_candidates = [
             os.path.join(data_dir, "inmetro-pbev.parquet"),
             os.path.join(root_dir, "data", "inmetro-pbev.parquet"),
+            os.path.join(root_dir, "backend", "data", "inmetro-pbev.parquet"),
         ]
         try:
             if root_dir not in sys.path:

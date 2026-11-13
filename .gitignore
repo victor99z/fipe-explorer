@@ -33,6 +33,8 @@ pnpm-debug.log*
 # Data folder
 data/
 *.parquet
+!backend/data/
+!backend/data/*.parquet
 
 # Editor and OS
 .DS_Store

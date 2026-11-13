@@ -16,6 +16,7 @@ import time
 import json
 import argparse
 import requests
+import duckdb
 from datetime import datetime, timezone
 
 # Adicionar root ao sys.path para importações locais se necessário
@@ -123,6 +124,27 @@ def notify_backend(backend_url: str):
     except Exception as e:
         print(f"[!] Não foi possível conectar ao backend ({endpoint}): {e} (o backend recarregará automaticamente no próximo reinício)")
 
+def parquet_has_inmetro(parquet_path: str) -> bool:
+    """Verifica se o Parquet enriquecido possui as colunas INMETRO PBEV e ao menos 1 registro preenchido."""
+    if not os.path.exists(parquet_path):
+        return False
+    con = None
+    try:
+        con = duckdb.connect()
+        cols = [c[0] for c in con.execute(f"DESCRIBE SELECT * FROM read_parquet('{parquet_path}') LIMIT 1").fetchall()]
+        if "consumo_urbano_gasolina" not in cols or "nota_pbe" not in cols:
+            return False
+        has_row = con.execute(
+            f"SELECT 1 FROM read_parquet('{parquet_path}') WHERE nota_pbe IS NOT NULL LIMIT 1"
+        ).fetchone()
+        return has_row is not None
+    except Exception as e:
+        print(f"[!] Aviso ao verificar colunas INMETRO em {parquet_path}: {e}")
+        return False
+    finally:
+        if con is not None:
+            con.close()
+
 def run_update(force: bool = False, backend_url: str = None) -> bool:
     """Executa o ciclo completo de verificação, download e enriquecimento atômico."""
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -144,24 +166,38 @@ def run_update(force: bool = False, backend_url: str = None) -> bool:
     print(f"[*] Versão local instalada : {current_sha or 'Nenhuma'}")
     print(f"[*] Versão remota disponível: {remote_sha} (Modificado: {remote_info.get('last_modified')})")
 
-    if not force and current_sha and current_sha == remote_sha and os.path.exists(ENRICHED_PARQUET):
+    needs_inmetro_reenrich = (
+        not force
+        and current_sha
+        and current_sha == remote_sha
+        and os.path.exists(ENRICHED_PARQUET)
+        and not parquet_has_inmetro(ENRICHED_PARQUET)
+    )
+
+    if not force and current_sha and current_sha == remote_sha and os.path.exists(ENRICHED_PARQUET) and not needs_inmetro_reenrich:
         print("[✓] O dataset local já está atualizado com a versão mais recente do Hugging Face!")
         return False
 
-    print("\n[+] Nova versão encontrada ou modo --force ativado! Iniciando atualização...")
+    if needs_inmetro_reenrich:
+        print("\n[+] Enriched dataset is missing INMETRO PBEV columns. Re-running enrichment...")
+    else:
+        print("\n[+] Nova versão encontrada ou modo --force ativado! Iniciando atualização...")
 
-    # 1. Download para arquivo temporário
-    try:
-        download_file(HF_DOWNLOAD_URL, RAW_PARQUET_TMP)
-    except Exception as e:
-        print(f"[ERRO] Falha durante o download: {e}", file=sys.stderr)
-        if os.path.exists(RAW_PARQUET_TMP):
-            os.remove(RAW_PARQUET_TMP)
-        return False
+    # 1. Download para arquivo temporário (pula se re-enriquecimento INMETRO e bruto já existe)
+    if needs_inmetro_reenrich and os.path.exists(RAW_PARQUET):
+        print(f"[*] Reutilizando arquivo bruto local existente: {RAW_PARQUET}")
+    else:
+        try:
+            download_file(HF_DOWNLOAD_URL, RAW_PARQUET_TMP)
+        except Exception as e:
+            print(f"[ERRO] Falha durante o download: {e}", file=sys.stderr)
+            if os.path.exists(RAW_PARQUET_TMP):
+                os.remove(RAW_PARQUET_TMP)
+            return False
 
-    # 2. Atomic swap do arquivo bruto
-    os.replace(RAW_PARQUET_TMP, RAW_PARQUET)
-    print(f"[✓] Arquivo bruto atualizado: {RAW_PARQUET}")
+        # 2. Atomic swap do arquivo bruto
+        os.replace(RAW_PARQUET_TMP, RAW_PARQUET)
+        print(f"[✓] Arquivo bruto atualizado: {RAW_PARQUET}")
 
     # 3. Pipeline de enriquecimento DuckDB
     try:
