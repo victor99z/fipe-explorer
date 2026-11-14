@@ -26,6 +26,73 @@ const POPULAR_BRANDS: string[] = [
   'BMW'
 ];
 
+const POPULAR_ELECTRIC_BRANDS: string[] = [
+  'BYD',
+  'GWM',
+  'Volvo',
+  'Renault',
+  'GM - Chevrolet',
+  'BMW',
+  'Mercedes-Benz',
+  'Audi',
+  'Porsche',
+  'MINI',
+  'Peugeot',
+];
+
+const isElectricVehicle = (car: Pick<Vehicle, 'nome_combustivel' | 'nome_modelo'>): boolean => {
+  const fuel = (car.nome_combustivel || '').trim().toLowerCase();
+  if (fuel === 'elétrico' || fuel === 'eletrico') return true;
+  const model = (car.nome_modelo || '').toLowerCase();
+  return (
+    model.includes('(elétrico)') ||
+    model.includes('(eletrico)') ||
+    model.includes('(eltétrico)') ||
+    model.includes('(életrico)')
+  );
+};
+
+const extractElectricModelSpec = (nomeModelo?: string): string | null => {
+  if (!nomeModelo) return null;
+  const batteryMatch = nomeModelo.match(/\b(\d+(?:[.,]\d+)?)\s*kwh\b/i);
+  if (batteryMatch) {
+    return `Bateria ${batteryMatch[1].replace('.', ',')} kWh`;
+  }
+  const powerMatch = nomeModelo.match(/\b(\d+(?:[.,]\d+)?)\s*(kw|cv|hp)\b/i);
+  if (powerMatch) {
+    const unit = powerMatch[2].toLowerCase() === 'kw' ? 'kW' : powerMatch[2].toLowerCase();
+    return `Potência ${powerMatch[1].replace('.', ',')} ${unit}`;
+  }
+  const driveMatch = nomeModelo.match(/\b(awd|4wd|rwd|4x4|quattro|xdrive|4matic)\b/i);
+  if (driveMatch) {
+    const raw = driveMatch[1];
+    const formatted = /^(awd|4wd|rwd)$/i.test(raw)
+      ? raw.toUpperCase()
+      : raw.toLowerCase() === '4matic'
+      ? '4MATIC'
+      : raw.toLowerCase() === 'xdrive'
+      ? 'xDrive'
+      : raw.toLowerCase() === 'quattro'
+      ? 'Quattro'
+      : '4x4';
+    return `Tração ${formatted}`;
+  }
+  return null;
+};
+
+const getQuickBrands = (
+  combustivel: string,
+  allBrands: string[],
+  selectedBrands: string[]
+): string[] => {
+  if (combustivel !== 'eletrico') return POPULAR_BRANDS;
+  const baseElectricBrands =
+    allBrands.length > 0
+      ? POPULAR_ELECTRIC_BRANDS.filter((b) => allBrands.includes(b))
+      : POPULAR_ELECTRIC_BRANDS;
+  return Array.from(new Set([...baseElectricBrands, ...selectedBrands]));
+};
+
 interface EngineItem {
   id: string;
   label: string;
@@ -462,8 +529,164 @@ export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFi
 
           <div className="border-t border-[#ededed] dark:border-[#27272a]" />
 
-          {/* Technical Filters: Litragem, Alimentação, Câmbio */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Propulsão & Combustível */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between h-5">
+              <label className="text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider block">
+                Propulsão / Combustível
+              </label>
+              {combustivel !== 'todos' && (
+                <button 
+                  type="button"
+                  onClick={() => { setCombustivel('todos'); setPage(1); }}
+                  className="text-[11px] text-[#171717] dark:text-[#ededed] underline hover:text-[#707070] dark:hover:text-[#a1a1aa] focus:outline-none cursor-pointer whitespace-nowrap"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              {/* 1. Todos os Combustíveis (Padrão) */}
+              <button
+                type="button"
+                aria-pressed={combustivel === 'todos' || combustivel === ''}
+                onClick={() => { setCombustivel('todos'); setPage(1); }}
+                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center justify-center focus:outline-none cursor-pointer ${
+                  combustivel === 'todos' || combustivel === ''
+                    ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium'
+                    : 'bg-[#ffffff] dark:bg-[#18181b] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#171717] dark:text-[#ededed] border border-[#dfdfdf] dark:border-[#27272a]'
+                }`}
+              >
+                Todos
+              </button>
+
+              {/* 2. Flex & Gasolina */}
+              <button
+                type="button"
+                aria-pressed={combustivel === 'flex,gasolina'}
+                onClick={() => { setCombustivel('flex,gasolina'); setPage(1); }}
+                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center gap-1.5 justify-center focus:outline-none cursor-pointer ${
+                  combustivel === 'flex,gasolina'
+                    ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium'
+                    : 'bg-[#ffffff] dark:bg-[#18181b] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#171717] dark:text-[#ededed] border border-[#dfdfdf] dark:border-[#27272a]'
+                }`}
+              >
+                <span>Flex & Gasolina</span>
+              </button>
+
+              {/* 3. Híbridos & Elétricos (Destaque Especial) */}
+              <button
+                type="button"
+                aria-pressed={combustivel === 'hibrido_eletrico'}
+                onClick={() => { setCombustivel('hibrido_eletrico'); setPage(1); }}
+                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center gap-1.5 justify-center focus:outline-none cursor-pointer border ${
+                  combustivel === 'hibrido_eletrico'
+                    ? 'bg-[#3ecf8e] text-[#171717] border-[#3ecf8e] font-semibold shadow-xs'
+                    : 'border-emerald-500/50 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 font-medium'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                <span>Híbridos & Elétricos</span>
+              </button>
+
+              {/* 4. Apenas Híbrido */}
+              <button
+                type="button"
+                aria-pressed={combustivel === 'hibrido'}
+                onClick={() => { setCombustivel('hibrido'); setPage(1); }}
+                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center gap-1.5 justify-center focus:outline-none cursor-pointer ${
+                  combustivel === 'hibrido'
+                    ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium'
+                    : 'bg-[#ffffff] dark:bg-[#18181b] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#171717] dark:text-[#ededed] border border-[#dfdfdf] dark:border-[#27272a]'
+                }`}
+              >
+                <Leaf className="w-3.5 h-3.5 text-emerald-500 shrink-0" aria-hidden="true" />
+                <span>Híbrido</span>
+              </button>
+
+              {/* 5. Apenas Elétrico */}
+              <button
+                type="button"
+                aria-pressed={combustivel === 'eletrico'}
+                onClick={() => {
+                  setCombustivel('eletrico');
+                  setLitragem('todos');
+                  setMotorizacao('todos');
+                  setCambio('todos');
+                  setPage(1);
+                }}
+                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center gap-1.5 justify-center focus:outline-none cursor-pointer ${
+                  combustivel === 'eletrico'
+                    ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium'
+                    : 'bg-[#ffffff] dark:bg-[#18181b] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#171717] dark:text-[#ededed] border border-[#dfdfdf] dark:border-[#27272a]'
+                }`}
+              >
+                <BatteryCharging className="w-3.5 h-3.5 text-cyan-500 shrink-0" aria-hidden="true" />
+                <span>Elétrico</span>
+              </button>
+
+              {/* 6. Dropdown Outros */}
+              <CustomDropdown
+                value={['flex,gasolina', 'hibrido_eletrico', 'hibrido', 'eletrico', 'todos', ''].includes(combustivel) ? '' : combustivel}
+                onChange={(val) => {
+                  setCombustivel(String(val));
+                  setPage(1);
+                }}
+                placeholder="+ Outros"
+                align="right"
+                menuClassName="w-56 max-w-[calc(100vw-2rem)]"
+                options={[
+                  { 
+                    value: 'diesel', 
+                    label: `Diesel ${availableFuels.find(f => f.nome === 'Diesel') ? `(${availableFuels.find(f => f.nome === 'Diesel')?.total_modelos})` : ''}`.trim() 
+                  },
+                  { 
+                    value: 'flex', 
+                    label: `Apenas Flex ${availableFuels.find(f => f.nome === 'Flex') ? `(${availableFuels.find(f => f.nome === 'Flex')?.total_modelos})` : ''}`.trim() 
+                  },
+                  { 
+                    value: 'gasolina', 
+                    label: `Apenas Gasolina ${availableFuels.find(f => f.nome === 'Gasolina') ? `(${availableFuels.find(f => f.nome === 'Gasolina')?.total_modelos})` : ''}`.trim() 
+                  },
+                  { 
+                    value: 'alcool', 
+                    label: `Álcool / Etanol ${availableFuels.find(f => f.nome === 'Álcool') ? `(${availableFuels.find(f => f.nome === 'Álcool')?.total_modelos})` : ''}`.trim() 
+                  },
+                  { 
+                    value: 'gnv', 
+                    label: `Gás Natural (GNV) ${availableFuels.find(f => f.nome === 'Gás Natural') ? `(${availableFuels.find(f => f.nome === 'Gás Natural')?.total_modelos})` : ''}`.trim() 
+                  }
+                ]}
+                renderTrigger={({ isOpen, setIsOpen }) => {
+                  const isOtherSelected = !['flex,gasolina', 'hibrido_eletrico', 'hibrido', 'eletrico', 'todos', ''].includes(combustivel);
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setIsOpen(!isOpen)}
+                      className={`h-8 inline-flex items-center gap-1.5 px-2.5 rounded-[6px] text-xs transition-colors border cursor-pointer focus:outline-none ${
+                        isOpen
+                          ? 'border-[#3ecf8e] text-[#171717] dark:text-[#ededed] bg-[#ffffff] dark:bg-[#18181b] shadow-xs'
+                          : isOtherSelected
+                          ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] border-[#171717] dark:border-[#3ecf8e] font-medium'
+                          : 'border-[#dfdfdf] dark:border-[#27272a] text-[#707070] dark:text-[#a1a1aa] bg-[#ffffff] dark:bg-[#121212] hover:bg-[#fafafa] dark:hover:bg-[#27272a]'
+                      }`}
+                    >
+                      <span className="capitalize">{isOtherSelected ? combustivel : '+ Outros'}</span>
+                      <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180 text-[#3ecf8e]' : ''}`} />
+                    </button>
+                  );
+                }}
+              />
+            </div>
+          </div>
+
+          {combustivel !== 'eletrico' && (
+            <>
+              <div className="border-t border-[#ededed] dark:border-[#27272a]" />
+
+              {/* Technical Filters: Litragem, Alimentação, Câmbio */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
             
             {/* Cilindrada do Motor */}
             <div className="lg:col-span-6 space-y-2">
@@ -641,154 +864,8 @@ export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFi
             </div>
 
           </div>
-
-          <div className="border-t border-[#ededed] dark:border-[#27272a]" />
-
-          {/* Propulsão & Combustível */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between h-5">
-              <label className="text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider block">
-                Propulsão / Combustível
-              </label>
-              {combustivel !== 'todos' && (
-                <button 
-                  type="button"
-                  onClick={() => { setCombustivel('todos'); setPage(1); }}
-                  className="text-[11px] text-[#171717] dark:text-[#ededed] underline hover:text-[#707070] dark:hover:text-[#a1a1aa] focus:outline-none cursor-pointer whitespace-nowrap"
-                >
-                  Limpar
-                </button>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5">
-              {/* 1. Todos os Combustíveis (Padrão) */}
-              <button
-                type="button"
-                aria-pressed={combustivel === 'todos' || combustivel === ''}
-                onClick={() => { setCombustivel('todos'); setPage(1); }}
-                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center justify-center focus:outline-none cursor-pointer ${
-                  combustivel === 'todos' || combustivel === ''
-                    ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium'
-                    : 'bg-[#ffffff] dark:bg-[#18181b] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#171717] dark:text-[#ededed] border border-[#dfdfdf] dark:border-[#27272a]'
-                }`}
-              >
-                Todos
-              </button>
-
-              {/* 2. Flex & Gasolina */}
-              <button
-                type="button"
-                aria-pressed={combustivel === 'flex,gasolina'}
-                onClick={() => { setCombustivel('flex,gasolina'); setPage(1); }}
-                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center gap-1.5 justify-center focus:outline-none cursor-pointer ${
-                  combustivel === 'flex,gasolina'
-                    ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium'
-                    : 'bg-[#ffffff] dark:bg-[#18181b] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#171717] dark:text-[#ededed] border border-[#dfdfdf] dark:border-[#27272a]'
-                }`}
-              >
-                <span>Flex & Gasolina</span>
-              </button>
-
-              {/* 3. Híbridos & Elétricos (Destaque Especial) */}
-              <button
-                type="button"
-                aria-pressed={combustivel === 'hibrido_eletrico'}
-                onClick={() => { setCombustivel('hibrido_eletrico'); setPage(1); }}
-                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center gap-1.5 justify-center focus:outline-none cursor-pointer border ${
-                  combustivel === 'hibrido_eletrico'
-                    ? 'bg-[#3ecf8e] text-[#171717] border-[#3ecf8e] font-semibold shadow-xs'
-                    : 'border-emerald-500/50 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 font-medium'
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                <span>Híbridos & Elétricos</span>
-              </button>
-
-              {/* 4. Apenas Híbrido */}
-              <button
-                type="button"
-                aria-pressed={combustivel === 'hibrido'}
-                onClick={() => { setCombustivel('hibrido'); setPage(1); }}
-                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center gap-1.5 justify-center focus:outline-none cursor-pointer ${
-                  combustivel === 'hibrido'
-                    ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium'
-                    : 'bg-[#ffffff] dark:bg-[#18181b] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#171717] dark:text-[#ededed] border border-[#dfdfdf] dark:border-[#27272a]'
-                }`}
-              >
-                <Leaf className="w-3.5 h-3.5 text-emerald-500 shrink-0" aria-hidden="true" />
-                <span>Híbrido</span>
-              </button>
-
-              {/* 5. Apenas Elétrico */}
-              <button
-                type="button"
-                aria-pressed={combustivel === 'eletrico'}
-                onClick={() => { setCombustivel('eletrico'); setPage(1); }}
-                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center gap-1.5 justify-center focus:outline-none cursor-pointer ${
-                  combustivel === 'eletrico'
-                    ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium'
-                    : 'bg-[#ffffff] dark:bg-[#18181b] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#171717] dark:text-[#ededed] border border-[#dfdfdf] dark:border-[#27272a]'
-                }`}
-              >
-                <BatteryCharging className="w-3.5 h-3.5 text-cyan-500 shrink-0" aria-hidden="true" />
-                <span>Elétrico</span>
-              </button>
-
-              {/* 6. Dropdown Outros */}
-              <CustomDropdown
-                value={['flex,gasolina', 'hibrido_eletrico', 'hibrido', 'eletrico', 'todos', ''].includes(combustivel) ? '' : combustivel}
-                onChange={(val) => {
-                  setCombustivel(String(val));
-                  setPage(1);
-                }}
-                placeholder="+ Outros"
-                align="right"
-                menuClassName="w-56 max-w-[calc(100vw-2rem)]"
-                options={[
-                  { 
-                    value: 'diesel', 
-                    label: `Diesel ${availableFuels.find(f => f.nome === 'Diesel') ? `(${availableFuels.find(f => f.nome === 'Diesel')?.total_modelos})` : ''}`.trim() 
-                  },
-                  { 
-                    value: 'flex', 
-                    label: `Apenas Flex ${availableFuels.find(f => f.nome === 'Flex') ? `(${availableFuels.find(f => f.nome === 'Flex')?.total_modelos})` : ''}`.trim() 
-                  },
-                  { 
-                    value: 'gasolina', 
-                    label: `Apenas Gasolina ${availableFuels.find(f => f.nome === 'Gasolina') ? `(${availableFuels.find(f => f.nome === 'Gasolina')?.total_modelos})` : ''}`.trim() 
-                  },
-                  { 
-                    value: 'alcool', 
-                    label: `Álcool / Etanol ${availableFuels.find(f => f.nome === 'Álcool') ? `(${availableFuels.find(f => f.nome === 'Álcool')?.total_modelos})` : ''}`.trim() 
-                  },
-                  { 
-                    value: 'gnv', 
-                    label: `Gás Natural (GNV) ${availableFuels.find(f => f.nome === 'Gás Natural') ? `(${availableFuels.find(f => f.nome === 'Gás Natural')?.total_modelos})` : ''}`.trim() 
-                  }
-                ]}
-                renderTrigger={({ isOpen, setIsOpen }) => {
-                  const isOtherSelected = !['flex,gasolina', 'hibrido_eletrico', 'hibrido', 'eletrico', 'todos', ''].includes(combustivel);
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => setIsOpen(!isOpen)}
-                      className={`h-8 inline-flex items-center gap-1.5 px-2.5 rounded-[6px] text-xs transition-colors border cursor-pointer focus:outline-none ${
-                        isOpen
-                          ? 'border-[#3ecf8e] text-[#171717] dark:text-[#ededed] bg-[#ffffff] dark:bg-[#18181b] shadow-xs'
-                          : isOtherSelected
-                          ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] border-[#171717] dark:border-[#3ecf8e] font-medium'
-                          : 'border-[#dfdfdf] dark:border-[#27272a] text-[#707070] dark:text-[#a1a1aa] bg-[#ffffff] dark:bg-[#121212] hover:bg-[#fafafa] dark:hover:bg-[#27272a]'
-                      }`}
-                    >
-                      <span className="capitalize">{isOtherSelected ? combustivel : '+ Outros'}</span>
-                      <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180 text-[#3ecf8e]' : ''}`} />
-                    </button>
-                  );
-                }}
-              />
-            </div>
-          </div>
+            </>
+          )}
 
           <div className="border-t border-[#ededed] dark:border-[#27272a]" />
 
@@ -816,7 +893,7 @@ export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFi
               </div>
 
               <div className="flex flex-wrap items-center gap-1.5">
-                {POPULAR_BRANDS.map((brand) => {
+                {getQuickBrands(combustivel, allBrands, selectedBrands).map((brand) => {
                   const isSelected = selectedBrands.includes(brand);
                   return (
                     <button
@@ -1062,6 +1139,12 @@ export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFi
                 ? `${diffRs >= 0 ? '+' : '-'}R$ ${Math.abs(diffRs).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 : null;
             const variacaoTooltipId = `variacao-tip-${car.codigo_fipe}-${car.ano_modelo ?? 'na'}`;
+            const isElectric = isElectricVehicle(car);
+            const electricSpec = isElectric ? extractElectricModelSpec(car.nome_modelo) : null;
+            const hasElectricMetrics =
+              car.autonomia_km != null ||
+              car.consumo_urbano_eletrico != null ||
+              car.eficiencia_mj_km != null;
 
             return (
               <div
@@ -1082,14 +1165,14 @@ export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFi
                     </div>
 
                     <div className="flex flex-wrap items-center justify-end gap-1 flex-shrink-0">
-                      {car.nome_combustivel === 'Elétrico' && (
+                      {isElectric && (
                         <span className="inline-flex items-center gap-1 h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-semibold text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800/60">
-                          <Zap className="w-2.5 h-2.5 shrink-0" /> Elétrico
+                          <Zap className="w-2.5 h-2.5 shrink-0" aria-hidden="true" /> Elétrico
                         </span>
                       )}
-                      {car.nome_combustivel === 'Híbrido' && (
+                      {!isElectric && car.nome_combustivel === 'Híbrido' && (
                         <span className="inline-flex items-center gap-1 h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-semibold text-emerald-600 dark:text-[#3ecf8e] bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60">
-                          <Leaf className="w-2.5 h-2.5 shrink-0" /> Híbrido
+                          <Leaf className="w-2.5 h-2.5 shrink-0" aria-hidden="true" /> Híbrido
                         </span>
                       )}
                       {car.nota_pbe && (
@@ -1124,75 +1207,152 @@ export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFi
                     {car.nome_modelo}
                   </h3>
 
-                  {/* Supabase-style Compact 2x2 Specs Grid */}
-                  <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 mb-3 sm:mb-4 text-xs text-[#707070] dark:text-[#a1a1aa] bg-[#fafafa] dark:bg-[#121212] p-2.5 rounded-[6px] border border-[#ededed] dark:border-[#27272a]">
-                    <div className="flex items-center gap-1.5 truncate">
-                      <Check className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" />
-                      <span className="truncate text-[#171717] dark:text-[#ededed] font-medium">
-                        {car.litragem ? `Motor ${car.litragem}L` : 'Motor N/D'}
-                      </span>
-                    </div>
+                  {isElectric ? (
+                    hasElectricMetrics ? (
+                      <div className="grid grid-cols-2 gap-x-2.5 gap-y-1.5 mb-3 sm:mb-4 text-xs text-[#707070] dark:text-[#a1a1aa] bg-[#fafafa] dark:bg-[#121212] p-2.5 rounded-[6px] border border-[#ededed] dark:border-[#27272a]">
+                        {car.autonomia_km != null && (
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <BatteryCharging className="w-3.5 h-3.5 text-cyan-500 flex-shrink-0" aria-hidden="true" />
+                            <span className="truncate text-[#171717] dark:text-[#ededed] font-medium tabular-nums">
+                              Autonomia {car.autonomia_km.toLocaleString('pt-BR')} km
+                            </span>
+                          </div>
+                        )}
 
-                    <div className="flex items-center gap-1.5 truncate">
-                      <Check className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" />
-                      <span className="truncate text-[#171717] dark:text-[#ededed]">
-                        {car.is_automatico ? 'Automático' : 'Manual'}
-                      </span>
-                    </div>
+                        {car.consumo_urbano_eletrico != null && (
+                          <div
+                            className="flex items-center gap-1.5 min-w-0"
+                            title={`Consumo energético cidade${car.consumo_rodoviario_eletrico != null ? ' / estrada' : ''} (INMETRO PBEV): ${car.consumo_urbano_eletrico.toFixed(1).replace('.', ',')}${car.consumo_rodoviario_eletrico != null ? ` / ${car.consumo_rodoviario_eletrico.toFixed(1).replace('.', ',')}` : ''} km/le`}
+                          >
+                            <Zap className="w-3.5 h-3.5 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
+                            <span className="truncate text-[#171717] dark:text-[#ededed] font-medium tabular-nums">
+                              {car.consumo_urbano_eletrico.toFixed(1).replace('.', ',')}
+                              {car.consumo_rodoviario_eletrico != null
+                                ? ` / ${car.consumo_rodoviario_eletrico.toFixed(1).replace('.', ',')}`
+                                : ''}{' '}
+                              km/le
+                            </span>
+                          </div>
+                        )}
 
-                    <div className="flex items-center gap-1.5 truncate">
-                      <Check className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" />
-                      <span className="truncate text-[#171717] dark:text-[#ededed]">
-                        {car.is_turbo ? 'Turbo' : 'Aspirado'}
-                      </span>
-                    </div>
+                        {car.eficiencia_mj_km != null && (
+                          <div
+                            className="flex items-center gap-1.5 min-w-0"
+                            title="Eficiência energética INMETRO PBEV"
+                          >
+                            <Leaf className="w-3.5 h-3.5 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
+                            <span className="truncate text-[#171717] dark:text-[#ededed] font-medium tabular-nums">
+                              {car.eficiencia_mj_km.toFixed(2).replace('.', ',')} MJ/km
+                            </span>
+                          </div>
+                        )}
 
-                    <div className="flex items-center gap-1.5 truncate">
-                      <Check className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" />
-                      <span className={`truncate ${car.nome_combustivel === 'Elétrico' || car.nome_combustivel === 'Híbrido' ? 'font-medium text-[#171717] dark:text-[#ededed]' : ''}`}>
-                        {car.nome_combustivel || 'Flex'}
-                      </span>
-                    </div>
-                  </div>
+                        {car.autonomia_km == null && (
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <BatteryCharging className="w-3.5 h-3.5 text-cyan-500 flex-shrink-0" aria-hidden="true" />
+                            <span className="truncate text-[#171717] dark:text-[#ededed] font-medium">
+                              Propulsão Elétrica
+                            </span>
+                          </div>
+                        )}
 
-                  {(car.consumo_urbano_gasolina != null || car.consumo_urbano_etanol != null || car.consumo_urbano_eletrico != null) && (
-                    <div className="mb-3 sm:mb-4 px-2.5 py-2 rounded-[6px] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a] space-y-1">
-                      {car.consumo_urbano_gasolina != null && (
-                        <div className="flex items-center gap-1.5">
-                          <Fuel className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" />
-                          <span className="text-[#171717] dark:text-[#ededed] font-medium tabular-nums text-[11px] sm:text-xs">
-                            {car.nome_combustivel?.toLowerCase() === 'diesel' ? 'Diesel' : 'Gasolina'}:{' '}
-                            {car.consumo_urbano_gasolina.toFixed(1).replace('.', ',')} cid
-                            {car.consumo_rodoviario_gasolina != null
-                              ? ` / ${car.consumo_rodoviario_gasolina.toFixed(1).replace('.', ',')} est km/l`
-                              : ' km/l'}
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Check className="w-3.5 h-3.5 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
+                          <span className="truncate text-[#171717] dark:text-[#ededed]">
+                            {electricSpec || 'Zero Emissões (BEV)'}
                           </span>
                         </div>
-                      )}
-                      {car.consumo_urbano_etanol != null && (
-                        <div className="flex items-center gap-1.5">
-                          <Fuel className="w-3 h-3 text-[#707070] dark:text-[#a1a1aa] flex-shrink-0" />
-                          <span className="text-[#707070] dark:text-[#a1a1aa] font-medium tabular-nums text-[11px] sm:text-xs">
-                            Etanol: {car.consumo_urbano_etanol.toFixed(1).replace('.', ',')} cid
-                            {car.consumo_rodoviario_etanol != null
-                              ? ` / ${car.consumo_rodoviario_etanol.toFixed(1).replace('.', ',')} est km/l`
-                              : ' km/l'}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-x-2.5 gap-y-1.5 mb-3 sm:mb-4 text-xs text-[#707070] dark:text-[#a1a1aa] bg-[#fafafa] dark:bg-[#121212] p-2.5 rounded-[6px] border border-[#ededed] dark:border-[#27272a]">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Zap className="w-3.5 h-3.5 text-cyan-500 flex-shrink-0" aria-hidden="true" />
+                          <span className="truncate text-[#171717] dark:text-[#ededed] font-medium">
+                            Propulsão Elétrica
                           </span>
                         </div>
-                      )}
-                      {car.consumo_urbano_eletrico != null && (
-                        <div className="flex items-center gap-1.5">
-                          <Zap className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" />
-                          <span className="text-[#171717] dark:text-[#ededed] font-medium tabular-nums text-[11px] sm:text-xs">
-                            Elétrico: {car.consumo_urbano_eletrico.toFixed(1).replace('.', ',')} cid
-                            {car.consumo_rodoviario_eletrico != null
-                              ? ` / ${car.consumo_rodoviario_eletrico.toFixed(1).replace('.', ',')} est km/le`
-                              : ' km/le'}
-                            {car.autonomia_km ? ` • ${car.autonomia_km} km` : ''}
+
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Check className="w-3.5 h-3.5 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
+                          <span className="truncate text-[#171717] dark:text-[#ededed]">
+                            {electricSpec || 'Zero Emissões (BEV)'}
                           </span>
                         </div>
+                      </div>
+                    )
+                  ) : (
+                    <>
+                      {/* Supabase-style Compact 2x2 Specs Grid */}
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 mb-3 sm:mb-4 text-xs text-[#707070] dark:text-[#a1a1aa] bg-[#fafafa] dark:bg-[#121212] p-2.5 rounded-[6px] border border-[#ededed] dark:border-[#27272a]">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Check className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
+                          <span className="truncate text-[#171717] dark:text-[#ededed] font-medium">
+                            {car.litragem ? `Motor ${car.litragem}L` : 'Motor N/D'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Check className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
+                          <span className="truncate text-[#171717] dark:text-[#ededed]">
+                            {car.is_automatico ? 'Automático' : 'Manual'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Check className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
+                          <span className="truncate text-[#171717] dark:text-[#ededed]">
+                            {car.is_turbo ? 'Turbo' : 'Aspirado'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Check className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
+                          <span className={`truncate ${car.nome_combustivel === 'Híbrido' ? 'font-medium text-[#171717] dark:text-[#ededed]' : ''}`}>
+                            {car.nome_combustivel || 'Flex'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {(car.consumo_urbano_gasolina != null || car.consumo_urbano_etanol != null || car.consumo_urbano_eletrico != null) && (
+                        <div className="mb-3 sm:mb-4 px-2.5 py-2 rounded-[6px] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a] space-y-1">
+                          {car.consumo_urbano_gasolina != null && (
+                            <div className="flex items-center gap-1.5">
+                              <Fuel className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
+                              <span className="text-[#171717] dark:text-[#ededed] font-medium tabular-nums text-[11px] sm:text-xs">
+                                {car.nome_combustivel?.toLowerCase() === 'diesel' ? 'Diesel' : 'Gasolina'}:{' '}
+                                {car.consumo_urbano_gasolina.toFixed(1).replace('.', ',')} cid
+                                {car.consumo_rodoviario_gasolina != null
+                                  ? ` / ${car.consumo_rodoviario_gasolina.toFixed(1).replace('.', ',')} est km/l`
+                                  : ' km/l'}
+                              </span>
+                            </div>
+                          )}
+                          {car.consumo_urbano_etanol != null && (
+                            <div className="flex items-center gap-1.5">
+                              <Fuel className="w-3 h-3 text-[#707070] dark:text-[#a1a1aa] flex-shrink-0" aria-hidden="true" />
+                              <span className="text-[#707070] dark:text-[#a1a1aa] font-medium tabular-nums text-[11px] sm:text-xs">
+                                Etanol: {car.consumo_urbano_etanol.toFixed(1).replace('.', ',')} cid
+                                {car.consumo_rodoviario_etanol != null
+                                  ? ` / ${car.consumo_rodoviario_etanol.toFixed(1).replace('.', ',')} est km/l`
+                                  : ' km/l'}
+                              </span>
+                            </div>
+                          )}
+                          {car.consumo_urbano_eletrico != null && (
+                            <div className="flex items-center gap-1.5">
+                              <Zap className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
+                              <span className="text-[#171717] dark:text-[#ededed] font-medium tabular-nums text-[11px] sm:text-xs">
+                                Elétrico: {car.consumo_urbano_eletrico.toFixed(1).replace('.', ',')} cid
+                                {car.consumo_rodoviario_eletrico != null
+                                  ? ` / ${car.consumo_rodoviario_eletrico.toFixed(1).replace('.', ',')} est km/le`
+                                  : ' km/le'}
+                                {car.autonomia_km ? ` • ${car.autonomia_km} km` : ''}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       )}
-                    </div>
+                    </>
                   )}
                 </div>
 

@@ -11,6 +11,7 @@ DB_SEMAPHORE = threading.BoundedSemaphore(settings.MAX_CONCURRENT_QUERIES)
 IS_ENRICHED = False
 HAS_CONSUMPTION = False
 INMETRO_MATCHES_FILE: str | None = None
+_SCHEMA_CHECKED = False
 
 def _resolve_inmetro_matches_file() -> str | None:
     """Locate fipe-inmetro-matches.parquet alongside data/ or bundled under backend/data/."""
@@ -24,7 +25,7 @@ def _resolve_inmetro_matches_file() -> str | None:
     return None
 
 def check_is_enriched() -> bool:
-    global IS_ENRICHED, HAS_CONSUMPTION, INMETRO_MATCHES_FILE
+    global IS_ENRICHED, HAS_CONSUMPTION, INMETRO_MATCHES_FILE, _SCHEMA_CHECKED
     INMETRO_MATCHES_FILE = _resolve_inmetro_matches_file()
     if not os.path.exists(settings.PARQUET_FILE):
         settings.PARQUET_FILE = settings.resolve_parquet_file()
@@ -34,6 +35,7 @@ def check_is_enriched() -> bool:
             _cols = [c[0] for c in _chk.execute(f"DESCRIBE SELECT * FROM '{settings.PARQUET_FILE}' LIMIT 1").fetchall()]
             IS_ENRICHED = "is_turbo" in _cols and "is_automatico" in _cols and "litragem" in _cols
             HAS_CONSUMPTION = "consumo_urbano_gasolina" in _cols and "nota_pbe" in _cols
+            _SCHEMA_CHECKED = True
             _chk.close()
         except Exception as _e:
             print(f"Aviso ao verificar colunas do parquet: {_e}")
@@ -61,6 +63,8 @@ class SafeDuckDBConnection:
                     status_code=503,
                     detail="O dataset da Tabela FIPE está sendo baixado e inicializado pela primeira vez. Por favor, aguarde alguns instantes e atualize a página."
                 )
+        if not _SCHEMA_CHECKED:
+            check_is_enriched()
         acquired = DB_SEMAPHORE.acquire(timeout=timeout)
         if not acquired:
             raise HTTPException(

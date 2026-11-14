@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, TrendingUp, TrendingDown, Loader2, Zap, Leaf, Fuel, Info } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Loader2, Zap, Leaf, BatteryCharging, Fuel, Info } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -224,6 +224,15 @@ export default function VehicleHistoryModal({ vehicle, onClose }: VehicleHistory
   const variacaoTotal = summary?.variacao_total_pct ?? summary?.variacao_pct ?? vehicle?.variacao_pct;
   const hasVariacao = variacaoTotal !== undefined && variacaoTotal !== null;
   const isPositive = Number(variacaoTotal) >= 0;
+  const combLower = (vehicle?.nome_combustivel || '').trim().toLowerCase();
+  const modelLower = (vehicle?.nome_modelo || '').toLowerCase();
+  const isElectric =
+    combLower === 'elétrico' ||
+    combLower === 'eletrico' ||
+    modelLower.includes('(elétrico)') ||
+    modelLower.includes('(eletrico)') ||
+    modelLower.includes('(eltétrico)') ||
+    modelLower.includes('(életrico)');
 
   return (
     <div
@@ -255,33 +264,39 @@ export default function VehicleHistoryModal({ vehicle, onClose }: VehicleHistory
                   Ano {vehicle.ano_modelo}
                 </span>
               )}
-              {vehicle.nome_combustivel === 'Elétrico' && (
+              {isElectric && (
                 <span className="inline-flex items-center gap-1 h-5 sm:h-6 px-2 rounded-[4px] text-[10px] sm:text-xs leading-none font-semibold text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800/60">
                   <Zap className="w-2.5 h-2.5 shrink-0" aria-hidden="true" /> Elétrico
                 </span>
               )}
-              {vehicle.nome_combustivel === 'Híbrido' && (
+              {!isElectric && vehicle.nome_combustivel === 'Híbrido' && (
                 <span className="inline-flex items-center gap-1 h-5 sm:h-6 px-2 rounded-[4px] text-[10px] sm:text-xs leading-none font-semibold text-emerald-600 dark:text-[#3ecf8e] bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60">
                   <Leaf className="w-2.5 h-2.5 shrink-0" aria-hidden="true" /> Híbrido
                 </span>
               )}
-              {vehicle.nome_combustivel && vehicle.nome_combustivel !== 'Elétrico' && vehicle.nome_combustivel !== 'Híbrido' && (
+              {!isElectric && vehicle.nome_combustivel && vehicle.nome_combustivel !== 'Híbrido' && (
                 <span className="inline-flex items-center h-5 sm:h-6 px-2 rounded-[4px] text-[10px] sm:text-xs leading-none font-medium text-[#707070] dark:text-[#a1a1aa] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a]">
                   {vehicle.nome_combustivel}
                 </span>
               )}
-              {vehicle.is_turbo && (
+              {isElectric && vehicle.autonomia_km != null && (
+                <span className="inline-flex items-center gap-1 h-5 sm:h-6 px-2 rounded-[4px] text-[10px] sm:text-xs leading-none font-medium tabular-nums text-[#707070] dark:text-[#a1a1aa] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a]">
+                  <BatteryCharging className="w-3 h-3 text-cyan-500 shrink-0" aria-hidden="true" />
+                  Autonomia {vehicle.autonomia_km.toLocaleString('pt-BR')} km
+                </span>
+              )}
+              {!isElectric && vehicle.is_turbo && (
                 <span className="inline-flex items-center gap-1 h-5 sm:h-6 px-2 rounded-[4px] text-[10px] sm:text-xs leading-none font-medium text-[#171717] dark:text-[#ededed] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a]">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e] shrink-0" />
                   Turbo
                 </span>
               )}
-              {vehicle.is_automatico && (
+              {!isElectric && vehicle.is_automatico && (
                 <span className="inline-flex items-center h-5 sm:h-6 px-2 rounded-[4px] text-[10px] sm:text-xs leading-none font-medium text-[#171717] dark:text-[#ededed] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a]">
                   Automático
                 </span>
               )}
-              {vehicle.litragem && (
+              {!isElectric && vehicle.litragem && (
                 <span className="inline-flex items-center h-5 sm:h-6 px-2 rounded-[4px] text-[10px] sm:text-xs leading-none font-medium text-[#707070] dark:text-[#a1a1aa] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a]">
                   Motor {vehicle.litragem}
                 </span>

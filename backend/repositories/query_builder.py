@@ -166,30 +166,47 @@ class SqlQueryBuilder:
             if fuel_subclauses:
                 where_clauses.append(f"({' OR '.join(fuel_subclauses)})")
 
-        # Motorization (Turbo vs Aspirated)
+        # 100% electric vehicles do not distinguish displacement, turbo/aspirated, or manual/automatic transmission
+        clean_comb_tokens = [t.strip().lower() for t in (combustivel or "").split(",") if t.strip()]
+        is_only_electric = clean_comb_tokens in (["eletrico"], ["elétrico"])
+
         is_enriched = database.IS_ENRICHED
-        if motorizacao == "turbo":
-            where_clauses.append("is_turbo = true" if is_enriched else f"regexp_matches(lower(nome_modelo), '{TURBO_PATTERN}')")
-        elif motorizacao == "aspirado":
-            where_clauses.append("is_turbo = false" if is_enriched else f"NOT regexp_matches(lower(nome_modelo), '{TURBO_PATTERN}')")
+        if not is_only_electric:
+            has_combustion_tech_filter = (
+                motorizacao in ("turbo", "aspirado")
+                or cambio in ("automatico", "manual")
+                or bool(litragem and litragem != "todos")
+            )
+            if has_combustion_tech_filter:
+                not_electric_sql = (
+                    "(sigla_combustivel IS NULL OR sigla_combustivel != 'l') "
+                    "AND (nome_combustivel IS NULL OR lower(nome_combustivel) NOT LIKE '%elétrico%')"
+                )
+                where_clauses.append(not_electric_sql)
 
-        # Transmission (Automatic vs Manual)
-        if cambio == "automatico":
-            where_clauses.append("is_automatico = true" if is_enriched else f"regexp_matches(lower(nome_modelo), '{AUTOMATIC_PATTERN}')")
-        elif cambio == "manual":
-            where_clauses.append("is_manual = true" if is_enriched else f"regexp_matches(lower(nome_modelo), '{MANUAL_PATTERN}')")
+            # Motorization (Turbo vs Aspirated)
+            if motorizacao == "turbo":
+                where_clauses.append("is_turbo = true" if is_enriched else f"regexp_matches(lower(nome_modelo), '{TURBO_PATTERN}')")
+            elif motorizacao == "aspirado":
+                where_clauses.append("is_turbo = false" if is_enriched else f"NOT regexp_matches(lower(nome_modelo), '{TURBO_PATTERN}')")
 
-        # Engine Displacement (litragem)
-        if litragem and litragem != "todos":
-            if litragem == "2.0+":
-                where_clauses.append("litragem_num >= 2.0" if is_enriched else "TRY_CAST(regexp_extract(nome_modelo, '([0-9]\\.[0-9])', 1) AS DOUBLE) >= 2.0")
-            else:
-                if is_enriched:
-                    where_clauses.append("litragem = ?")
-                    params.append(litragem)
+            # Transmission (Automatic vs Manual)
+            if cambio == "automatico":
+                where_clauses.append("is_automatico = true" if is_enriched else f"regexp_matches(lower(nome_modelo), '{AUTOMATIC_PATTERN}')")
+            elif cambio == "manual":
+                where_clauses.append("is_manual = true" if is_enriched else f"regexp_matches(lower(nome_modelo), '{MANUAL_PATTERN}')")
+
+            # Engine Displacement (litragem)
+            if litragem and litragem != "todos":
+                if litragem == "2.0+":
+                    where_clauses.append("litragem_num >= 2.0" if is_enriched else "TRY_CAST(regexp_extract(nome_modelo, '([0-9]\\.[0-9])', 1) AS DOUBLE) >= 2.0")
                 else:
-                    escaped_lit = re.escape(litragem)
-                    where_clauses.append(f"regexp_matches(nome_modelo, '\\b{escaped_lit}\\b')")
+                    if is_enriched:
+                        where_clauses.append("litragem = ?")
+                        params.append(litragem)
+                    else:
+                        escaped_lit = re.escape(litragem)
+                        where_clauses.append(f"regexp_matches(nome_modelo, '\\b{escaped_lit}\\b')")
 
         return where_clauses, params, price_clauses, price_params
 

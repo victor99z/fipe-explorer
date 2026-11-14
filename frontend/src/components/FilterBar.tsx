@@ -277,81 +277,85 @@ export default function FilterBar({ filters, onChange, onReset }: FilterBarProps
         )}
 
         {/* Row 2: Motorização, Câmbio, Visão & Métrica */}
-        <div className="pt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center relative">
+        <div className={`pt-4 grid grid-cols-1 md:grid-cols-2 ${filters.combustivel === 'eletrico' ? 'lg:grid-cols-2' : 'lg:grid-cols-4'} gap-4 items-center relative`}>
           <Separator className="absolute top-0 left-0 right-0" />
-          {/* Motorização */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1">
-              <Flame className="w-3.5 h-3.5 text-amber-400" />
-              <span>Motorização</span>
-            </label>
-            <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 h-10 items-center">
-              <Button
-                type="button"
-                variant={(!filters.motorizacao || filters.motorizacao === 'todos') ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => onChange({ motorizacao: 'todos' })}
-                className="h-8 text-[11px] cursor-pointer"
-              >
-                Todos
-              </Button>
-              <Button
-                type="button"
-                variant={filters.motorizacao === 'turbo' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => onChange({ motorizacao: 'turbo' })}
-                className={`h-8 text-[11px] cursor-pointer ${filters.motorizacao === 'turbo' ? 'bg-amber-600 hover:bg-amber-500' : ''}`}
-              >
-                🔥 Turbo
-              </Button>
-              <Button
-                type="button"
-                variant={filters.motorizacao === 'aspirado' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => onChange({ motorizacao: 'aspirado' })}
-                className="h-8 text-[11px] cursor-pointer"
-              >
-                Aspirado
-              </Button>
-            </div>
-          </div>
+          {filters.combustivel !== 'eletrico' && (
+            <>
+              {/* Motorização */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1">
+                  <Flame className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
+                  <span>Motorização</span>
+                </label>
+                <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 h-10 items-center">
+                  <Button
+                    type="button"
+                    variant={(!filters.motorizacao || filters.motorizacao === 'todos') ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => onChange({ motorizacao: 'todos' })}
+                    className="h-8 text-[11px] cursor-pointer"
+                  >
+                    Todos
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={filters.motorizacao === 'turbo' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => onChange({ motorizacao: 'turbo' })}
+                    className={`h-8 text-[11px] cursor-pointer ${filters.motorizacao === 'turbo' ? 'bg-amber-600 hover:bg-amber-500' : ''}`}
+                  >
+                    🔥 Turbo
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={filters.motorizacao === 'aspirado' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => onChange({ motorizacao: 'aspirado' })}
+                    className="h-8 text-[11px] cursor-pointer"
+                  >
+                    Aspirado
+                  </Button>
+                </div>
+              </div>
 
-          {/* Transmissão */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1">
-              <Gauge className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Transmissão / Câmbio</span>
-            </label>
-            <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 h-10 items-center">
-              <Button
-                type="button"
-                variant={(!filters.cambio || filters.cambio === 'todos') ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => onChange({ cambio: 'todos' })}
-                className="h-8 text-[11px] cursor-pointer"
-              >
-                Todos
-              </Button>
-              <Button
-                type="button"
-                variant={filters.cambio === 'automatico' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => onChange({ cambio: 'automatico' })}
-                className={`h-8 text-[11px] cursor-pointer ${filters.cambio === 'automatico' ? 'bg-cyan-600 hover:bg-cyan-500' : ''}`}
-              >
-                Aut / CVT
-              </Button>
-              <Button
-                type="button"
-                variant={filters.cambio === 'manual' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => onChange({ cambio: 'manual' })}
-                className="h-8 text-[11px] cursor-pointer"
-              >
-                Manual
-              </Button>
-            </div>
-          </div>
+              {/* Transmissão */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1">
+                  <Gauge className="w-3.5 h-3.5 text-cyan-400" aria-hidden="true" />
+                  <span>Transmissão / Câmbio</span>
+                </label>
+                <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 h-10 items-center">
+                  <Button
+                    type="button"
+                    variant={(!filters.cambio || filters.cambio === 'todos') ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => onChange({ cambio: 'todos' })}
+                    className="h-8 text-[11px] cursor-pointer"
+                  >
+                    Todos
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={filters.cambio === 'automatico' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => onChange({ cambio: 'automatico' })}
+                    className={`h-8 text-[11px] cursor-pointer ${filters.cambio === 'automatico' ? 'bg-cyan-600 hover:bg-cyan-500' : ''}`}
+                  >
+                    Aut / CVT
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={filters.cambio === 'manual' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => onChange({ cambio: 'manual' })}
+                    className="h-8 text-[11px] cursor-pointer"
+                  >
+                    Manual
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Agrupamento Temporal */}
           <div>
@@ -441,10 +445,10 @@ export default function FilterBar({ filters, onChange, onReset }: FilterBarProps
               type="button"
               variant={filters.combustivel === 'eletrico' ? 'default' : 'ghost'}
               size="sm"
-              onClick={() => onChange({ combustivel: 'eletrico' })}
+              onClick={() => onChange({ combustivel: 'eletrico', motorizacao: 'todos', cambio: 'todos' })}
               className="h-8 text-[11px] cursor-pointer"
             >
-              <Zap className="w-3 h-3 mr-1 text-cyan-400" /> Elétrico
+              <Zap className="w-3 h-3 mr-1 text-cyan-400" aria-hidden="true" /> Elétrico
             </Button>
           </div>
         </div>

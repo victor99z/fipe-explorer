@@ -4,7 +4,7 @@ from backend.core import database
 from backend.core.database import db_session
 from backend.repositories.query_builder import SqlQueryBuilder
 from backend.domain.calculations import format_currency
-from backend.domain.vehicle_rules import determine_transmission_label, infer_specs_from_name
+from backend.domain.vehicle_rules import determine_transmission_label, infer_specs_from_name, is_electric_vehicle
 
 class VehicleRepository:
     """Data Access Layer for paginated vehicle search and fast autocomplete suggestions."""
@@ -127,6 +127,8 @@ class VehicleRepository:
             valor_ini = row[9]
             var_pct = row[10]
             nome_mod = row[2] or ""
+            nome_comb = row[4] if len(row) > 4 else None
+            is_elec = is_electric_vehicle(nome_comb, nome_mod)
 
             is_enriched = database.IS_ENRICHED
             if is_enriched and len(row) >= 15:
@@ -136,10 +138,16 @@ class VehicleRepository:
                 is_manual = bool(row[14])
                 cons_offset = 15
             else:
-                eng_size, is_turbo, is_auto, is_manual = infer_specs_from_name(nome_mod)
+                eng_size, is_turbo, is_auto, is_manual = infer_specs_from_name(nome_mod, nome_comb)
                 cons_offset = 11
 
-            tipo_cambio = determine_transmission_label(is_auto, is_manual)
+            if is_elec:
+                eng_size = None
+                is_turbo = False
+                is_auto = False
+                is_manual = False
+
+            tipo_cambio = determine_transmission_label(is_auto, is_manual, is_eletrico=is_elec)
 
             has_cons_cols = len(row) >= cons_offset + 10
             c_urb_gas = float(row[cons_offset]) if has_cons_cols and row[cons_offset] is not None else None

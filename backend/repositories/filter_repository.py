@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 from backend.core.config import settings
-from backend.core.database import db_session, IS_ENRICHED
+import backend.core.database as database
+from backend.core.database import db_session
 from backend.core.constants import ENGINE_PATTERN
 
 class FilterRepository:
@@ -75,8 +76,12 @@ class FilterRepository:
 
     @staticmethod
     def get_engine_sizes(tipo_veiculo: str = "carro") -> List[Dict[str, Any]]:
+        not_electric_filter = (
+            "AND (sigla_combustivel IS NULL OR sigla_combustivel != 'l') "
+            "AND (nome_combustivel IS NULL OR lower(nome_combustivel) NOT LIKE '%elétrico%')"
+        )
         with db_session() as con:
-            if IS_ENRICHED:
+            if database.IS_ENRICHED:
                 res = con.execute(f"""
                     SELECT 
                         litragem,
@@ -84,6 +89,7 @@ class FilterRepository:
                     FROM '{settings.PARQUET_FILE}'
                     WHERE tipo_veiculo = ? 
                       AND litragem IS NOT NULL AND litragem != ''
+                      {not_electric_filter}
                     GROUP BY litragem
                     ORDER BY MIN(litragem_num) ASC
                 """, [tipo_veiculo]).fetchall()
@@ -95,7 +101,8 @@ class FilterRepository:
                     FROM '{settings.PARQUET_FILE}'
                     WHERE tipo_veiculo = ? 
                       AND regexp_matches(nome_modelo, '([0-9]\\.[0-9])')
-                    GROUP BY litragem
+                      {not_electric_filter}
+                    GROUP BY 1
                     HAVING litragem IS NOT NULL AND litragem != ''
                     ORDER BY TRY_CAST(litragem AS DOUBLE) ASC
                 """, [tipo_veiculo]).fetchall()

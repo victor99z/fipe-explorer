@@ -120,12 +120,27 @@ def enrich_dataset(input_file: str, output_file: str, threads: int = 4) -> dict:
             p.valor_formatado,
             p.mes_referencia,
             p.ano_referencia,
-            -- Colunas pré-calculadas
-            CAST(regexp_extract(p.nome_modelo, '([0-9]\\.[0-9])', 1) AS VARCHAR) AS litragem,
-            TRY_CAST(regexp_extract(p.nome_modelo, '([0-9]\\.[0-9])', 1) AS DOUBLE) AS litragem_num,
-            CAST(regexp_matches(lower(p.nome_modelo), '{TURBO_PATTERN}') AS BOOLEAN) AS is_turbo,
-            CAST(regexp_matches(lower(p.nome_modelo), '{AUTOMATIC_PATTERN}') AS BOOLEAN) AS is_automatico,
-            CAST(regexp_matches(lower(p.nome_modelo), '{MANUAL_PATTERN}') AS BOOLEAN) AS is_manual,
+            -- Colunas pré-calculadas (veículos 100% elétricos não possuem cilindrada, turbo/aspirado ou câmbio manual/automático)
+            CASE
+                WHEN p.sigla_combustivel = 'l' OR lower(coalesce(p.nome_combustivel, '')) LIKE '%elétrico%' THEN CAST(NULL AS VARCHAR)
+                ELSE CAST(regexp_extract(p.nome_modelo, '([0-9]\\.[0-9])', 1) AS VARCHAR)
+            END AS litragem,
+            CASE
+                WHEN p.sigla_combustivel = 'l' OR lower(coalesce(p.nome_combustivel, '')) LIKE '%elétrico%' THEN CAST(NULL AS DOUBLE)
+                ELSE TRY_CAST(regexp_extract(p.nome_modelo, '([0-9]\\.[0-9])', 1) AS DOUBLE)
+            END AS litragem_num,
+            CASE
+                WHEN p.sigla_combustivel = 'l' OR lower(coalesce(p.nome_combustivel, '')) LIKE '%elétrico%' THEN FALSE
+                ELSE CAST(regexp_matches(lower(p.nome_modelo), '{TURBO_PATTERN}') AS BOOLEAN)
+            END AS is_turbo,
+            CASE
+                WHEN p.sigla_combustivel = 'l' OR lower(coalesce(p.nome_combustivel, '')) LIKE '%elétrico%' THEN FALSE
+                ELSE CAST(regexp_matches(lower(p.nome_modelo), '{AUTOMATIC_PATTERN}') AS BOOLEAN)
+            END AS is_automatico,
+            CASE
+                WHEN p.sigla_combustivel = 'l' OR lower(coalesce(p.nome_combustivel, '')) LIKE '%elétrico%' THEN FALSE
+                ELSE CAST(regexp_matches(lower(p.nome_modelo), '{MANUAL_PATTERN}') AS BOOLEAN)
+            END AS is_manual,
             -- Consumo & Eficiência INMETRO PBEV
             {inmetro_select}
         FROM read_parquet('{input_file}') p
