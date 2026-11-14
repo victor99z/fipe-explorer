@@ -92,6 +92,7 @@ BRAND_ALIASES = {
     "caoa chery": "chery",
     "chery": "chery",
     "caoa changan": "changan",
+    "caoachangan": "changan",
     "changan": "changan",
     "kia motors": "kia",
     "kia": "kia",
@@ -104,6 +105,7 @@ BRAND_ALIASES = {
     "alfa romeo": "alfa romeo",
     "aston martin": "aston martin",
     "rolls-royce": "rolls-royce",
+    "rolls royce": "rolls-royce",
     "hitech electric": "hitech",
     "ram": "ram",
     "ssangyong": "ssangyong",
@@ -177,8 +179,8 @@ VERSION_ABBREV = {
     "sprt": "sport",
     "tour": "touring",
     "hv": "hybrid",
-    "hev": "hybrid",
-    "phev": "hybrid",
+    "hev": "hev",
+    "phev": "phev",
     "ev": "eletrico",
     "bev": "eletrico",
     "4wd": "4x4",
@@ -581,6 +583,383 @@ def tokenize_clean(text: str) -> List[str]:
     return tokens
 
 
+MULTI_FAMILIES = [
+    "corolla cross",
+    "eclipse cross",
+    "dolphin mini",
+    "onix plus",
+    "joy plus",
+    "grand siena",
+    "palio weekend",
+    "c3 aircross",
+    "c4 cactus",
+    "c4 lounge",
+    "c4 picasso",
+    "arrizo 5e",
+    "arrizo 5",
+    "arrizo 6",
+    "tiggo 2",
+    "tiggo 5x",
+    "tiggo 3x",
+    "tiggo 7",
+    "tiggo 8",
+    "range rover evoque",
+    "range rover velar",
+    "range rover sport",
+    "discovery sport",
+    "grand cherokee",
+    "pajero sport",
+    "partner rapid",
+    "haval h6",
+    "haval h9",
+    "ora 03",
+    "ioniq 5",
+    "avatr 11",
+    "song plus",
+    "song pro",
+    "yuan plus",
+    "yuan pro",
+    "seal",
+    "han",
+    "tan",
+    "king",
+    "e-208",
+    "e-2008",
+    "e-js1",
+    "e-kwid",
+    "e-jv5.5",
+    "e-transit",
+    "t-cross",
+    "hr-v",
+    "wr-v",
+    "cr-v",
+    "zr-v",
+    "hb20s",
+    "hb20x",
+    "hb20",
+    "creta",
+    "compass",
+    "renegade",
+    "commander",
+    "toro",
+    "strada",
+    "argo",
+    "cronos",
+    "mobi",
+    "pulse",
+    "fastback",
+    "titano",
+    "s10",
+    "l200",
+    "hilux sw4",
+    "hilux",
+    "sw4",
+    "yaris",
+    "etios",
+    "corolla",
+    "rav4",
+    "civic",
+    "city",
+    "fit",
+    "accord",
+    "polo",
+    "virtus",
+    "nivus",
+    "taos",
+    "gol",
+    "voyage",
+    "saveiro",
+    "fox",
+    "up",
+    "jetta",
+    "golf",
+    "tiguan",
+    "amarok",
+    "onix",
+    "tracker",
+    "cruze",
+    "spin",
+    "montana",
+    "equinox",
+    "prisma",
+    "cobalt",
+    "kwid",
+    "sandero",
+    "logan",
+    "duster",
+    "oroch",
+    "kardian",
+    "captur",
+    "kicks",
+    "versa",
+    "sentra",
+    "frontier",
+    "march",
+    "208",
+    "2008",
+    "3008",
+    "c3",
+    "basalt",
+    "aircross",
+    "ka",
+    "fiesta",
+    "focus",
+    "ecosport",
+    "ranger",
+    "territory",
+    "maverick",
+    "bronco sport",
+    "bronco",
+    "mustang",
+    "uno",
+    "palio",
+    "siena",
+    "fiorino",
+    "doblo",
+    "500e",
+    "500",
+    "cooper",
+    "countryman",
+    "dolphin",
+]
+
+LEXUS_PREFIX_PATTERNS = [
+    (r"^ct[\s-]?200h?\b", "ct200h"),
+    (r"^es[\s-]?300h?\b", "es300h"),
+    (r"^es[\s-]?350\b", "es350"),
+    (r"^is[\s-]?200\b", "is200"),
+    (r"^is[\s-]?250\b", "is250"),
+    (r"^is[\s-]?300\b", "is300"),
+    (r"^ls[\s-]?460\b", "ls460"),
+    (r"^ls[\s-]?500h?\b", "ls500h"),
+    (r"^nx[\s-]?450h\+?\b", "nx450h"),
+    (r"^nx[\s-]?350h\b", "nx350h"),
+    (r"^nx[\s-]?300h\b", "nx300h"),
+    (r"^nx[\s-]?300\b", "nx300"),
+    (r"^nx[\s-]?200t?\b", "nx200"),
+    (r"^rx[\s-]?500h\b", "rx500h"),
+    (r"^rx[\s-]?450h\+?\b", "rx450h"),
+    (r"^rx[\s-]?350\b", "rx350"),
+    (r"^ux[\s-]?250h\b", "ux250h"),
+    (r"^ux[\s-]?300h\b", "ux300h"),
+]
+
+
+def _extract_mercedes_family(m: str) -> Optional[str]:
+    if "esprinter" in m or "e sprinter" in m or "e-sprinter" in m:
+        return "esprinter"
+    if m.startswith(("sprinter", "spri.", "sprin.", "315cdi")):
+        return "sprinter"
+    if m.startswith("vito"):
+        return "vito"
+    m_clean = m[4:].strip() if (m.startswith("amg ") and not m.startswith("amg gt")) else m
+    if m_clean.startswith("amg gt") or re.match(r"^gt\s*(?:43|53|63|r|c|amg)\b", m_clean) or m_clean == "gt":
+        return "amg gt"
+    for prefix in ("cla", "cls", "gla", "glb", "glc", "gle", "gls", "slc", "slk", "sl"):
+        if re.match(rf"^{prefix}(?:[\s-]|\d|$)", m_clean):
+            return prefix
+    eq_match = re.match(r"^eq([abces])(?:[\s-]|\d|$)", m_clean)
+    if eq_match:
+        return f"eq{eq_match.group(1)}"
+    cls_match = re.match(r"^(?:classe\s+)?([abcegs])[\s-]?\d{2,3}\b", m_clean)
+    if cls_match:
+        return f"classe {cls_match.group(1)}"
+    cls_word = re.match(r"^classe\s+([abcegs])\b", m_clean)
+    if cls_word:
+        return f"classe {cls_word.group(1)}"
+    return None
+
+
+def _extract_shared_family(m: str, v: str, marca_norm: str) -> Optional[str]:
+    """Normalizações de família compartilhadas entre registros INMETRO e FIPE."""
+    if m == "up!" or m.startswith(("up!", "up ")):
+        return "up"
+    if marca_norm == "fiat" and (m.startswith("mille") or m in ("mille", "novo uno", "uno")):
+        return "uno"
+    if m.startswith("grand siena"):
+        return "grand siena"
+    if m.startswith("palio weekend") or m == "weekend":
+        return "palio weekend"
+    if m.startswith("grand c4 picasso") or m.startswith("c4 picasso"):
+        return "c4 picasso"
+
+    if marca_norm == "renault":
+        if m.startswith(("e-kwid", "ekwid")) or (m.startswith("kwid") and ("e-tech" in m or "eletric" in m)):
+            return "e-kwid"
+        if m.startswith(("sandero stepway", "stepway")):
+            return "stepway"
+
+    if marca_norm == "chery":
+        if re.match(r"^arrizo\s*5\s*e\b", m) or m.startswith(("arrizo5 e", "arrizo 5e")):
+            return "arrizo 5e"
+        if re.match(r"^arrizo\s*5\b", m):
+            return "arrizo 5"
+        if re.match(r"^arrizo\s*6\b", m):
+            return "arrizo 6"
+        if re.match(r"^tiggo\s*2(?!\.\d)\b", m):
+            return "tiggo 2"
+        if re.match(r"^tiggo\s*3x\b", m):
+            return "tiggo 3x"
+        if re.match(r"^tiggo\s*5x\b", m):
+            return "tiggo 5x"
+        if re.match(r"^tiggo\s*7\b", m):
+            return "tiggo 7"
+        if re.match(r"^tiggo\s*8\b", m):
+            return "tiggo 8"
+
+    if marca_norm == "gwm":
+        if m.startswith("haval h6") or (m.startswith("haval") and "h6" in m):
+            return "haval h6"
+        if m.startswith("haval h9"):
+            return "haval h9"
+        if re.match(r"^ora\s*03\b", m):
+            return "ora 03"
+        if re.match(r"^wey(?:\s+07)?\b", m):
+            return "wey 07"
+
+    if marca_norm == "mg":
+        if m == "4" or m.startswith(("4 ", "mg4", "mg 4")):
+            return "mg4"
+
+    if marca_norm == "jac":
+        if re.match(r"^e-?jv\s*5\.5\b", m):
+            return "e-jv5.5"
+        if re.match(r"^iev\s*330p\b", m):
+            return "iev330p"
+        if re.match(r"^iev\s*40\b", m):
+            return "iev40"
+        if re.match(r"^iev\s*20\b", m):
+            return "iev20"
+
+    if marca_norm == "foton":
+        if re.match(r"^e[vw]iew\b", m):
+            return "eview"
+
+    if marca_norm == "changan":
+        if re.match(r"^avatr\s*11\b", m):
+            return "avatr 11"
+
+    if marca_norm == "chevrolet":
+        if re.match(r"^joy\s+plus\b", m):
+            return "joy plus"
+        if m == "joy" or m.startswith("joy "):
+            return "joy"
+
+    if marca_norm == "ford":
+        if re.match(r"^(?:nova\s+)?f-?150\b", m):
+            return "f-150"
+        if m == "ka+" or m.startswith(("ka+ ", "ka plus", "ka+")):
+            return "ka"
+        if m.startswith("e-transit"):
+            return "e-transit"
+
+    if marca_norm == "troller" and re.match(r"^t-?4\b", m):
+        return "t4"
+
+    if marca_norm == "jeep":
+        if m.startswith("renegade"):
+            return "renegade"
+        if re.match(r"^(?:grand|g)\s+cherokee\b", m):
+            return "grand cherokee"
+        if m.startswith("gladiator"):
+            return "gladiator"
+
+    if marca_norm == "toyota":
+        if m.startswith(("gr yaris", "yaris gr")):
+            return "gr yaris"
+        if m.startswith(("hilux sw4", "sw4 ")) or m == "sw4":
+            return "sw4"
+
+    if marca_norm == "mitsubishi":
+        if m.startswith("pajero sport"):
+            return "pajero sport"
+        if m.startswith(("l200", "triton")):
+            return "l200"
+
+    if marca_norm == "hyundai" and re.match(r"^ioniq\s*5\b", m):
+        return "ioniq 5"
+
+    if marca_norm == "peugeot":
+        if m.startswith(("e-2008", "e2008")) or (m.startswith("2008") and "e-2008" in m):
+            return "e-2008"
+        if m.startswith(("e-208", "e208")) or (m.startswith("208") and ("e-208" in m or "e-gt" in v or (v == "gt" and "eletric" in v))):
+            return "e-208"
+        if m.startswith(("partner rapid", "partrapid")):
+            return "partner rapid"
+
+    if marca_norm == "citroen":
+        if m.startswith(("c3 aircross", "c3aircross", "aircross7", "aircross 7")):
+            return "c3 aircross"
+
+    if marca_norm == "volvo":
+        for pfx in ("xc", "ex", "ec", "c", "v", "s"):
+            volvo_match = re.match(rf"^{pfx}\s*(\d{{2}})\b", m)
+            if volvo_match:
+                return f"{pfx}{volvo_match.group(1)}"
+
+    if marca_norm == "lexus":
+        for pat, fam in LEXUS_PREFIX_PATTERNS:
+            if re.match(pat, m):
+                return fam
+
+    if marca_norm == "land rover":
+        if re.match(r"^(?:new\s+)?(?:def\.|defe\.|defender)\b", m):
+            return "defender"
+        if re.match(r"^(?:new\s+)?disc(?:ov(?:ery)?)?\.?\s+sp(?:t|ort)?\.?\b", m):
+            return "discovery sport"
+        if re.match(r"^(?:new\s+)?disc(?:ov(?:ery)?)?\.?\b", m):
+            return "discovery"
+        if re.match(r"^(?:new\s+)?range(?:\s*rover|\s*\.?\s*r\.?)?\s+velar\b|^velar\b", m):
+            return "range rover velar"
+        if re.match(r"^(?:new\s+)?range(?:\s*rover|\s*\.?\s*r\.?)?\s*evoque\b|^evoque\b", m):
+            return "range rover evoque"
+        if re.match(r"^(?:new\s+)?range(?:\s*rover|\s*\.?\s*r\.?)\s*sp(?:ort|\.?)\b|^rrspt\b", m):
+            return "range rover sport"
+        if re.match(r"^(?:new\s+)?range(?:\s*rover|\s*\.?\s*r\.?)\b|^rrover\b", m):
+            return "range rover"
+
+    if marca_norm == "porsche":
+        if re.match(r"^(?:718\s+)?boxs?ter\b", m) or m.startswith("718 spyder"):
+            return "boxster"
+        if re.match(r"^(?:718\s+)?cayman\b", m):
+            return "cayman"
+        if m.startswith(("cayenne", "cayene")):
+            return "cayenne"
+
+    if marca_norm == "audi":
+        rs_match = re.match(r"^rs\s*(q3|q8|[3-7])\b", m)
+        if rs_match:
+            return f"rs{rs_match.group(1)}"
+        if re.match(r"^s\s*q5\b", m):
+            return "sq5"
+        if re.match(r"^tt\s*rs\b", m):
+            return "ttrs"
+        for a in ("a1", "a3", "a4", "a5", "a6", "a7", "a8", "q3", "q5", "q7", "q8"):
+            if re.match(rf"^{a}\b", m):
+                return a
+
+    if marca_norm == "bmw":
+        if re.match(r"^3\d{2}[ie]?", m):
+            return "serie 3"
+        if re.match(r"^750(?:il|li)\b", m):
+            return "750li"
+        s12_match = re.match(r"^([12]\d{2}i)", m)
+        if s12_match:
+            return s12_match.group(1)
+        m_match = re.match(r"^m\s*(135|235|340|140|240|440|760)(?:li|i)?\b", m)
+        if m_match:
+            suffix = "li" if m_match.group(1) == "760" else "i"
+            return f"m{m_match.group(1)}{suffix}"
+        x_match = re.match(r"^(x[1-7])\b", m)
+        if x_match:
+            return x_match.group(1)
+
+    if marca_norm == "mercedes":
+        return _extract_mercedes_family(m)
+
+    return None
+
+
 def extract_inmetro_family(modelo: str, versao: str, marca_norm: str) -> str:
     """Normaliza a família/modelo base do registro INMETRO para comparação com a FIPE."""
     m = normalize_text(modelo)
@@ -592,15 +971,11 @@ def extract_inmetro_family(modelo: str, versao: str, marca_norm: str) -> str:
     m = re.sub(r"\b(2p|4p|5p|2 portas|4 portas|hatch|sedan|suv|pick-up|pickup|ts|tsi)\b", " ", m)
     m = re.sub(r"\s+", " ", m).strip()
 
-    # Casos específicos conhecidos
-    if m == "up!" or m.startswith("up!"):
-        return "up"
-    if m in ("mille", "novo uno", "uno"):
-        return "uno"
-    if m.startswith("grand siena"):
-        return "grand siena"
-    if m.startswith("palio weekend") or m == "weekend":
-        return "palio weekend"
+    shared = _extract_shared_family(m, v, marca_norm)
+    if shared is not None:
+        return shared
+
+    # Casos específicos conhecidos restantes
     if m.startswith("c4 cactus"):
         return "c4 cactus"
     if m.startswith("c4 lounge"):
@@ -619,18 +994,6 @@ def extract_inmetro_family(modelo: str, versao: str, marca_norm: str) -> str:
         return "hb20s"
     if m.startswith("hb20x"):
         return "hb20x"
-    if m.startswith("208") and ("e-208" in m or "e-gt" in v or v == "gt" and "eletric" in v):
-        return "e-208"
-    if m.startswith("2008") and "e-2008" in m:
-        return "e-2008"
-    if m.startswith("tiggo 5x"):
-        return "tiggo 5x"
-    if m.startswith("tiggo 7"):
-        return "tiggo 7"
-    if m.startswith("tiggo 8"):
-        return "tiggo 8"
-    if m.startswith("tiggo 3x"):
-        return "tiggo 3x"
     if m.startswith("hr-v"):
         return "hr-v"
     if m.startswith("wr-v"):
@@ -641,44 +1004,10 @@ def extract_inmetro_family(modelo: str, versao: str, marca_norm: str) -> str:
         return "zr-v"
     if m.startswith("t-cross") or m == "t cross":
         return "t-cross"
-    if m.startswith("range rover evoque"):
-        return "range rover evoque"
-    if m.startswith("range rover velar"):
-        return "range rover velar"
-    if m.startswith("range rover sport"):
-        return "range rover sport"
     if m.startswith("s10"):
         return "s10"
     if m.startswith("l200"):
         return "l200"
-    if m.startswith("classe a") or re.match(r"^a\s?\d{3}", m):
-        return "classe a"
-    if m.startswith("classe c") or re.match(r"^c\s?\d{3}", m):
-        return "classe c"
-    if m.startswith("classe e") or re.match(r"^e\s?\d{3}", m):
-        return "classe e"
-    if re.match(r"^gla\s?\d*", m):
-        return "gla"
-    if re.match(r"^glb\s?\d*", m):
-        return "glb"
-    if re.match(r"^glc\s?\d*", m):
-        return "glc"
-    if re.match(r"^q3\b", m):
-        return "q3"
-    if re.match(r"^q5\b", m):
-        return "q5"
-    if re.match(r"^a3\b", m):
-        return "a3"
-    if re.match(r"^a4\b", m):
-        return "a4"
-    if re.match(r"^3\d{2}[ie]?", m):
-        return "serie 3"
-    if re.match(r"^x1\b", m):
-        return "x1"
-    if re.match(r"^x3\b", m):
-        return "x3"
-    if re.match(r"^x5\b", m):
-        return "x5"
     if m.startswith("mini cooper") or m == "cooper":
         return "cooper"
     if m.startswith("cooper countryman") or m == "countryman":
@@ -699,159 +1028,16 @@ def extract_fipe_family(nome_modelo: str, marca_norm: str) -> str:
     if m.startswith(marca_norm + " "):
         m = m[len(marca_norm) + 1 :].strip()
 
+    shared = _extract_shared_family(m, "", marca_norm)
+    if shared is not None:
+        return shared
+
     # Verificar famílias compostas antes de pegar só o 1º token
-    multi_families = [
-        "corolla cross",
-        "eclipse cross",
-        "dolphin mini",
-        "onix plus",
-        "grand siena",
-        "palio weekend",
-        "c3 aircross",
-        "c4 cactus",
-        "c4 lounge",
-        "tiggo 5x",
-        "tiggo 3x",
-        "tiggo 7",
-        "tiggo 8",
-        "range rover evoque",
-        "range rover velar",
-        "range rover sport",
-        "song plus",
-        "song pro",
-        "yuan plus",
-        "yuan pro",
-        "seal",
-        "han",
-        "tan",
-        "king",
-        "haval h6",
-        "ora 03",
-        "e-208",
-        "e-2008",
-        "e-js1",
-        "e-kwid",
-        "t-cross",
-        "hr-v",
-        "wr-v",
-        "cr-v",
-        "zr-v",
-        "hb20s",
-        "hb20x",
-        "hb20",
-        "creta",
-        "compass",
-        "renegade",
-        "commander",
-        "toro",
-        "strada",
-        "argo",
-        "cronos",
-        "mobi",
-        "pulse",
-        "fastback",
-        "titano",
-        "s10",
-        "l200",
-        "hilux sw4",
-        "hilux",
-        "sw4",
-        "yaris",
-        "etios",
-        "corolla",
-        "rav4",
-        "civic",
-        "city",
-        "fit",
-        "accord",
-        "polo",
-        "virtus",
-        "nivus",
-        "taos",
-        "gol",
-        "voyage",
-        "saveiro",
-        "fox",
-        "up",
-        "jetta",
-        "golf",
-        "tiguan",
-        "amarok",
-        "onix",
-        "tracker",
-        "cruze",
-        "spin",
-        "montana",
-        "equinox",
-        "prisma",
-        "cobalt",
-        "kwid",
-        "sandero",
-        "logan",
-        "duster",
-        "oroch",
-        "kardian",
-        "captur",
-        "kicks",
-        "versa",
-        "sentra",
-        "frontier",
-        "march",
-        "208",
-        "2008",
-        "3008",
-        "c3",
-        "basalt",
-        "aircross",
-        "ka",
-        "fiesta",
-        "focus",
-        "ecosport",
-        "ranger",
-        "territory",
-        "maverick",
-        "bronco sport",
-        "bronco",
-        "mustang",
-        "uno",
-        "palio",
-        "siena",
-        "fiorino",
-        "doblo",
-        "500e",
-        "500",
-        "cooper",
-        "countryman",
-        "dolphin",
-    ]
-    for fam in multi_families:
+    for fam in MULTI_FAMILIES:
         if m == fam or m.startswith(fam + " ") or m.startswith(fam + "/"):
             return fam
-    if marca_norm == "fiat" and m.startswith("mille"):
-        return "uno"
     if marca_norm == "vw" and (m.startswith("up ") or m == "up"):
         return "up"
-    if marca_norm == "gwm" and m.startswith("haval"):
-        return "haval h6" if "h6" in m else "haval"
-    if marca_norm == "mercedes":
-        if re.match(r"^(?:classe\s+)?a\s*\d{3}", m):
-            return "classe a"
-        if re.match(r"^(?:classe\s+)?c\s*\d{3}", m):
-            return "classe c"
-        if re.match(r"^(?:classe\s+)?e\s*\d{3}", m):
-            return "classe e"
-        for g in ("gla", "glb", "glc", "gle"):
-            if m.startswith(g):
-                return g
-    if marca_norm == "bmw":
-        if re.match(r"^3\d{2}[ie]?", m):
-            return "serie 3"
-        if re.match(r"^x[1-7]\b", m):
-            return m.split()[0]
-    if marca_norm == "audi":
-        for a in ("a1", "a3", "a4", "a5", "q3", "q5", "q7", "q8"):
-            if re.match(rf"^{a}\b", m):
-                return a
 
     parts = [p for p in re.split(r"[\s/]+", m) if p and p not in IGNORED_MODEL_WORDS]
     return parts[0] if parts else m
@@ -864,13 +1050,18 @@ def fuel_compatible(fipe_fuel: str, fipe_model: str, inmetro_fuel: str, inmetro_
     inp = normalize_text(inmetro_prop)
 
     if ff == "eletrico" or "(eletrico)" in fm:
-        return inf == "E" or "eletric" in inp
+        if inf == "E" or "eletric" in inp:
+            return True
+        # Range-extender EV (ex.: BMW i3 REX) aparece no INMETRO como gasolina ('G')
+        return "rex" in fm and inf == "G"
     if ff == "diesel":
         return inf == "D"
-    if ff == "hibrido" or "hibrido" in fm or "hybrid" in fm:
+    if ff == "hibrido" or "hibrido" in fm or "hybrid" in fm or "(hib" in fm:
         if inf in ("F", "G"):
             return True
-        return "hibrid" in inp or "plug-in" in inp
+        if inf == "D" and ("die" in fm or bool(re.search(r"\bd\d{3}\b", fm))):
+            return True
+        return "hibrid" in inp or "plug-in" in inp or "plug" in inp
     if ff == "flex" or "flex" in fm:
         return inf in ("F", "G")
     if ff == "gasolina":
@@ -890,9 +1081,16 @@ def match_fipe_with_inmetro(fipe_parquet_path: str, inmetro_df: Optional[pd.Data
     print(f"[*] Carregando veículos distintos da FIPE em {fipe_parquet_path}...")
     con = duckdb.connect()
     cols = [c[0] for c in con.execute(f"DESCRIBE SELECT * FROM '{fipe_parquet_path}' LIMIT 1").fetchall()]
+    has_ref_cols = "ano_referencia" in cols and "mes_referencia" in cols
+    dedup_clause = (
+        "QUALIFY row_number() OVER (PARTITION BY codigo_fipe, CAST(ano_modelo AS INT) ORDER BY ano_referencia DESC, mes_referencia DESC) = 1"
+        if has_ref_cols
+        else ""
+    )
+    select_kw = "SELECT" if has_ref_cols else "SELECT DISTINCT"
     if "litragem" in cols and "is_turbo" in cols and "is_automatico" in cols:
         fipe_df = con.execute(f"""
-            SELECT DISTINCT
+            {select_kw}
                 codigo_fipe,
                 CAST(ano_modelo AS INT) AS ano_modelo,
                 nome_marca,
@@ -906,10 +1104,11 @@ def match_fipe_with_inmetro(fipe_parquet_path: str, inmetro_df: Optional[pd.Data
             WHERE tipo_veiculo = 'carro'
               AND ano_modelo IS NOT NULL
               AND ano_modelo >= 2009
+            {dedup_clause}
         """).fetchdf()
     else:
         fipe_df = con.execute(f"""
-            SELECT DISTINCT
+            {select_kw}
                 codigo_fipe,
                 CAST(ano_modelo AS INT) AS ano_modelo,
                 nome_marca,
@@ -923,6 +1122,7 @@ def match_fipe_with_inmetro(fipe_parquet_path: str, inmetro_df: Optional[pd.Data
             WHERE tipo_veiculo = 'carro'
               AND ano_modelo IS NOT NULL
               AND ano_modelo >= 2009
+            {dedup_clause}
         """).fetchdf()
     con.close()
 
@@ -933,11 +1133,26 @@ def match_fipe_with_inmetro(fipe_parquet_path: str, inmetro_df: Optional[pd.Data
     inmetro_records = inmetro_df.to_dict("records")
     inmetro_index: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
     for r in inmetro_records:
-        m_norm = r["marca_norm"]
+        m_norm = normalize_brand(str(r["marca_norm"]))
         fam = extract_inmetro_family(str(r["modelo"]), str(r["versao"]), m_norm)
         r["_family"] = fam
         r["_tokens"] = set(tokenize_clean(f"{r['modelo']} {r['versao']} {r['motor']}"))
         inmetro_index.setdefault((m_norm, fam), []).append(r)
+
+    related_families: Dict[Tuple[str, str], List[Tuple[str, str]]] = {
+        ("mini", "cooper"): [("mini", "mini cooper")],
+        ("renault", "stepway"): [("renault", "sandero")],
+        ("chevrolet", "joy"): [("chevrolet", "onix"), ("chevrolet", "10mt")],
+        ("chevrolet", "joy plus"): [("chevrolet", "onix plus"), ("chevrolet", "prisma")],
+        ("chevrolet", "tracker"): [("chevrolet", "1.4t-16v")],
+        ("chevrolet", "prisma"): [("chevrolet", "1.0mt"), ("chevrolet", "1.4mt"), ("chevrolet", "1.4at")],
+        ("chevrolet", "onix"): [("chevrolet", "1.0mt"), ("chevrolet", "1.4mt"), ("chevrolet", "1.4at")],
+        ("citroen", "c4"): [("citroen", "c4 picasso"), ("citroen", "c4 lounge")],
+        ("jac", "iev"): [("jac", "iev40"), ("jac", "iev20"), ("jac", "iev330p")],
+        ("toyota", "sw4"): [("toyota", "cd"), ("toyota", "hilux")],
+        ("audi", "rsq3"): [("audi", "q3")],
+        ("audi", "sq5"): [("audi", "q5")],
+    }
 
     matches: List[Dict[str, Any]] = []
     exact_count = 0
@@ -951,9 +1166,9 @@ def match_fipe_with_inmetro(fipe_parquet_path: str, inmetro_df: Optional[pd.Data
         marca_norm = normalize_brand(row.nome_marca)
         fam = extract_fipe_family(row.nome_modelo, marca_norm)
 
-        candidates = inmetro_index.get((marca_norm, fam), [])
-        if not candidates and fam == "cooper":
-            candidates = inmetro_index.get((marca_norm, "mini cooper"), [])
+        candidates = list(inmetro_index.get((marca_norm, fam), []))
+        for alt_key in related_families.get((marca_norm, fam), []):
+            candidates.extend(inmetro_index.get(alt_key, []))
         if not candidates:
             continue
 
@@ -968,36 +1183,34 @@ def match_fipe_with_inmetro(fipe_parquet_path: str, inmetro_df: Optional[pd.Data
             elif re.search(r"\b(?:t?270|270\s*t\.?)\b", model_lower):
                 fipe_lit = "1.3"
 
+        fipe_lits = set(re.findall(r"([0-9]\.[0-9])", model_lower))
+        if fipe_lit:
+            fipe_lits.add(str(fipe_lit).strip())
+
         fipe_turbo = bool(row.is_turbo) or bool(
             re.search(r"(?:200\s*t\.|270\s*t\.|\btd\b|\bbi-tb\b|\bt\.flex\b|\bt\.aut\b|\bt200\b|\bt270\b)", model_lower)
         )
         fipe_auto = bool(row.is_automatico)
         fipe_manual = bool(row.is_manual)
+        trans_ambiguous = not fipe_auto and not fipe_manual
         fipe_fuel = row.nome_combustivel or ""
+        ff_norm = normalize_text(fipe_fuel)
         fipe_tokens = set(tokenize_clean(row.nome_modelo))
 
-        best_cand = None
-        best_score = -1e9
-        best_version_overlap = 0
-
+        # Base compatível (combustível, litragem, transmissão) antes da janela de ano/turbo
+        base_compatible: List[Tuple[Dict[str, Any], Optional[str], int]] = []
         for cand in candidates:
             if not fuel_compatible(fipe_fuel, row.nome_modelo, cand["combustivel"], cand["propulsao"]):
                 continue
 
-            # Litragem deve bater para veículos a combustão/híbridos quando ambos têm litragem
-            cand_lit = cand.get("litragem")
-            if fipe_lit and cand_lit and fipe_lit != cand_lit:
+            raw_cand_lit = cand.get("litragem")
+            cand_lit = None if raw_cand_lit is None or pd.isna(raw_cand_lit) else str(raw_cand_lit).strip()
+            if not cand_lit or cand_lit.lower() == "nan":
+                cand_lit = None
+            if fipe_lits and cand_lit and cand_lit not in fipe_lits:
                 continue
 
-            # Janela de ano: <= 2 anos de distância (para 2009 usar 2010, para 0km usar 2025/2026)
-            year_diff = abs(ano_eff - int(cand["ano_ciclo"]))
-            if year_diff > 2:
-                continue
-
-            # Alimentação (turbo vs aspirado) e transmissão
-            cand_turbo = bool(cand["is_turbo"])
             cand_auto = bool(cand["is_automatico"])
-
             if fipe_auto and not cand_auto:
                 continue
             if fipe_manual and not fipe_auto and cand_auto:
@@ -1008,46 +1221,104 @@ def match_fipe_with_inmetro(fipe_parquet_path: str, inmetro_df: Optional[pd.Data
             v_fipe = {t for t in fipe_tokens if t not in noise and not re.match(r"^\d+\.\d+$", t)}
             v_cand = {t for t in cand_tokens if t not in noise and not re.match(r"^\d+\.\d+$", t)}
             overlap = len(v_fipe & v_cand)
+            base_compatible.append((cand, cand_lit, overlap))
 
-            # Evitar falso positivo entre aspirado e turbo, exceto quando:
-            # - for Diesel (INMETRO omite 'T' em picapes diesel como S10/Ranger/Frontier)
-            # - litragem >= 2.0 ou houver match explícito de versão+transmissão (ex: Kicks DCT, Maverick EcoBoost, Compass 1.3)
-            if fipe_turbo != cand_turbo:
-                is_diesel = cand["combustivel"] == "D" or "diesel" in model_lower
-                lit_num = float(fipe_lit) if fipe_lit else 0.0
-                if not is_diesel and lit_num < 2.0 and not (overlap >= 1 and fipe_auto == cand_auto):
-                    continue
+        if not base_compatible:
+            continue
 
-            score = 0.0
-            if fipe_turbo == cand_turbo:
-                score += 25.0
-            # Proximidade de ano (peso forte)
-            if year_diff == 0:
-                score += 30.0
-            elif year_diff == 1:
-                score += 18.0 if int(cand["ano_ciclo"]) <= ano_eff else 12.0
-            else:
-                score += 4.0
+        best_cand = None
+        best_score = -1e9
+        best_version_overlap = 0
 
-            # Match de transmissão quando FIPE é ambíguo (nem auto nem manual explícito)
-            if fipe_auto == cand_auto:
-                score += 15.0
+        for max_year_diff in (2, 3, 4):
+            in_window = [
+                item for item in base_compatible
+                if abs(ano_eff - int(item[0]["ano_ciclo"])) <= max_year_diff
+            ]
+            if not in_window:
+                continue
+            has_same_turbo_in_window = any(
+                bool(item[0]["is_turbo"]) == fipe_turbo for item in in_window
+            )
 
-            # Match de combustível exato (Flex vs Flex, Gasolina vs Gasolina)
-            ff_norm = normalize_text(fipe_fuel)
-            if ff_norm == "flex" and cand["combustivel"] == "F":
-                score += 10.0
-            elif ff_norm == "gasolina" and cand["combustivel"] == "G":
-                score += 10.0
-            elif ff_norm == "hibrido" and "hibrid" in normalize_text(cand["propulsao"]):
-                score += 15.0
+            for cand, cand_lit, overlap in in_window:
+                year_diff = abs(ano_eff - int(cand["ano_ciclo"]))
+                cand_turbo = bool(cand["is_turbo"])
+                cand_auto = bool(cand["is_automatico"])
+                cand_prop_norm = normalize_text(cand["propulsao"])
 
-            score += overlap * 12.0
+                # Evitar falso positivo entre aspirado e turbo, exceto quando:
+                # - for elétrico/híbrido (INMETRO frequentemente omite 'T' em motorizações híbridas; elétricos Porsche usam "Turbo" como versão)
+                # - for Diesel (INMETRO omite 'T' em picapes diesel como S10/Ranger/Frontier)
+                # - litragem >= 2.0 ou houver match de versão com transmissão compatível
+                # - nenhum candidato compatível na janela possuir a mesma flag de turbo (omissão de 'T' no PDF do INMETRO)
+                if fipe_turbo != cand_turbo:
+                    is_electric = ff_norm == "eletrico" or cand["combustivel"] == "E"
+                    is_hybrid = (
+                        ff_norm == "hibrido"
+                        or "hibrid" in cand_prop_norm
+                        or "plug" in cand_prop_norm
+                        or "hibrido" in model_lower
+                        or "hybrid" in model_lower
+                    )
+                    is_diesel = cand["combustivel"] == "D" or "diesel" in model_lower or "die." in model_lower or "dies" in model_lower
+                    lit_num = float(fipe_lit) if fipe_lit else 0.0
+                    trans_match = (fipe_auto == cand_auto) or trans_ambiguous
+                    if (
+                        not is_electric
+                        and not is_hybrid
+                        and not is_diesel
+                        and lit_num < 2.0
+                        and not (overlap >= 1 and trans_match)
+                        and has_same_turbo_in_window
+                    ):
+                        continue
 
-            if score > best_score:
-                best_score = score
-                best_cand = cand
-                best_version_overlap = overlap
+                score = 0.0
+                if cand["_family"] == fam:
+                    score += 20.0
+                if fipe_lits and cand_lit and cand_lit in fipe_lits:
+                    score += 12.0
+                if fipe_turbo == cand_turbo:
+                    score += 25.0
+                # Proximidade de ano (peso forte)
+                if year_diff == 0:
+                    score += 30.0
+                elif year_diff == 1:
+                    score += 18.0 if int(cand["ano_ciclo"]) <= ano_eff else 12.0
+                elif year_diff == 2:
+                    score += 4.0
+                else:
+                    score -= float(year_diff) * 4.0
+
+                # Match de transmissão quando FIPE é ambíguo (nem auto nem manual explícito)
+                if fipe_auto == cand_auto:
+                    score += 15.0
+
+                # Match de combustível exato (Flex vs Flex, Gasolina vs Gasolina)
+                if ff_norm == "flex" and cand["combustivel"] == "F":
+                    score += 10.0
+                elif ff_norm == "gasolina" and cand["combustivel"] == "G":
+                    score += 10.0
+                elif ff_norm == "hibrido":
+                    wants_plugin = "phev" in fipe_tokens or "plug" in model_lower
+                    wants_hev = "hev" in fipe_tokens
+                    if wants_plugin and "plug" in cand_prop_norm:
+                        score += 22.0
+                    elif wants_hev and "hibrid" in cand_prop_norm:
+                        score += 20.0
+                    elif "hibrid" in cand_prop_norm or "plug" in cand_prop_norm:
+                        score += 15.0
+
+                score += overlap * 12.0
+
+                if score > best_score:
+                    best_score = score
+                    best_cand = cand
+                    best_version_overlap = overlap
+
+            if best_cand is not None:
+                break
 
         if best_cand is not None:
             is_exact = best_version_overlap >= 1 and abs(ano_eff - int(best_cand["ano_ciclo"])) <= 1
