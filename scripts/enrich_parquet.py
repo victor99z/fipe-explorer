@@ -38,9 +38,9 @@ def enrich_dataset(input_file: str, output_file: str, threads: int = 4) -> dict:
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     data_dir = os.path.dirname(os.path.abspath(output_file))
     matches_candidates = [
+        os.path.join(root_dir, "backend", "data", "fipe-inmetro-matches.parquet"),
         os.path.join(data_dir, "fipe-inmetro-matches.parquet"),
         os.path.join(root_dir, "data", "fipe-inmetro-matches.parquet"),
-        os.path.join(root_dir, "backend", "data", "fipe-inmetro-matches.parquet"),
     ]
     matches_file = next((p for p in matches_candidates if os.path.exists(p)), None)
 

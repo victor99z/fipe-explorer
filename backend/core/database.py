@@ -14,10 +14,10 @@ INMETRO_MATCHES_FILE: str | None = None
 _SCHEMA_CHECKED = False
 
 def _resolve_inmetro_matches_file() -> str | None:
-    """Locate fipe-inmetro-matches.parquet alongside data/ or bundled under backend/data/."""
+    """Locate fipe-inmetro-matches.parquet bundled under backend/data/ or alongside data/."""
     candidates = [
-        os.path.join(os.path.dirname(os.path.abspath(settings.PARQUET_FILE)), "fipe-inmetro-matches.parquet"),
         os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "fipe-inmetro-matches.parquet"),
+        os.path.join(os.path.dirname(os.path.abspath(settings.PARQUET_FILE)), "fipe-inmetro-matches.parquet"),
     ]
     for path in candidates:
         if os.path.exists(path):

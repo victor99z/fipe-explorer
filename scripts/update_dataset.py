@@ -125,19 +125,51 @@ def notify_backend(backend_url: str):
         print(f"[!] Não foi possível conectar ao backend ({endpoint}): {e} (o backend recarregará automaticamente no próximo reinício)")
 
 def parquet_has_inmetro(parquet_path: str) -> bool:
-    """Verifica se o Parquet enriquecido possui as colunas INMETRO PBEV e ao menos 1 registro preenchido."""
+    """Verifica se o Parquet enriquecido possui as colunas INMETRO PBEV atualizadas."""
     if not os.path.exists(parquet_path):
         return False
     con = None
     try:
+        safe_parquet = str(parquet_path).replace("'", "''")
         con = duckdb.connect()
-        cols = [c[0] for c in con.execute(f"DESCRIBE SELECT * FROM read_parquet('{parquet_path}') LIMIT 1").fetchall()]
+        cols = [c[0] for c in con.execute(f"DESCRIBE SELECT * FROM read_parquet('{safe_parquet}') LIMIT 1").fetchall()]
         if "consumo_urbano_gasolina" not in cols or "nota_pbe" not in cols:
             return False
         has_row = con.execute(
-            f"SELECT 1 FROM read_parquet('{parquet_path}') WHERE nota_pbe IS NOT NULL LIMIT 1"
+            f"SELECT 1 FROM read_parquet('{safe_parquet}') WHERE nota_pbe IS NOT NULL LIMIT 1"
         ).fetchone()
-        return has_row is not None
+        if has_row is None:
+            return False
+
+        matches_candidates = [
+            os.path.join(ROOT_DIR, "backend", "data", "fipe-inmetro-matches.parquet"),
+            os.path.join(DATA_DIR, "fipe-inmetro-matches.parquet"),
+        ]
+        matches_file = next((p for p in matches_candidates if os.path.exists(p)), None)
+        if matches_file is not None:
+            safe_matches = str(matches_file).replace("'", "''")
+            stale_pairs_row = con.execute(
+                f"""
+                SELECT COUNT(*)
+                FROM (
+                    SELECT DISTINCT codigo_fipe, ano_modelo
+                    FROM read_parquet('{safe_parquet}')
+                    WHERE nota_pbe IS NULL
+                ) p
+                INNER JOIN read_parquet('{safe_matches}') m
+                  ON p.codigo_fipe = m.codigo_fipe
+                 AND CAST(p.ano_modelo AS BIGINT) = CAST(m.ano_modelo AS BIGINT)
+                WHERE m.nota_pbe IS NOT NULL
+                """
+            ).fetchone()
+            stale_pairs = stale_pairs_row[0] if stale_pairs_row else 0
+            if stale_pairs > 0:
+                print(
+                    f"[!] Parquet enriquecido possui {stale_pairs} pares defasados em relação ao "
+                    "fipe-inmetro-matches.parquet. Forçando re-enriquecimento..."
+                )
+                return False
+        return True
     except Exception as e:
         print(f"[!] Aviso ao verificar colunas INMETRO em {parquet_path}: {e}")
         return False

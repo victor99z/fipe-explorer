@@ -218,7 +218,22 @@ class SqlQueryBuilder:
         inmetro_matches_file = getattr(database, "INMETRO_MATCHES_FILE", None)
 
         enriched_sel_cols = ", cv.litragem, cv.is_turbo, cv.is_automatico, cv.is_manual" if is_enriched else ""
-        if has_consumption:
+        if inmetro_matches_file:
+            safe_matches = str(inmetro_matches_file).replace("'", "''")
+            consumption_inner = ""
+            consumption_outer = (
+                ", m.consumo_urbano_gasolina, m.consumo_rodoviario_gasolina, "
+                "m.consumo_urbano_etanol, m.consumo_rodoviario_etanol, "
+                "m.consumo_urbano_eletrico, m.consumo_rodoviario_eletrico, "
+                "m.eficiencia_mj_km, CAST(m.autonomia_km AS INTEGER) AS autonomia_km, "
+                "m.nota_pbe, m.match_consumo"
+            )
+            consumption_join = (
+                f"\n            LEFT JOIN read_parquet('{safe_matches}') m\n"
+                "                ON cv.codigo_fipe = m.codigo_fipe\n"
+                "               AND CAST(cv.ano_modelo AS BIGINT) = CAST(m.ano_modelo AS BIGINT)"
+            )
+        elif has_consumption:
             consumption_inner = (
                 "consumo_urbano_gasolina, consumo_rodoviario_gasolina, "
                 "consumo_urbano_etanol, consumo_rodoviario_etanol, "
@@ -232,20 +247,6 @@ class SqlQueryBuilder:
                 "cv.eficiencia_mj_km, cv.autonomia_km, cv.nota_pbe, cv.match_consumo"
             )
             consumption_join = ""
-        elif inmetro_matches_file:
-            consumption_inner = ""
-            consumption_outer = (
-                ", m.consumo_urbano_gasolina, m.consumo_rodoviario_gasolina, "
-                "m.consumo_urbano_etanol, m.consumo_rodoviario_etanol, "
-                "m.consumo_urbano_eletrico, m.consumo_rodoviario_eletrico, "
-                "m.eficiencia_mj_km, CAST(m.autonomia_km AS INTEGER) AS autonomia_km, "
-                "m.nota_pbe, m.match_consumo"
-            )
-            consumption_join = (
-                f"\n            LEFT JOIN read_parquet('{inmetro_matches_file}') m\n"
-                "                ON cv.codigo_fipe = m.codigo_fipe\n"
-                "               AND CAST(cv.ano_modelo AS BIGINT) = CAST(m.ano_modelo AS BIGINT)"
-            )
         else:
             consumption_inner = ""
             consumption_outer = (
