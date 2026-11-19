@@ -294,16 +294,28 @@ export class PocketBaseAdapter implements DbAdapter {
       const password = this.password;
       this.authPromise = (async () => {
         this.pb.authStore.clear?.();
+        let superuserErr: unknown;
         try {
           await this.pb
             .collection("_superusers")
             .authWithPassword(email, password);
-        } catch {
+          return;
+        } catch (err) {
+          superuserErr = err;
+        }
+
+        // Only fall back to legacy <0.23 /api/admins endpoint if _superusers is missing (404)
+        if (isNotFoundError(superuserErr)) {
           this.pb.authStore.clear?.();
           try {
-            await this.pb.admins.authWithPassword(email, password);
+            if (typeof this.pb.admins?.authWithPassword === "function") {
+              await this.pb.admins.authWithPassword(email, password);
+              return;
+            }
           } catch {
-            this.pb.authStore.clear?.();
+            // Try direct legacy REST endpoint below
+          }
+          try {
             const res = (await this.pb.send("/api/admins/auth-with-password", {
               method: "POST",
               body: { identity: email, password },
@@ -312,14 +324,33 @@ export class PocketBaseAdapter implements DbAdapter {
               admin?: Record<string, unknown> | null;
               record?: Record<string, unknown> | null;
             } | null;
-            if (!res || typeof res.token !== "string" || !res.token) {
-              throw new Error("Failed to authenticate admin with PocketBase.");
+            if (res && typeof res.token === "string" && res.token) {
+              this.pb.authStore.save(
+                res.token,
+                (res.admin ?? res.record ?? null) as never,
+              );
+              return;
             }
-            this.pb.authStore.save(
-              res.token,
-              (res.admin ?? res.record ?? null) as never,
-            );
+          } catch {
+            // Fall through to users or throw
           }
+        }
+
+        this.pb.authStore.clear?.();
+        try {
+          await this.pb
+            .collection("users")
+            .authWithPassword(email, password);
+          return;
+        } catch {
+          this.pb.authStore.clear?.();
+          const detail =
+            superuserErr instanceof Error
+              ? superuserErr.message
+              : "Invalid credentials";
+          throw new Error(
+            `PocketBase authentication failed for ${email} (${detail}). Verifique POCKETBASE_EMAIL e POCKETBASE_PASSWORD.`,
+          );
         }
       })().finally(() => {
         this.authPromise = null;
