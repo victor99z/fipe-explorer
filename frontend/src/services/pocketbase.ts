@@ -424,7 +424,11 @@ export async function fetchPublicCarListings(
       .collection(PB_CAR_COLLECTIONS.CARROS)
       .getFullList<Record<string, unknown>>({ sort: '-updated' });
   } catch (sortErr) {
-    if (getHttpStatus(sortErr) === 400) {
+    const status = getHttpStatus(sortErr);
+    if (status === 404) {
+      return [];
+    }
+    if (status === 400) {
       rawCarros = await pb
         .collection(PB_CAR_COLLECTIONS.CARROS)
         .getFullList<Record<string, unknown>>();
