@@ -120,15 +120,15 @@ services:
       start_period: 5s
 
   # ----------------------------------------------------------------------------
-  # Car Crawler (OLX + Webmotors Joinville): Ative com --profile crawler
+  # Car Crawler (OLX + Webmotors Joinville): Executa em daemon periódico
   # ----------------------------------------------------------------------------
   crawler:
     build:
       context: ./crawler
       dockerfile: Dockerfile
     container_name: fipex-car-crawler
-    profiles: ["crawler"]
     restart: unless-stopped
+    command: ["bun", "run", "src/index.ts", "--daemon"]
     environment:
       - DB_TYPE=${DB_TYPE:-pocketbase}
       - POCKETBASE_URL=${POCKETBASE_URL:-https://pb.victorbernardes.dev}
@@ -136,6 +136,7 @@ services:
       - POCKETBASE_PASSWORD=${POCKETBASE_PASSWORD:-}
       - POCKETBASE_TOKEN=${POCKETBASE_TOKEN:-}
       - POCKETBASE_UPLOAD_IMAGES=${POCKETBASE_UPLOAD_IMAGES:-true}
+      - CRAWLER_INTERVAL_HOURS=${CRAWLER_INTERVAL_HOURS:-6}
     volumes:
       - ./crawler/logs:/app/logs
     networks:

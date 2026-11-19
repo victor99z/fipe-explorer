@@ -13,6 +13,7 @@ interface CliOptions {
   sampleLimit: number | null;
   allSites: boolean;
   siteFilter: string | null;
+  daemon: boolean;
 }
 
 function parsePositiveIntArg(argv: string[], prefix: string): number | null {
@@ -33,6 +34,7 @@ function parseCliArgs(argv: string[]): CliOptions {
   const cleanOlx = argv.includes("--clean-olx");
   const seedOnly = argv.includes("--seed-only");
   const allSites = argv.includes("--all-sites");
+  const daemon = argv.includes("--daemon");
   const siteArg = argv.find((arg) => arg.startsWith("--site="));
   const siteFilter = siteArg ? siteArg.slice("--site=".length).trim() : null;
 
@@ -44,11 +46,27 @@ function parseCliArgs(argv: string[]): CliOptions {
     sampleLimit,
     allSites,
     siteFilter,
+    daemon,
   };
 }
 
-async function runCrawler(): Promise<void> {
-  const args = process.argv.slice(2);
+function resolveIntervalMs(): number {
+  const raw = parseFloat(process.env.CRAWLER_INTERVAL_HOURS ?? "6");
+  const hours = Number.isFinite(raw) && raw >= 0.1 ? raw : 6;
+  return Math.round(hours * 3_600_000);
+}
+
+function hasPocketBaseCredentials(): boolean {
+  const dbType = (process.env.DB_TYPE ?? "pocketbase").toLowerCase();
+  if (dbType !== "pocketbase") return true;
+  return Boolean(
+    process.env.POCKETBASE_TOKEN?.trim() ||
+      (process.env.POCKETBASE_EMAIL?.trim() &&
+        process.env.POCKETBASE_PASSWORD?.trim()),
+  );
+}
+
+async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
   const {
     pageStartOverride,
     shouldDelete,
@@ -57,14 +75,13 @@ async function runCrawler(): Promise<void> {
     sampleLimit,
     allSites,
     siteFilter,
-  } = parseCliArgs(args);
+  } = options;
 
   await getAdapter().ensureSchema();
   await CrawlerRunsRepository.init();
 
   Logger.info(
     {
-      args,
       pageStartOverride,
       shouldDelete,
       cleanOlx,
@@ -72,6 +89,7 @@ async function runCrawler(): Promise<void> {
       sampleLimit,
       allSites,
       siteFilter,
+      daemon: options.daemon,
     },
     "Car crawler initialized",
   );
@@ -181,4 +199,47 @@ async function runCrawler(): Promise<void> {
   await CrawlerRunsRepository.flushLogs();
 }
 
-runCrawler();
+async function main(): Promise<void> {
+  const options = parseCliArgs(process.argv.slice(2));
+
+  if (!options.daemon) {
+    await runSingleCrawlCycle(options);
+    return;
+  }
+
+  let shuttingDown = false;
+  const handleSignal = () => {
+    shuttingDown = true;
+    Logger.info("Crawler daemon shutting down...");
+    process.exit(0);
+  };
+  process.on("SIGINT", handleSignal);
+  process.on("SIGTERM", handleSignal);
+
+  const intervalMs = resolveIntervalMs();
+  const intervalHours = (intervalMs / 3_600_000).toFixed(1);
+  Logger.info({ intervalHours }, "Car crawler daemon started");
+
+  while (!shuttingDown) {
+    if (!hasPocketBaseCredentials()) {
+      Logger.warn(
+        "Crawler daemon waiting: configure POCKETBASE_EMAIL/POCKETBASE_PASSWORD or POCKETBASE_TOKEN",
+      );
+    } else {
+      try {
+        await runSingleCrawlCycle(options);
+      } catch (err) {
+        Logger.error(
+          { err: err instanceof Error ? err.message : String(err) },
+          "Crawler daemon cycle failed",
+        );
+      }
+    }
+
+    if (shuttingDown) break;
+    Logger.info({ intervalHours }, `Sleeping ${intervalHours}h until next crawl`);
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+}
+
+main();
