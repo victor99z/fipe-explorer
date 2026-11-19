@@ -12,6 +12,8 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 # Copy source code and build production bundle
+ARG VITE_POCKETBASE_URL=https://pb.victorbernardes.dev
+ENV VITE_POCKETBASE_URL=${VITE_POCKETBASE_URL}
 COPY . .
 RUN npm run build
 

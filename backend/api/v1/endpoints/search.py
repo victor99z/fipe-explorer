@@ -2,6 +2,7 @@ from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Query, Depends
 from backend.services.vehicle_service import VehicleService
 from backend.services.analytics_service import AnalyticsService
+from backend.schemas.vehicle import FipeMatchBatchRequest, FipeMatchBatchResponse
 from backend.api.deps import get_vehicle_service, get_analytics_service
 
 router = APIRouter(prefix="/search", tags=["Search"])
@@ -85,3 +86,10 @@ def search_analytics(
         groupby=groupby,
         fipe_anos=fipe_anos
     )
+
+@router.post("/fipe-match", response_model=FipeMatchBatchResponse)
+def match_listings_fipe(
+    payload: FipeMatchBatchRequest,
+    service: VehicleService = Depends(get_vehicle_service),
+):
+    return service.match_listings_fipe([item.model_dump() for item in payload.items])

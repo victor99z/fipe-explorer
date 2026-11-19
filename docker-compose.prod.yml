@@ -51,6 +51,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_POCKETBASE_URL=${VITE_POCKETBASE_URL:-https://pb.victorbernardes.dev}
     container_name: fipex-frontend
     restart: unless-stopped
     ports:
@@ -92,6 +94,54 @@ services:
       disable: true
 
   # ----------------------------------------------------------------------------
+  # PocketBase Local (Opcional: ative com --profile pocketbase)
+  # ----------------------------------------------------------------------------
+  pocketbase:
+    build:
+      context: ./pocketbase
+      dockerfile: Dockerfile
+    container_name: fipex-pocketbase
+    profiles: ["pocketbase"]
+    restart: unless-stopped
+    environment:
+      - POCKETBASE_EMAIL=${POCKETBASE_EMAIL:-}
+      - POCKETBASE_PASSWORD=${POCKETBASE_PASSWORD:-}
+    volumes:
+      - pb-data:/pb/pb_data
+    ports:
+      - "${POCKETBASE_PORT:-8090}:8090"
+    networks:
+      - fipex-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8090/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ----------------------------------------------------------------------------
+  # Car Crawler (OLX + Webmotors Joinville): Ative com --profile crawler
+  # ----------------------------------------------------------------------------
+  crawler:
+    build:
+      context: ./crawler
+      dockerfile: Dockerfile
+    container_name: fipex-car-crawler
+    profiles: ["crawler"]
+    restart: unless-stopped
+    environment:
+      - DB_TYPE=${DB_TYPE:-pocketbase}
+      - POCKETBASE_URL=${POCKETBASE_URL:-https://pb.victorbernardes.dev}
+      - POCKETBASE_EMAIL=${POCKETBASE_EMAIL:-}
+      - POCKETBASE_PASSWORD=${POCKETBASE_PASSWORD:-}
+      - POCKETBASE_TOKEN=${POCKETBASE_TOKEN:-}
+      - POCKETBASE_UPLOAD_IMAGES=${POCKETBASE_UPLOAD_IMAGES:-true}
+    volumes:
+      - ./crawler/logs:/app/logs
+    networks:
+      - fipex-net
+
+  # ----------------------------------------------------------------------------
   # Cloudflare Tunnel: Conexão segura de saída para a borda da Cloudflare
   # ----------------------------------------------------------------------------
   cloudflared:
@@ -112,6 +162,8 @@ services:
 volumes:
   fipex-data:
     name: fipex-data
+  pb-data:
+    name: fipex-pb-data
 
 networks:
   fipex-net:

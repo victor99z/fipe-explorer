@@ -1,10 +1,43 @@
-from typing import List, Dict, Any, Tuple
+import os
+import re
+import unicodedata
+from typing import List, Dict, Any, Tuple, Optional
 from backend.core.config import settings
 from backend.core import database
 from backend.core.database import db_session
 from backend.repositories.query_builder import SqlQueryBuilder
 from backend.domain.calculations import format_currency
 from backend.domain.vehicle_rules import determine_transmission_label, infer_specs_from_name, is_electric_vehicle
+
+_BRAND_ALIAS_MAP: Dict[str, Tuple[str, ...]] = {
+    "volkswagen": ("vw - volkswagen", "volkswagen"),
+    "vw": ("vw - volkswagen", "volkswagen"),
+    "chevrolet": ("gm - chevrolet", "chevrolet"),
+    "gm": ("gm - chevrolet", "chevrolet"),
+    "citroen": ("citroën", "citroen"),
+    "caoa chery": ("caoa chery", "caoa chery/chery", "chery"),
+    "chery": ("caoa chery", "caoa chery/chery", "chery"),
+    "mercedes-benz": ("mercedes-benz",),
+    "land rover": ("land rover",),
+}
+
+def _strip_accents_lower(text: str) -> str:
+    nfd = unicodedata.normalize("NFD", text or "")
+    return "".join(ch for ch in nfd if unicodedata.category(ch) != "Mn").lower()
+
+def _tokenize_car_text(text: str) -> List[str]:
+    clean = _strip_accents_lower(text)
+    return [t for t in re.split(r"[^a-z0-9.]+", clean) if t and (len(t) >= 2 or t.isdigit())]
+
+def _brand_matches(item_brand: Optional[str], fipe_brand: str) -> bool:
+    if not item_brand:
+        return True
+    norm_item = _strip_accents_lower(item_brand).strip()
+    norm_fipe = _strip_accents_lower(fipe_brand).strip()
+    if norm_item == norm_fipe or norm_item in norm_fipe or norm_fipe in norm_item:
+        return True
+    aliases = _BRAND_ALIAS_MAP.get(norm_item, ())
+    return any(alias in norm_fipe for alias in aliases)
 
 class VehicleRepository:
     """Data Access Layer for paginated vehicle search and fast autocomplete suggestions."""
@@ -190,3 +223,119 @@ class VehicleRepository:
             })
 
         return total, items
+
+    @staticmethod
+    def match_listings_fipe(items: List[Dict[str, Any]]) -> Tuple[bool, Dict[str, Dict[str, Any]]]:
+        """Match scraped car listings against latest FIPE prices in DuckDB."""
+        if not os.path.exists(settings.PARQUET_FILE):
+            settings.PARQUET_FILE = settings.resolve_parquet_file()
+        if not os.path.exists(settings.PARQUET_FILE):
+            return False, {}
+
+        years = sorted({int(it["year"]) for it in items if it.get("year") and 1960 <= int(it["year"]) <= 2030})
+        if not years:
+            return True, {}
+
+        placeholders = ", ".join(["?"] * len(years))
+        query = f"""
+            WITH latest_ref AS (
+                SELECT ano_referencia, mes_referencia
+                FROM '{settings.PARQUET_FILE}'
+                WHERE tipo_veiculo = 'carro'
+                ORDER BY ano_referencia DESC, mes_referencia DESC
+                LIMIT 1
+            )
+            SELECT
+                p.codigo_fipe,
+                p.nome_marca,
+                p.nome_modelo,
+                CAST(p.ano_modelo AS INT) AS ano_modelo,
+                p.nome_combustivel,
+                p.valor_centavos / 100.0 AS valor,
+                p.mes_referencia,
+                p.ano_referencia
+            FROM '{settings.PARQUET_FILE}' p
+            CROSS JOIN latest_ref lr
+            WHERE p.tipo_veiculo = 'carro'
+              AND p.ano_referencia = lr.ano_referencia
+              AND p.mes_referencia = lr.mes_referencia
+              AND CAST(p.ano_modelo AS INT) IN ({placeholders})
+              AND p.valor_centavos > 0
+        """
+
+        with db_session() as con:
+            rows = con.execute(query, years).fetchall()
+
+        by_year: Dict[int, List[Tuple[str, str, str, int, Optional[str], float, int, int, set]]] = {}
+        for r in rows:
+            yr = int(r[3])
+            tokens = set(_tokenize_car_text(f"{r[1]} {r[2]} {r[4] or ''}"))
+            by_year.setdefault(yr, []).append(
+                (r[0], r[1], r[2], yr, r[4], float(r[5]), int(r[6]), int(r[7]), tokens)
+            )
+
+        matches: Dict[str, Dict[str, Any]] = {}
+        for item in items:
+            item_id = item.get("id")
+            yr = item.get("year")
+            if not item_id or not yr:
+                continue
+            candidates = by_year.get(int(yr), [])
+            if not candidates:
+                continue
+
+            item_brand = item.get("brand")
+            item_model = item.get("model") or ""
+            item_text = " ".join(
+                str(x)
+                for x in (
+                    item_brand or "",
+                    item_model,
+                    item.get("version") or "",
+                    item.get("transmission") or "",
+                    item.get("fuel") or "",
+                    item.get("title") or "",
+                )
+                if x
+            )
+            item_tokens = set(_tokenize_car_text(item_text))
+            model_tokens = set(_tokenize_car_text(item_model))
+            if not item_tokens:
+                continue
+
+            best_score = 0.0
+            best_row = None
+
+            for cand in candidates:
+                if not _brand_matches(item_brand, cand[1]):
+                    continue
+                cand_tokens = cand[8]
+                if model_tokens and not (model_tokens & cand_tokens):
+                    continue
+                overlap = len(item_tokens & cand_tokens)
+                if overlap == 0:
+                    continue
+                # Jaccard-weighted score favoring model token match
+                union_len = len(item_tokens | cand_tokens)
+                score = overlap / max(1, union_len)
+                if model_tokens and model_tokens.issubset(cand_tokens):
+                    score += 0.25
+                if score > best_score:
+                    best_score = score
+                    best_row = cand
+
+            if best_row and best_score >= 0.25:
+                confidence = min(0.99, round(best_score, 2))
+                matches[item_id] = {
+                    "codigo_fipe": best_row[0],
+                    "nome_marca": best_row[1],
+                    "nome_modelo": best_row[2],
+                    "ano_modelo": best_row[3],
+                    "nome_combustivel": best_row[4],
+                    "valor": best_row[5],
+                    "valor_formatado": format_currency(best_row[5]),
+                    "periodo_referencia": f"{best_row[6]:02d}/{best_row[7]}",
+                    "confidence": confidence,
+                }
+
+        return True, matches

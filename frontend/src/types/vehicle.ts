@@ -161,3 +161,32 @@ export interface FuelItem {
   total_modelos: number;
 }
 
+export interface FipeMatchRequestItem {
+  id: string;
+  brand?: string;
+  model?: string;
+  version?: string;
+  year?: number | null;
+  fuel?: string;
+  transmission?: string;
+  title?: string;
+}
+
+export interface FipeMatchResult {
+  codigo_fipe: string;
+  nome_marca: string;
+  nome_modelo: string;
+  ano_modelo: number;
+  nome_combustivel?: string | null;
+  valor: number;
+  valor_formatado: string;
+  periodo_referencia: string;
+  confidence: number;
+}
+
+export interface FipeMatchBatchResponse {
+  dataset_available: boolean;
+  matches: Record<string, FipeMatchResult>;
+}
+
+

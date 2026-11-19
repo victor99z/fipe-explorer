@@ -6,7 +6,9 @@ import {
   PresetItem,
   SuggestionItem,
   EngineSizeItem,
-  FuelItem
+  FuelItem,
+  FipeMatchRequestItem,
+  FipeMatchBatchResponse,
 } from '../types/vehicle';
 
 /**
@@ -109,4 +111,25 @@ export async function fetchSuggestions(query: string, tipoVeiculo: string = 'car
     throw new Error(`Falha ao carregar sugestões: ${res.statusText}`);
   }
   return res.json();
+}
+
+export async function matchListingsFipe(
+  items: FipeMatchRequestItem[],
+): Promise<FipeMatchBatchResponse> {
+  if (items.length === 0) {
+    return { dataset_available: true, matches: {} };
+  }
+  try {
+    const res = await fetch('/api/search/fipe-match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+    if (!res.ok) {
+      return { dataset_available: false, matches: {} };
+    }
+    return res.json();
+  } catch {
+    return { dataset_available: false, matches: {} };
+  }
 }

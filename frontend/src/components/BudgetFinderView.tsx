@@ -112,9 +112,13 @@ const POPULAR_ENGINES: EngineItem[] = [
 
 export interface BudgetFinderViewProps {
   onSwitchTab?: (tab: string) => void;
+  onSearchListings?: (vehicle: Vehicle) => void;
 }
 
-export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFinderViewProps) {
+export default function BudgetFinderView({
+  onSwitchTab: _onSwitchTab,
+  onSearchListings,
+}: BudgetFinderViewProps) {
   // Budget inputs
   const [budgetValue, setBudgetValue] = useState<string>('80000');
   const [useSmartRange, setUseSmartRange] = useState<boolean>(true); // 80% to 100% of budget
@@ -1358,11 +1362,11 @@ export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFi
 
                 {/* Bottom Row: Price & Action */}
                 <div className="pt-2.5 sm:pt-3.5 border-t border-[#ededed] dark:border-[#27272a] flex items-end justify-between gap-2">
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-[10px] uppercase font-medium tracking-wider text-[#9a9a9a] dark:text-[#71717a] block leading-none mb-1">
                       Tabela FIPE
                     </span>
-                    <span className="text-lg sm:text-xl font-semibold tabular-nums tracking-tight text-[#171717] dark:text-[#ededed] block leading-tight">
+                    <span className="text-lg sm:text-xl font-semibold tabular-nums tracking-tight text-[#171717] dark:text-[#ededed] block leading-tight whitespace-nowrap">
                       {car.valor_formatado}
                     </span>
 
@@ -1437,18 +1441,37 @@ export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFi
                     )}
                   </div>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedVehicleForHistory(car);
-                    }}
-                    className="text-xs h-8 px-3 font-medium flex-shrink-0 group-hover:border-[#171717] dark:group-hover:border-[#3ecf8e] group-hover:text-[#171717] dark:group-hover:text-[#3ecf8e] transition-colors cursor-pointer"
-                  >
-                    Ver Histórico
-                  </Button>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {onSearchListings && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        title={`Buscar anúncios de ${car.nome_marca} ${car.nome_modelo}`}
+                        aria-label={`Buscar anúncios de ${car.nome_marca} ${car.nome_modelo}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSearchListings(car);
+                        }}
+                        className="h-8 w-8 p-0 inline-flex items-center justify-center text-[#707070] dark:text-[#a1a1aa] hover:text-[#15803d] dark:hover:text-[#3ecf8e] hover:border-[#3ecf8e]/60 transition-colors cursor-pointer"
+                      >
+                        <Search className="w-3.5 h-3.5 text-[#3ecf8e]" aria-hidden="true" />
+                      </Button>
+                    )}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedVehicleForHistory(car);
+                      }}
+                      className="text-xs h-8 px-3 font-medium group-hover:border-[#171717] dark:group-hover:border-[#3ecf8e] group-hover:text-[#171717] dark:group-hover:text-[#3ecf8e] transition-colors cursor-pointer"
+                    >
+                      Ver Histórico
+                    </Button>
+                  </div>
                 </div>
               </div>
             );
@@ -1492,6 +1515,7 @@ export default function BudgetFinderView({ onSwitchTab: _onSwitchTab }: BudgetFi
         <VehicleHistoryModal
           vehicle={selectedVehicleForHistory}
           onClose={() => setSelectedVehicleForHistory(null)}
+          onSearchListings={onSearchListings}
         />
       )}
 

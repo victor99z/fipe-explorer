@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, TrendingUp, TrendingDown, Loader2, Zap, Leaf, BatteryCharging, Fuel, Info } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Loader2, Zap, Leaf, BatteryCharging, Fuel, Info, Search } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -33,9 +33,14 @@ ChartJS.register(
 export interface VehicleHistoryModalProps {
   vehicle: Vehicle | null;
   onClose: () => void;
+  onSearchListings?: (vehicle: Vehicle) => void;
 }
 
-export default function VehicleHistoryModal({ vehicle, onClose }: VehicleHistoryModalProps) {
+export default function VehicleHistoryModal({
+  vehicle,
+  onClose,
+  onSearchListings,
+}: VehicleHistoryModalProps) {
   const [monthlyData, setMonthlyData] = useState<HistoryResponse | null>(null);
   const [yearlyData, setYearlyData] = useState<HistoryResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -595,16 +600,33 @@ export default function VehicleHistoryModal({ vehicle, onClose }: VehicleHistory
         </div>
 
         {/* Modal Footer */}
-        <div className="px-4 py-2.5 sm:px-6 sm:py-3 border-t border-[#ededed] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] flex items-center justify-between shrink-0">
+        <div className="px-4 py-2.5 sm:px-6 sm:py-3 border-t border-[#ededed] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] flex items-center justify-between gap-2 shrink-0">
           <div className="text-xs text-[#707070] dark:text-[#a1a1aa]">
             <span className="text-sm font-semibold tabular-nums tracking-tight text-[#171717] dark:text-[#ededed]">
               {summary?.valor_atual_formatado || vehicle.valor_formatado}
             </span>
             <span className="hidden sm:inline text-[11px] ml-1.5 tabular-nums">({vehicle.nome_marca} • {vehicle.ano_modelo})</span>
           </div>
-          <Button variant="outline" size="sm" onClick={onClose} className="h-8 px-4 text-xs font-medium cursor-pointer">
-            Fechar
-          </Button>
+          <div className="flex items-center gap-2">
+            {onSearchListings && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  onSearchListings(vehicle);
+                }}
+                className="h-8 px-3 text-xs font-medium gap-1.5 border-[#3ecf8e]/50 text-[#15803d] dark:text-[#3ecf8e] hover:bg-[#3ecf8e]/10 cursor-pointer"
+              >
+                <Search className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Buscar anúncios</span>
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={onClose} className="h-8 px-4 text-xs font-medium cursor-pointer">
+              Fechar
+            </Button>
+          </div>
         </div>
       </div>
     </div>

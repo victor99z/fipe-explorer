@@ -34,3 +34,31 @@ class VehicleSearchResponse(BaseModel):
     total_paginas: int
     resumo_faixa: Dict[str, Any]
     resultados: List[VehicleItem]
+
+class FipeMatchRequestItem(BaseModel):
+    id: str
+    brand: Optional[str] = None
+    model: Optional[str] = None
+    version: Optional[str] = None
+    year: Optional[int] = None
+    fuel: Optional[str] = None
+    transmission: Optional[str] = None
+    title: Optional[str] = None
+
+class FipeMatchBatchRequest(BaseModel):
+    items: List[FipeMatchRequestItem]
+
+class FipeMatchResult(BaseModel):
+    codigo_fipe: str
+    nome_marca: str
+    nome_modelo: str
+    ano_modelo: int
+    nome_combustivel: Optional[str] = None
+    valor: float
+    valor_formatado: str
+    periodo_referencia: str
+    confidence: float
+
+class FipeMatchBatchResponse(BaseModel):
+    dataset_available: bool
+    matches: Dict[str, FipeMatchResult]
