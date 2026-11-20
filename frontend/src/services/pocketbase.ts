@@ -283,6 +283,52 @@ function toStringVal(val: unknown): string {
   return typeof val === 'string' ? val.trim() : '';
 }
 
+const TURBO_TOKEN_REGEX =
+  /\b(?:tb|(?:\d+)?tsi|(?:\d+)?tce|tgdi|t-?gdi|thp|tfsie?|t270|t200|ecoboost|turbo|biturbo|bi-tb|twinpower|tdi|cgi|kompressor)\b/i;
+
+function inferCarSpecsFromText(text: string): {
+  isTurbo: boolean;
+  engineSize: string;
+  transmission: string;
+  fuel: string;
+} {
+  const lower = text.toLowerCase();
+  const isTurbo = !/\bt\.flex\b/i.test(lower) && TURBO_TOKEN_REGEX.test(lower);
+  const engineSize = text.match(/\b([1-6]\.[0-9])\b/)?.[1] ?? '';
+
+  let transmission = '';
+  if (/\b(?:e-?cvt|ecvt|cvt)\b/.test(lower)) {
+    transmission = 'CVT';
+  } else if (
+    /\b(?:autom[aá]tic[oac]?s?|aut|autoshift|tiptronic|tiptr|dsg|s-?tronic|s\.tr|g-?tronic|steptronic|powershift|pdk|multitronic|geartronic|at\d?)\b/.test(
+      lower,
+    )
+  ) {
+    transmission = 'Automático';
+  } else if (/\b(?:automatizado|imotion|i-motion|dualogic|easytronic)\b/.test(lower)) {
+    transmission = 'Automatizado';
+  } else if (/\b(?:manual|mec[aâ]nico|mec|mt\d?)\b/.test(lower)) {
+    transmission = 'Manual';
+  }
+
+  let fuel = '';
+  if (/\b(?:el[eé]trico|ev|bev)\b/.test(lower)) {
+    fuel = 'Elétrico';
+  } else if (/\b(?:h[ií]br[ií]do|hybrid|hib|phev|hev|mhev)\b/.test(lower)) {
+    fuel = 'Híbrido';
+  } else if (/\bflex\b/.test(lower)) {
+    fuel = 'Flex';
+  } else if (/\bdiesel\b/.test(lower)) {
+    fuel = 'Diesel';
+  } else if (/\b(?:gasolina|gas)\b/.test(lower)) {
+    fuel = 'Gasolina';
+  } else if (/\b(?:[aá]lcool|etanol)\b/.test(lower)) {
+    fuel = 'Etanol';
+  }
+
+  return { isTurbo, engineSize, transmission, fuel };
+}
+
 function mapCarRecord(
   pb: PocketBase,
   record: Record<string, unknown>,
@@ -341,6 +387,15 @@ function mapCarRecord(
       : null;
   const fipeDiffValue = fipePrice && price > 0 ? price - fipePrice : null;
 
+  const combinedText = `${title} ${toStringVal(record.version)} ${toStringVal(record.fipe_model)}`;
+  const inferred = inferCarSpecsFromText(combinedText);
+  const transmission = toStringVal(record.transmission) || inferred.transmission;
+  const fuel = toStringVal(record.fuel) || inferred.fuel;
+  const engineSize = toStringVal(record.engine_size) || inferred.engineSize;
+  const isTurbo =
+    (Boolean(record.is_turbo) && !/\bt\.flex\b/i.test(combinedText)) ||
+    inferred.isTurbo;
+
   const pref = localPrefs[id];
   const favorite = Boolean(pref?.favorite);
   const hidden = Boolean(pref?.hidden);
@@ -360,12 +415,12 @@ function mapCarRecord(
     brand: toStringVal(record.brand),
     model: toStringVal(record.model),
     version: toStringVal(record.version),
-    transmission: toStringVal(record.transmission),
-    fuel: toStringVal(record.fuel),
+    transmission,
+    fuel,
     color: toStringVal(record.color),
     bodyType: toStringVal(record.body_type),
-    engineSize: toStringVal(record.engine_size),
-    isTurbo: Boolean(record.is_turbo),
+    engineSize,
+    isTurbo,
     sellerType: toStringVal(record.seller_type),
     neighborhood: toStringVal(record.neighborhood),
     city: toStringVal(record.city),
@@ -382,6 +437,48 @@ function mapCarRecord(
     created: toStringVal(record.created),
     updated: toStringVal(record.updated),
   };
+}
+
+const TURBO_DESC_TERMS = [
+  'turbo',
+  ' tb ',
+  ' tsi',
+  '200tsi',
+  '250tsi',
+  '350tsi',
+  'tfsi',
+  'tgdi',
+  't-gdi',
+  ' thp',
+  't200',
+  't270',
+  ' tce',
+  'ecoboost',
+  'biturbo',
+  'bi-tb',
+  'twinpower',
+  'kompressor',
+  ' tdi',
+  ' cgi',
+];
+
+const TURBO_FIPE_TERMS = ['turbo', ' tb ', ' tsi', 'tfsi'];
+
+function buildTurboFilterClause(positive: boolean): string {
+  if (positive) {
+    const matches = [
+      'is_turbo = true',
+      ...TURBO_DESC_TERMS.map((t) => `text_description ~ "${t}"`),
+      ...TURBO_FIPE_TERMS.map((t) => `fipe_model ~ "${t}"`),
+    ];
+    return `(text_description !~ "t.flex" && (${matches.join(' || ')}))`;
+  }
+  const exclusions = [
+    '(is_turbo = false || text_description ~ "t.flex")',
+    ...TURBO_DESC_TERMS.map((t) => `text_description !~ "${t}"`),
+    ...TURBO_FIPE_TERMS.map((t) => `fipe_model !~ "${t}"`),
+  ];
+  return `(${exclusions.join(' && ')})`;
 }
 
 function buildFilterExpression(
@@ -432,21 +529,33 @@ function buildFilterExpression(
 
   // Brand
   if (params.brand?.trim()) {
-    clauses.push(pb.filter('brand = {:brand}', { brand: params.brand.trim() }));
+    clauses.push(
+      pb.filter('(brand = {:brand} || fipe_brand ~ {:brand})', {
+        brand: params.brand.trim(),
+      }),
+    );
   }
 
   // Motorizacao (Turbo / Aspirado)
   if (params.motorizacao === 'turbo') {
-    clauses.push('is_turbo = true');
+    clauses.push(buildTurboFilterClause(true));
   } else if (params.motorizacao === 'aspirado') {
-    clauses.push('is_turbo = false');
+    clauses.push(buildTurboFilterClause(false));
   }
 
   // Cambio
   if (params.cambio === 'automatico') {
-    clauses.push('(transmission ~ "Automát" || transmission ~ "CVT" || transmission ~ "Automatizado")');
+    clauses.push(
+      '(transmission ~ "Automát" || transmission ~ "CVT" || transmission ~ "Automatizado" || text_description ~ " aut." || text_description ~ " aut " || text_description ~ "autom" || text_description ~ " cvt" || text_description ~ "e-cvt" || text_description ~ "tiptr" || text_description ~ "s-tronic" || text_description ~ "s.tr" || text_description ~ "dsg" || text_description ~ "powershift" || text_description ~ "dualogic" || text_description ~ "i-motion" || fipe_model ~ " aut" || fipe_model ~ " cvt" || fipe_model ~ "tiptr" || fipe_model ~ "s-tronic")',
+    );
   } else if (params.cambio === 'manual') {
-    clauses.push('transmission ~ "Manual"');
+    clauses.push(
+      '(transmission ~ "Manual" || text_description ~ " manual" || text_description ~ " mec" || fipe_model ~ " manual" || fipe_model ~ " mec")',
+    );
+  } else if (params.cambio === 'CVT') {
+    clauses.push(
+      '(transmission ~ "CVT" || text_description ~ " cvt" || text_description ~ "e-cvt" || fipe_model ~ " cvt" || fipe_model ~ "e-cvt")',
+    );
   } else if (params.cambio && params.cambio !== 'todos') {
     clauses.push(pb.filter('transmission ~ {:cambio}', { cambio: params.cambio }));
   }
@@ -456,13 +565,38 @@ function buildFilterExpression(
     if (params.litragem === '2.0+') {
       clauses.push('(engine_size >= "2.0" && engine_size != "")');
     } else {
-      clauses.push(pb.filter('engine_size = {:lit}', { lit: params.litragem }));
+      clauses.push(
+        pb.filter(
+          '(engine_size = {:lit} || text_description ~ {:litSpaced} || fipe_model ~ {:litSpaced})',
+          { lit: params.litragem, litSpaced: ` ${params.litragem} ` },
+        ),
+      );
     }
   }
 
   // Combustivel
   if (params.combustivel && params.combustivel !== 'todos') {
-    clauses.push(pb.filter('fuel ~ {:fuel}', { fuel: params.combustivel }));
+    const fuelVal = params.combustivel.trim();
+    const lowFuel = fuelVal.toLowerCase();
+    if (lowFuel === 'híbrido' || lowFuel === 'hibrido') {
+      clauses.push(
+        '(fuel ~ "Híbrido" || fuel ~ "Hibrido" || text_description ~ "híbrido" || text_description ~ "hibrido" || text_description ~ "hibrído" || text_description ~ "hybrid" || text_description ~ "(hib" || fipe_model ~ "híbrido" || fipe_model ~ "hibrído" || fipe_model ~ "hybrid" || fipe_model ~ "(hib")',
+      );
+    } else if (lowFuel === 'elétrico' || lowFuel === 'eletrico') {
+      clauses.push(
+        '(fuel ~ "Elétrico" || fuel ~ "Eletrico" || text_description ~ "elétrico" || text_description ~ "eletrico" || fipe_model ~ "elétrico" || fipe_model ~ "eletrico")',
+      );
+    } else if (lowFuel === 'etanol' || lowFuel === 'álcool' || lowFuel === 'alcool') {
+      clauses.push(
+        '(fuel ~ "Etanol" || fuel ~ "Álcool" || text_description ~ "etanol" || text_description ~ "álcool" || fipe_model ~ "álcool")',
+      );
+    } else {
+      clauses.push(
+        pb.filter('(fuel ~ {:fuel} || text_description ~ {:fuel} || fipe_model ~ {:fuel})', {
+          fuel: fuelVal,
+        }),
+      );
+    }
   }
 
   // Seller

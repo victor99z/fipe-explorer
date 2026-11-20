@@ -2,7 +2,40 @@ import axios from "axios";
 import { getAdapter } from "../clients/db";
 import { Logger } from "../config/logger";
 import type { ExtractedCarListing } from "../pages/base-scraper";
-import { inferEngineSize } from "../utils/car-parser";
+import {
+  inferEngineSize,
+  inferFuel,
+  inferTransmission,
+} from "../utils/car-parser";
+
+function inferCombinedCarSpecs(
+  base: {
+    title?: string | null;
+    version?: string | null;
+    engineSize?: string | null;
+    isTurbo?: boolean | null;
+    transmission?: string | null;
+    fuel?: string | null;
+  },
+  match?: FipeMatchApiItem,
+): {
+  engineSize?: string;
+  isTurbo: boolean;
+  transmission?: string;
+  fuel?: string;
+} {
+  const combined = `${base.title ?? ""} ${base.version ?? ""} ${match?.nome_modelo ?? ""} ${match?.nome_combustivel ?? ""}`.trim();
+  const inferredEngine = inferEngineSize(combined);
+  return {
+    engineSize: base.engineSize || inferredEngine.engineSize,
+    isTurbo: Boolean(base.isTurbo) || Boolean(inferredEngine.isTurbo),
+    transmission: base.transmission || inferTransmission(combined),
+    fuel:
+      base.fuel ||
+      inferFuel(combined) ||
+      (match?.nome_combustivel?.trim() || undefined),
+  };
+}
 
 export interface FipeMatchApiItem {
   codigo_fipe: string;
@@ -105,25 +138,42 @@ export async function enrichListingsWithFipe(
     const match = res.matches[String(idx)];
     const fipePrice = match?.valor ?? item.features.fipe_price;
     const fipeDiffPct = computeFipeDiffPct(item.features.price, fipePrice);
+    const specs = inferCombinedCarSpecs(
+      {
+        title: item.features.title ?? item.text_description,
+        version: item.features.version,
+        engineSize: item.features.engine_size,
+        isTurbo: item.features.is_turbo,
+        transmission: item.features.transmission,
+        fuel: item.features.fuel,
+      },
+      match,
+    );
 
     if (!match) {
-      if (fipePrice && fipeDiffPct !== undefined) {
-        return {
-          ...item,
-          features: {
-            ...item.features,
-            fipe_price: fipePrice,
-            fipe_diff_pct: fipeDiffPct,
-          },
-        };
-      }
-      return item;
+      return {
+        ...item,
+        features: {
+          ...item.features,
+          engine_size: specs.engineSize,
+          is_turbo: specs.isTurbo || item.features.is_turbo,
+          transmission: specs.transmission,
+          fuel: specs.fuel,
+          ...(fipePrice && fipeDiffPct !== undefined
+            ? { fipe_price: fipePrice, fipe_diff_pct: fipeDiffPct }
+            : {}),
+        },
+      };
     }
 
     return {
       ...item,
       features: {
         ...item.features,
+        engine_size: specs.engineSize,
+        is_turbo: specs.isTurbo || item.features.is_turbo,
+        transmission: specs.transmission,
+        fuel: specs.fuel,
         fipe_price: match.valor,
         fipe_code: match.codigo_fipe,
         fipe_brand: match.nome_marca,
@@ -170,17 +220,25 @@ export async function backfillUnmatchedCarros(
     for (const row of pending) {
       processed++;
       const match = res.matches[row.id];
-      const inferredEngine = inferEngineSize(
-        `${row.textDescription ?? ""} ${row.version ?? ""}`,
+      const specs = inferCombinedCarSpecs(
+        {
+          title: row.textDescription,
+          version: row.version,
+          engineSize: row.engineSize,
+          isTurbo: row.isTurbo,
+          transmission: row.transmission,
+          fuel: row.fuel,
+        },
+        match,
       );
-      const engineSize = row.engineSize || inferredEngine.engineSize;
-      const isTurbo = row.isTurbo || Boolean(inferredEngine.isTurbo);
 
       if (match) {
         const fipeDiffPct = computeFipeDiffPct(row.price, match.valor) ?? 0;
         await db.updateCarroFipe(row.id, {
-          engineSize: engineSize || undefined,
-          isTurbo,
+          engineSize: specs.engineSize,
+          isTurbo: specs.isTurbo,
+          transmission: specs.transmission,
+          fuel: specs.fuel,
           fipePrice: match.valor,
           fipeCode: match.codigo_fipe,
           fipeBrand: match.nome_marca,
@@ -193,8 +251,10 @@ export async function backfillUnmatchedCarros(
       } else {
         // Mark as checked ("UNMATCHED") so subsequent loops don't re-scan the same unmatched record forever
         await db.updateCarroFipe(row.id, {
-          engineSize: engineSize || undefined,
-          isTurbo,
+          engineSize: specs.engineSize,
+          isTurbo: specs.isTurbo,
+          transmission: specs.transmission,
+          fuel: specs.fuel,
           fipePrice: row.fipePrice ?? 0,
           fipeCode: "N/A",
           fipeBrand: "",

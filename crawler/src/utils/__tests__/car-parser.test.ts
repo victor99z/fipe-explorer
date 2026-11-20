@@ -50,5 +50,17 @@ describe("car parser", () => {
 
     const tiptr = parseCarText("Audi Q3 Prestige 2.0 TFSI Tiptr.quatro 2024");
     expect(tiptr.transmission).toBe("Automático");
+
+    const hb20TurboAuto = parseCarText("Hyundai HB20 Limited 1.0 TB Flex 12V Aut. 2026");
+    expect(hb20TurboAuto.is_turbo).toBe(true);
+    expect(hb20TurboAuto.transmission).toBe("Automático");
+    expect(hb20TurboAuto.engine_size).toBe("1.0");
+
+    const hb20Manual = parseCarText("Hyundai HB20 Comfort 1.0 Flex 12V Mec. 2026");
+    expect(hb20Manual.is_turbo).toBeUndefined();
+    expect(hb20Manual.transmission).toBe("Manual");
+
+    const voyageTotalFlex = parseCarText("Volkswagen Voyage Trendline 1.0 T.Flex 8V 4P 2015");
+    expect(voyageTotalFlex.is_turbo).toBeUndefined();
   });
 });

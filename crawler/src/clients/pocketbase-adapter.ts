@@ -725,6 +725,8 @@ export class PocketBaseAdapter implements DbAdapter {
     };
     if (data.engineSize) body.engine_size = data.engineSize;
     if (data.isTurbo !== undefined) body.is_turbo = Boolean(data.isTurbo);
+    if (data.transmission) body.transmission = data.transmission;
+    if (data.fuel) body.fuel = data.fuel;
     await this.pb.collection(PB_CAR_COLLECTIONS.CARROS).update(id, body);
   }
 

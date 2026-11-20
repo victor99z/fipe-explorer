@@ -367,6 +367,8 @@ export class SqliteAdapter implements DbAdapter {
         `UPDATE carros_temp SET
           engine_size = COALESCE(NULLIF(?, ''), engine_size),
           is_turbo = CASE WHEN ? = 1 THEN 1 ELSE is_turbo END,
+          transmission = COALESCE(NULLIF(?, ''), transmission),
+          fuel = COALESCE(NULLIF(?, ''), fuel),
           fipe_price = ?,
           fipe_code = ?,
           fipe_brand = ?,
@@ -380,6 +382,8 @@ export class SqliteAdapter implements DbAdapter {
       .run(
         data.engineSize ?? "",
         data.isTurbo ? 1 : 0,
+        data.transmission ?? "",
+        data.fuel ?? "",
         data.fipePrice,
         data.fipeCode,
         data.fipeBrand,

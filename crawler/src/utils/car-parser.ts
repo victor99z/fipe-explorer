@@ -44,14 +44,18 @@ export function normalizeBrand(raw: string | undefined | null): string | undefin
 
 export function inferTransmission(text: string): string | undefined {
   const lower = text.toLowerCase();
-  if (/\bcvt\b/.test(lower)) return "CVT";
-  if (/\b(autom[aá]tic[oa]|aut\.?|tiptronic|tiptr\.?|dsg|s-?tronic|powershift|at\d?)\b/.test(lower)) {
+  if (/\b(?:e-?cvt|ecvt|cvt)\b/.test(lower)) return "CVT";
+  if (
+    /\b(?:autom[aá]tic[oac]?s?|aut|autoshift|tiptronic|tiptr|dsg|s-?tronic|s\.tr|g-?tronic|steptronic|powershift|pdk|multitronic|geartronic|at\d?)\b/.test(
+      lower,
+    )
+  ) {
     return "Automático";
   }
-  if (/\b(automatizado|imotion|i-motion|dualogic|easytronic)\b/.test(lower)) {
+  if (/\b(?:automatizado|imotion|i-motion|dualogic|easytronic)\b/.test(lower)) {
     return "Automatizado";
   }
-  if (/\b(manual|mec[aâ]nico|mt\d?)\b/.test(lower)) {
+  if (/\b(?:manual|mec[aâ]nico|mec|mt\d?)\b/.test(lower)) {
     return "Manual";
   }
   return undefined;
@@ -59,12 +63,12 @@ export function inferTransmission(text: string): string | undefined {
 
 export function inferFuel(text: string): string | undefined {
   const lower = text.toLowerCase();
-  if (/\b(el[eé]trico|ev|bev)\b/.test(lower)) return "Elétrico";
-  if (/\b(h[ií]brido|hybrid|phev|hev|mhev)\b/.test(lower)) return "Híbrido";
+  if (/\b(?:el[eé]trico|ev|bev)\b/.test(lower)) return "Elétrico";
+  if (/\b(?:h[ií]br[ií]do|hybrid|hib|phev|hev|mhev)\b/.test(lower)) return "Híbrido";
   if (/\bflex\b/.test(lower)) return "Flex";
   if (/\bdiesel\b/.test(lower)) return "Diesel";
-  if (/\b(gasolina|gas\.)\b/.test(lower)) return "Gasolina";
-  if (/\b([aá]lcool|etanol)\b/.test(lower)) return "Etanol";
+  if (/\b(?:gasolina|gas)\b/.test(lower)) return "Gasolina";
+  if (/\b(?:[aá]lcool|etanol)\b/.test(lower)) return "Etanol";
   if (/\bgnv\b/.test(lower)) return "GNV";
   return undefined;
 }
@@ -97,7 +101,7 @@ export function inferEngineSize(text: string): {
   isTurbo?: boolean;
 } {
   const lower = text.toLowerCase();
-  const isTurbo = /\b(turbo|tsi|tfsi|tgdi|t-?gdi|thp|ecoboost|tce|t200|t270|1\.0\s*t|1\.4\s*t|1\.5\s*t|2\.0\s*t)\b/i.test(
+  const isTurbo = /\b(?:tb|(?:\d+)?tsi|(?:\d+)?tce|tgdi|t-?gdi|thp|tfsie?|t270|t200|ecoboost|turbo|biturbo|bi-tb|twinpower|tdi|cgi|kompressor)\b/i.test(
     lower,
   );
   const engineMatch = text.match(/\b([1-6]\.[0-9])\b/);

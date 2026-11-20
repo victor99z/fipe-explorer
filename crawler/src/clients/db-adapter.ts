@@ -97,6 +97,8 @@ export interface CarroUpdate {
 export interface CarroFipePatch {
   engineSize?: string;
   isTurbo?: boolean;
+  transmission?: string;
+  fuel?: string;
   fipePrice: number;
   fipeCode: string;
   fipeBrand: string;
