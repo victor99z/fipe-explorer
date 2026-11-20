@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: 'Lato', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
@@ -9,58 +9,42 @@
 
 :root {
   color-scheme: light;
-  --primary: #3ecf8e;
-  --primary-deep: #24b47e;
-  --primary-soft: #4ade80;
-  
-  --ink: #171717;
-  --ink-secondary: #212121;
-  --ink-mute: #707070;
-  --ink-mute-2: #9a9a9a;
-  --ink-faint: #b2b2b2;
-  
-  --on-primary: #171717;
-  --on-dark: #ffffff;
-  
-  --canvas: #ffffff;
-  --canvas-soft: #fafafa;
-  --canvas-subtle: #f5f5f5;
-  --card-bg: #ffffff;
-  --card-header: #fafafa;
-  
-  --hairline: #dfdfdf;
-  --hairline-strong: #c7c7c7;
-  --hairline-cool: #ededed;
-  --hairline-cool-2: #efefef;
-  --hairline-cool-3: #d4d4d4;
+  --knolling-blush: #F6D0D6;
+  --knolling-charcoal: #2D2D2D;
+  --knolling-sky: #CBE4F0;
+  --knolling-mint: #D0F0C0;
+  --knolling-lavender: #E6E6FA;
+  --knolling-paper: #FFFDFB;
+  --knolling-paper-alt: #FAF6F7;
+  --knolling-shadow-grey: #00000020;
+
+  --primary: #CBE4F0;
+  --primary-deep: #B5D7E8;
+  --ink: #2D2D2D;
+  --ink-mute: rgba(45, 45, 45, 0.72);
+  --canvas: #F6D0D6;
+  --card-bg: #FFFDFB;
+  --hairline: rgba(45, 45, 45, 0.14);
 }
 
 .dark {
   color-scheme: dark;
-  --primary: #3ecf8e;
-  --primary-deep: #24b47e;
-  --primary-soft: #4ade80;
-  
-  --ink: #ededed;
-  --ink-secondary: #d4d4d8;
-  --ink-mute: #a1a1aa;
-  --ink-mute-2: #71717a;
-  --ink-faint: #52525b;
-  
-  --on-primary: #171717;
-  --on-dark: #ffffff;
-  
-  --canvas: #121212;
-  --canvas-soft: #171717;
-  --canvas-subtle: #1c1c1c;
-  --card-bg: #1c1c1c;
-  --card-header: #171717;
-  
-  --hairline: #2e2e2e;
-  --hairline-strong: #3f3f46;
-  --hairline-cool: #262626;
-  --hairline-cool-2: #27272a;
-  --hairline-cool-3: #3f3f46;
+  --knolling-blush: #594448;
+  --knolling-charcoal: #F5F2F3;
+  --knolling-sky: #CBE4F0;
+  --knolling-mint: #D0F0C0;
+  --knolling-lavender: #3B3948;
+  --knolling-paper: #2D2D2D;
+  --knolling-paper-alt: #242226;
+  --knolling-shadow-grey: rgba(245, 242, 243, 0.16);
+
+  --primary: #CBE4F0;
+  --primary-deep: #B5D7E8;
+  --ink: #F5F2F3;
+  --ink-mute: rgba(245, 242, 243, 0.72);
+  --canvas: #242226;
+  --card-bg: #2D2D2D;
+  --hairline: rgba(245, 242, 243, 0.15);
 }
 
 * {
@@ -70,18 +54,18 @@
 html,
 body {
   font-family: var(--font-sans);
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  line-height: 1.6;
 }
 
 body {
   background-color: var(--canvas);
   color: var(--ink);
-  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color 220ms ease-out, color 220ms ease-out;
 }
 
 .tabular-nums {
@@ -97,8 +81,8 @@ p, li {
 }
 
 @layer base {
-  :where(a, button, [role="button"]):focus-visible {
-    outline: 2px solid var(--primary);
+  :where(a, button, [role="button"], input, textarea, select):focus-visible {
+    outline: 2px solid #CBE4F0;
     outline-offset: 2px;
   }
 
@@ -114,27 +98,110 @@ p, li {
   }
 }
 
+/* Knolling 50/50 vertical pastel background split + orthogonal 90° alignment grid */
+.knolling-split-bg {
+  background-image:
+    linear-gradient(to right, rgba(45, 45, 45, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(45, 45, 45, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, #F6D0D6 0%, #F6D0D6 50%, #E6E6FA 50%, #E6E6FA 100%);
+  background-size: 32px 32px, 32px 32px, 100% 100%;
+  background-attachment: fixed;
+}
+
+.dark .knolling-split-bg {
+  background-image:
+    linear-gradient(to right, rgba(245, 242, 243, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(245, 242, 243, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, #242226 0%, #242226 50%, #2D2A30 50%, #2D2A30 100%);
+  background-size: 32px 32px, 32px 32px, 100% 100%;
+  background-attachment: fixed;
+}
+
+/* Matte paper card surface */
+.knolling-card {
+  background-color: var(--knolling-paper);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  transition: transform 200ms ease-out, box-shadow 200ms ease-out, border-color 200ms ease-out;
+}
+
+.knolling-card:hover {
+  box-shadow: 0 8px 20px rgba(45, 45, 45, 0.10);
+}
+
+/* Entry animation (transform + opacity only) */
+@keyframes knollingFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.knolling-enter {
+  animation: knollingFadeUp 420ms ease-out both;
+}
+
+/* Shimmer skeletons (no circular spinners) */
+@keyframes knollingShimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+.knolling-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(230, 230, 250, 0.45) 0%,
+    rgba(255, 253, 251, 0.9) 50%,
+    rgba(203, 228, 240, 0.5) 100%
+  );
+  background-size: 800px 100%;
+  animation: knollingShimmer 1.4s ease-out infinite;
+}
+
+.dark .knolling-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(45, 45, 45, 0.8) 0%,
+    rgba(66, 62, 72, 0.95) 50%,
+    rgba(45, 45, 45, 0.8) 100%
+  );
+  background-size: 800px 100%;
+  animation: knollingShimmer 1.4s ease-out infinite;
+}
+
 /* Subtle scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--canvas-soft);
+  background: var(--knolling-paper-alt);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--hairline-strong);
-  border-radius: 4px;
+  background: rgba(45, 45, 45, 0.24);
+  border-radius: 6px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(245, 242, 243, 0.24);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--ink-mute);
+  background: rgba(45, 45, 45, 0.4);
 }
 
 /* Typography utilities */
 .font-display {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-weight: 500;
-  letter-spacing: -0.035em;
+  font-family: 'Lato', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.025em;
 }
 
 .font-mono-code {

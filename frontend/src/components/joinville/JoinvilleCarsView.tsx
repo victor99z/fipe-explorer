@@ -123,7 +123,6 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
   const resultsTopRef = useRef<HTMLDivElement>(null);
   const requestSeqRef = useRef(0);
 
-  // Page results
   const [carros, setCarros] = useState<CarListingItem[]>([]);
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -134,7 +133,6 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
   const [selectedCar, setSelectedCar] = useState<CarListingItem | null>(null);
   const [favCount, setFavCount] = useState<number>(() => countLocalFavorites());
 
-  // Facets & aggregate stats
   const [facets, setFacets] = useState<CarFacetsAndStats>({
     totalActive: 0,
     belowFipeCount: 0,
@@ -144,7 +142,6 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
     fuels: [],
   });
 
-  // Filters (aligned with Tabela FIPE + location/ad facets)
   const [search, setSearch] = useState(() => initialSearch?.term ?? '');
   const [cityFilter, setCityFilter] = useState('Joinville');
   const [neighborhoodFilter, setNeighborhoodFilter] = useState('');
@@ -161,7 +158,6 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
   const [sellerFilter, setSellerFilter] = useState('');
   const [maxKm, setMaxKm] = useState('');
 
-  // Debounced text/numeric query inputs
   const [debouncedText, setDebouncedText] = useState(() => ({
     search: initialSearch?.term ?? '',
     neighborhood: '',
@@ -181,7 +177,6 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
   const [exactFipeOnly, setExactFipeOnly] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
 
-  // Sync incoming search intent from Tabela FIPE
   useEffect(() => {
     if (!initialSearch) return;
     setSearch(initialSearch.term);
@@ -206,7 +201,6 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
     }));
   }, [initialSearch]);
 
-  // Debounce free-text and numeric filter inputs (~250ms) & reset page to 1
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedText((prev) => {
@@ -236,7 +230,6 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
     return () => window.clearTimeout(timer);
   }, [search, neighborhoodFilter, minPrice, maxPrice, minYear, maxYear, maxKm]);
 
-  // Load facets/stats whenever cityFilter or manual refresh changes
   useEffect(() => {
     let active = true;
     fetchCarFacetsAndStats(pb, cityFilter)
@@ -244,14 +237,13 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
         if (active) setFacets(res);
       })
       .catch(() => {
-        // Non-blocking: list query surfaces connection errors if PB is down
+        // Non-blocking
       });
     return () => {
       active = false;
     };
   }, [pb, cityFilter, refreshTick]);
 
-  // Load current page from PocketBase (zero browser-side FIPE batch matching)
   useEffect(() => {
     const seq = ++requestSeqRef.current;
     setLoading(true);
@@ -483,20 +475,20 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
   const fipeIntentCambio = mapIntentCambio(fipeContext?.transmission);
 
   return (
-    <div className="space-y-6">
-      {/* Compact public header */}
-      <section className="rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#171717] p-4 sm:p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 text-xs font-medium text-[#15803d] dark:text-[#3ecf8e]">
+    <div className="space-y-8 sm:space-y-10">
+      {/* KNOLLING HEADER TRAY */}
+      <section className="knolling-card knolling-enter p-5 sm:p-7 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#E6E6FA] text-[#2D2D2D] border border-[#2D2D2D]/15 text-xs font-mono font-medium">
               <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{cityLocationLabel}</span>
+              <span>FIG. 02 // {cityLocationLabel.toUpperCase()}</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#171717] dark:text-[#ededed]">
+            <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-[#2D2D2D] dark:text-[#F5F2F3]">
               Anúncios Reais vs. Tabela FIPE
             </h1>
-            <p className="text-xs sm:text-sm text-[#707070] dark:text-[#a1a1aa] max-w-2xl">
-              Compare preços de carros anunciados com a referência atualizada da Tabela FIPE.
+            <p className="text-sm sm:text-base text-[#2D2D2D]/75 dark:text-[#F5F2F3]/78 max-w-[68ch] leading-[1.6]">
+              Compare preços anunciados na região com a referência atualizada da Tabela FIPE e identifique oportunidades abaixo do valor de tabela.
             </p>
           </div>
 
@@ -504,48 +496,57 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
             type="button"
             onClick={() => setRefreshTick((t) => t + 1)}
             disabled={loading}
-            className="h-8 self-start sm:self-center inline-flex items-center gap-1.5 px-3 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#121212] text-xs font-medium text-[#171717] dark:text-[#ededed] hover:border-[#3ecf8e]/50 cursor-pointer disabled:opacity-60"
+            className="h-9 self-start inline-flex items-center gap-1.5 px-3.5 rounded-xl border border-[#2D2D2D]/15 bg-[#CBE4F0] hover:bg-[#b5d7e8] text-xs font-semibold text-[#2D2D2D] shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-all duration-200 active:-translate-y-[1px] cursor-pointer disabled:opacity-60"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-[#3ecf8e] ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-            <span>Atualizar</span>
+            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>{loading ? 'Atualizando...' : 'Atualizar'}</span>
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-3 border-t border-[#ededed] dark:border-[#27272a] text-xs text-[#707070] dark:text-[#a1a1aa] tabular-nums">
-          <span>
-            Anúncios:{' '}
-            <strong className="text-[#171717] dark:text-[#ededed]">
+        {/* 4 Knolling Pastel KPI Compartments */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-4 border-t border-[#2D2D2D]/12 dark:border-[#F5F2F3]/12 tabular-nums">
+          <div className="rounded-xl bg-[#CBE4F0]/55 text-[#2D2D2D] border border-[#2D2D2D]/15 p-3">
+            <span className="block text-[11px] font-semibold uppercase tracking-wider opacity-75">
+              Anúncios Ativos
+            </span>
+            <strong className="block text-lg sm:text-xl font-bold mt-0.5">
               {facets.totalActive.toLocaleString('pt-BR')}
             </strong>
-          </span>
-          <span aria-hidden="true">•</span>
-          <span>
-            Abaixo da FIPE:{' '}
-            <strong className="text-[#15803d] dark:text-[#3ecf8e]">
+          </div>
+
+          <div className="rounded-xl bg-[#D0F0C0]/65 text-[#2D2D2D] border border-[#2D2D2D]/15 p-3">
+            <span className="block text-[11px] font-semibold uppercase tracking-wider opacity-75">
+              Abaixo da FIPE
+            </span>
+            <strong className="block text-lg sm:text-xl font-bold mt-0.5">
               {facets.belowFipeCount.toLocaleString('pt-BR')}
             </strong>
-          </span>
-          <span aria-hidden="true">•</span>
-          <span>
-            Preço médio:{' '}
-            <strong className="text-[#171717] dark:text-[#ededed]">
+          </div>
+
+          <div className="rounded-xl bg-[#E6E6FA]/70 text-[#2D2D2D] border border-[#2D2D2D]/15 p-3">
+            <span className="block text-[11px] font-semibold uppercase tracking-wider opacity-75">
+              Preço Médio
+            </span>
+            <strong className="block text-lg sm:text-xl font-bold mt-0.5">
               {facets.avgPrice > 0 ? formatBRL(facets.avgPrice) : '—'}
             </strong>
-          </span>
-          <span aria-hidden="true">•</span>
-          <span>
-            Favoritos:{' '}
-            <strong className="text-[#171717] dark:text-[#ededed]">
+          </div>
+
+          <div className="rounded-xl bg-[#F6D0D6]/65 text-[#2D2D2D] border border-[#2D2D2D]/15 p-3">
+            <span className="block text-[11px] font-semibold uppercase tracking-wider opacity-75">
+              Favoritos
+            </span>
+            <strong className="block text-lg sm:text-xl font-bold mt-0.5">
               {favCount.toLocaleString('pt-BR')}
             </strong>
-          </span>
+          </div>
         </div>
       </section>
 
       {notice && (
         <div
           role="status"
-          className="rounded-lg border border-[#3ecf8e]/40 bg-[#3ecf8e]/10 px-4 py-2.5 text-xs font-medium text-[#15803d] dark:text-[#3ecf8e]"
+          className="relative z-[500] rounded-xl border border-[#2D2D2D]/20 bg-[#D0F0C0] px-4 py-2.5 text-xs font-semibold text-[#2D2D2D] shadow-[0_6px_18px_rgba(45,45,45,0.12)]"
         >
           {notice}
         </div>
@@ -554,21 +555,21 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
       {loadError && (
         <div
           role="alert"
-          className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-xs text-rose-700 dark:text-rose-300"
+          className="rounded-xl border border-[#2D2D2D]/20 bg-[#F6D0D6] p-4 text-xs font-medium text-[#2D2D2D]"
         >
           {loadError}
         </div>
       )}
 
-      <div className="space-y-4">
-        {/* Filter controls: unified h-8 toolbar + symmetrical 4x3 grid */}
+      <div className="space-y-6">
+        {/* Filter Console */}
         <section
           aria-label="Filtros de busca"
-          className="rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] p-4 space-y-3.5"
+          className="knolling-card p-4 sm:p-5 space-y-4 overflow-visible"
         >
-          <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
             <div className="relative flex-1 min-w-0">
-              <Search className="w-3.5 h-3.5 text-[#707070] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+              <Search className="w-3.5 h-3.5 text-[#2D2D2D]/50 dark:text-[#F5F2F3]/50 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
               <label htmlFor={searchInputId} className="sr-only">
                 Buscar por marca, modelo, versão, código FIPE ou bairro
               </label>
@@ -578,16 +579,15 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar modelo, versão, código FIPE ou bairro..."
-                className="w-full h-8 pl-8 pr-3 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:outline-none focus:border-[#3ecf8e]"
+                className="w-full h-9 pl-8 pr-3 rounded-xl border border-[#2D2D2D]/20 dark:border-[#F5F2F3]/20 bg-[#FAF6F7] dark:bg-[#242226] text-xs text-[#2D2D2D] dark:text-[#F5F2F3] placeholder:text-[#2D2D2D]/45 dark:placeholder:text-[#F5F2F3]/45 focus:outline-none focus:ring-2 focus:ring-[#CBE4F0] focus:ring-offset-2"
               />
             </div>
 
             <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {/* Segmented visibility tabs */}
               <div
                 role="group"
                 aria-label="Visibilidade dos anúncios"
-                className="inline-flex items-center h-8 p-0.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212]"
+                className="inline-flex items-center h-9 p-1 rounded-xl border border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 bg-[#FAF6F7] dark:bg-[#242226]"
               >
                 {(['active', 'favorites', 'hidden', 'all'] as VisibilityMode[]).map((mode) => {
                   const labels: Record<VisibilityMode, string> = {
@@ -606,10 +606,10 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                         setVisibilityMode(mode);
                         setPage(1);
                       }}
-                      className={`h-[26px] inline-flex items-center justify-center px-2.5 rounded-[4px] text-xs font-medium transition-colors cursor-pointer ${
+                      className={`h-7 inline-flex items-center justify-center px-2.5 rounded-[8px] text-xs transition-colors cursor-pointer ${
                         pressed
-                          ? 'bg-[#3ecf8e]/15 text-[#15803d] dark:text-[#3ecf8e]'
-                          : 'text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed]'
+                          ? 'bg-[#CBE4F0] text-[#2D2D2D] font-semibold'
+                          : 'text-[#2D2D2D]/70 dark:text-[#F5F2F3]/70 hover:text-[#2D2D2D]'
                       }`}
                     >
                       {labels[mode]}
@@ -625,10 +625,10 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                   setOnlyBelowFipe((v) => !v);
                   setPage(1);
                 }}
-                className={`h-8 inline-flex items-center justify-center gap-1.5 px-2.5 rounded-[6px] text-xs font-medium border transition-colors cursor-pointer ${
+                className={`h-9 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-xs font-medium border transition-colors cursor-pointer ${
                   onlyBelowFipe
-                    ? 'bg-[#3ecf8e]/15 text-[#15803d] dark:text-[#3ecf8e] border-[#3ecf8e]/50'
-                    : 'bg-[#fafafa] dark:bg-[#121212] text-[#707070] dark:text-[#a1a1aa] border-[#dfdfdf] dark:border-[#27272a] hover:text-[#171717] dark:hover:text-[#ededed]'
+                    ? 'bg-[#D0F0C0] text-[#2D2D2D] border-[#2D2D2D]/25 font-semibold'
+                    : 'bg-[#FAF6F7] dark:bg-[#242226] text-[#2D2D2D]/75 dark:text-[#F5F2F3]/75 border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 hover:bg-[#D0F0C0]/45'
                 }`}
               >
                 <TrendingDown className="w-3.5 h-3.5" aria-hidden="true" />
@@ -639,16 +639,16 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                 type="button"
                 aria-expanded={showFilters}
                 onClick={() => setShowFilters((v) => !v)}
-                className={`h-8 inline-flex items-center justify-center gap-1.5 px-2.5 rounded-[6px] border text-xs font-medium transition-colors cursor-pointer ${
+                className={`h-9 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl border text-xs font-medium transition-colors cursor-pointer ${
                   showFilters
-                    ? 'border-[#3ecf8e]/50 bg-[#3ecf8e]/10 text-[#15803d] dark:text-[#3ecf8e]'
-                    : 'border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-[#707070] dark:text-[#a1a1aa]'
+                    ? 'border-[#2D2D2D]/25 bg-[#CBE4F0] text-[#2D2D2D] font-semibold'
+                    : 'border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 bg-[#FAF6F7] dark:bg-[#242226] text-[#2D2D2D]/75 dark:text-[#F5F2F3]/75'
                 }`}
               >
                 <SlidersHorizontal className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Filtros</span>
                 {activeFilterCount > 0 && (
-                  <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-[#3ecf8e] text-[#171717] text-[10px] font-semibold tabular-nums">
+                  <span className="inline-flex items-center justify-center min-w-[18px] h-4 px-1 rounded-full bg-[#2D2D2D] text-[#FFFDFB] text-[10px] font-bold tabular-nums">
                     {activeFilterCount}
                   </span>
                 )}
@@ -659,7 +659,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                   type="button"
                   onClick={resetFilters}
                   title="Limpar todos os filtros"
-                  className="h-8 inline-flex items-center justify-center gap-1.5 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs font-medium text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed] transition-colors cursor-pointer"
+                  className="h-9 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl border border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 bg-[#FAF6F7] dark:bg-[#242226] text-xs font-medium text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 hover:bg-[#F6D0D6]/55 hover:text-[#2D2D2D] transition-colors cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>Limpar</span>
@@ -669,10 +669,9 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3.5 border-t border-[#ededed] dark:border-[#27272a]">
-              {/* Row 1: Cidade, Marca, Faixa de preço, Ano */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-4 border-t border-[#2D2D2D]/12 dark:border-[#F5F2F3]/12">
               <div className="space-y-1.5">
-                <span className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
+                <span className="block text-[11px] font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider">
                   Cidade
                 </span>
                 <CustomDropdown
@@ -692,7 +691,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
               </div>
 
               <div className="space-y-1.5">
-                <span className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
+                <span className="block text-[11px] font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider">
                   Marca
                 </span>
                 <CustomDropdown
@@ -715,14 +714,12 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
               </div>
 
               <div className="space-y-1.5">
-                <span className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
+                <span className="block text-[11px] font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider">
                   Faixa de preço (R$)
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
                   <div>
-                    <label htmlFor={minPriceId} className="sr-only">
-                      Preço mínimo em R$
-                    </label>
+                    <label htmlFor={minPriceId} className="sr-only">Preço mínimo em R$</label>
                     <input
                       id={minPriceId}
                       type="number"
@@ -730,13 +727,11 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                       value={minPrice}
                       onChange={(e) => setMinPrice(e.target.value)}
                       placeholder="Mín."
-                      className="w-full h-8 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs tabular-nums text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:outline-none focus:border-[#3ecf8e]"
+                      className="w-full h-8 px-2.5 rounded-xl border border-[#2D2D2D]/20 dark:border-[#F5F2F3]/20 bg-[#FFFDFB] dark:bg-[#242226] text-xs tabular-nums text-[#2D2D2D] dark:text-[#F5F2F3] placeholder:text-[#2D2D2D]/45 focus:outline-none focus:ring-2 focus:ring-[#CBE4F0] focus:ring-offset-1"
                     />
                   </div>
                   <div>
-                    <label htmlFor={maxPriceId} className="sr-only">
-                      Preço máximo em R$
-                    </label>
+                    <label htmlFor={maxPriceId} className="sr-only">Preço máximo em R$</label>
                     <input
                       id={maxPriceId}
                       type="number"
@@ -744,21 +739,19 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                       value={maxPrice}
                       onChange={(e) => setMaxPrice(e.target.value)}
                       placeholder="Máx."
-                      className="w-full h-8 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs tabular-nums text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:outline-none focus:border-[#3ecf8e]"
+                      className="w-full h-8 px-2.5 rounded-xl border border-[#2D2D2D]/20 dark:border-[#F5F2F3]/20 bg-[#FFFDFB] dark:bg-[#242226] text-xs tabular-nums text-[#2D2D2D] dark:text-[#F5F2F3] placeholder:text-[#2D2D2D]/45 focus:outline-none focus:ring-2 focus:ring-[#CBE4F0] focus:ring-offset-1"
                     />
                   </div>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <span className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
+                <span className="block text-[11px] font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider">
                   Ano
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
                   <div>
-                    <label htmlFor={minYearId} className="sr-only">
-                      Ano mínimo
-                    </label>
+                    <label htmlFor={minYearId} className="sr-only">Ano mínimo</label>
                     <input
                       id={minYearId}
                       type="number"
@@ -767,13 +760,11 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                       value={minYear}
                       onChange={(e) => setMinYear(e.target.value)}
                       placeholder="Mín."
-                      className="w-full h-8 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs tabular-nums text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:outline-none focus:border-[#3ecf8e]"
+                      className="w-full h-8 px-2.5 rounded-xl border border-[#2D2D2D]/20 dark:border-[#F5F2F3]/20 bg-[#FFFDFB] dark:bg-[#242226] text-xs tabular-nums text-[#2D2D2D] dark:text-[#F5F2F3] placeholder:text-[#2D2D2D]/45 focus:outline-none focus:ring-2 focus:ring-[#CBE4F0] focus:ring-offset-1"
                     />
                   </div>
                   <div>
-                    <label htmlFor={maxYearId} className="sr-only">
-                      Ano máximo
-                    </label>
+                    <label htmlFor={maxYearId} className="sr-only">Ano máximo</label>
                     <input
                       id={maxYearId}
                       type="number"
@@ -782,15 +773,14 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                       value={maxYear}
                       onChange={(e) => setMaxYear(e.target.value)}
                       placeholder="Máx."
-                      className="w-full h-8 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs tabular-nums text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:outline-none focus:border-[#3ecf8e]"
+                      className="w-full h-8 px-2.5 rounded-xl border border-[#2D2D2D]/20 dark:border-[#F5F2F3]/20 bg-[#FFFDFB] dark:bg-[#242226] text-xs tabular-nums text-[#2D2D2D] dark:text-[#F5F2F3] placeholder:text-[#2D2D2D]/45 focus:outline-none focus:ring-2 focus:ring-[#CBE4F0] focus:ring-offset-1"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Row 2: FIPE specs — Motorização, Câmbio, Litragem, Combustível */}
               <div className="space-y-1.5">
-                <span className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
+                <span className="block text-[11px] font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider">
                   Motorização
                 </span>
                 <CustomDropdown
@@ -808,7 +798,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
               </div>
 
               <div className="space-y-1.5">
-                <span className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
+                <span className="block text-[11px] font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider">
                   Câmbio
                 </span>
                 <CustomDropdown
@@ -826,7 +816,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
               </div>
 
               <div className="space-y-1.5">
-                <span className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
+                <span className="block text-[11px] font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider">
                   Litragem
                 </span>
                 <CustomDropdown
@@ -844,7 +834,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
               </div>
 
               <div className="space-y-1.5">
-                <span className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
+                <span className="block text-[11px] font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider">
                   Combustível
                 </span>
                 <CustomDropdown
@@ -861,9 +851,8 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                 />
               </div>
 
-              {/* Row 3: Portal, Anunciante, Km máximo, Bairro */}
               <div className="space-y-1.5">
-                <span className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
+                <span className="block text-[11px] font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider">
                   Portal
                 </span>
                 <CustomDropdown
@@ -885,7 +874,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
               </div>
 
               <div className="space-y-1.5">
-                <span className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
+                <span className="block text-[11px] font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider">
                   Anunciante
                 </span>
                 <CustomDropdown
@@ -909,7 +898,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
               <div className="space-y-1.5">
                 <label
                   htmlFor={maxKmId}
-                  className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider"
+                  className="block text-[11px] font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider"
                 >
                   Km máximo
                 </label>
@@ -920,14 +909,14 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                   value={maxKm}
                   onChange={(e) => setMaxKm(e.target.value)}
                   placeholder="Ex.: 80000"
-                  className="w-full h-8 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs tabular-nums text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:outline-none focus:border-[#3ecf8e]"
+                  className="w-full h-8 px-2.5 rounded-xl border border-[#2D2D2D]/20 dark:border-[#F5F2F3]/20 bg-[#FFFDFB] dark:bg-[#242226] text-xs tabular-nums text-[#2D2D2D] dark:text-[#F5F2F3] placeholder:text-[#2D2D2D]/45 focus:outline-none focus:ring-2 focus:ring-[#CBE4F0] focus:ring-offset-1"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label
                   htmlFor={neighborhoodId}
-                  className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider"
+                  className="block text-[11px] font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider"
                 >
                   Bairro
                 </label>
@@ -937,19 +926,19 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                   value={neighborhoodFilter}
                   onChange={(e) => setNeighborhoodFilter(e.target.value)}
                   placeholder="Ex.: América, Centro..."
-                  className="w-full h-8 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:outline-none focus:border-[#3ecf8e]"
+                  className="w-full h-8 px-2.5 rounded-xl border border-[#2D2D2D]/20 dark:border-[#F5F2F3]/20 bg-[#FFFDFB] dark:bg-[#242226] text-xs text-[#2D2D2D] dark:text-[#F5F2F3] placeholder:text-[#2D2D2D]/45 focus:outline-none focus:ring-2 focus:ring-[#CBE4F0] focus:ring-offset-1"
                 />
               </div>
             </div>
           )}
 
           {fipeContext && (
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-[#ededed] dark:border-[#27272a]">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-[#2D2D2D]/12 dark:border-[#F5F2F3]/12">
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                <span className="text-[#707070] dark:text-[#a1a1aa]">
+                <span className="text-[#2D2D2D]/70 dark:text-[#F5F2F3]/70">
                   Referência FIPE:
                 </span>
-                <span className="font-medium text-[#171717] dark:text-[#ededed]">
+                <span className="font-bold text-[#2D2D2D] dark:text-[#F5F2F3]">
                   {fipeContext.fipeLabel}
                 </span>
                 {fipeContext.codigoFipe && (
@@ -960,10 +949,10 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                       setExactFipeOnly((v) => !v);
                       setPage(1);
                     }}
-                    className={`h-6 inline-flex items-center px-2 rounded-[4px] font-mono text-[11px] border cursor-pointer ${
+                    className={`h-6 inline-flex items-center px-2 rounded-[8px] font-mono text-[11px] border cursor-pointer ${
                       exactFipeOnly
-                        ? 'bg-[#3ecf8e]/15 text-[#15803d] dark:text-[#3ecf8e] border-[#3ecf8e]/50'
-                        : 'bg-[#fafafa] dark:bg-[#121212] text-[#707070] dark:text-[#a1a1aa] border-[#dfdfdf] dark:border-[#27272a]'
+                        ? 'bg-[#E6E6FA] text-[#2D2D2D] border-[#2D2D2D]/30 font-semibold'
+                        : 'bg-[#FAF6F7] dark:bg-[#242226] text-[#2D2D2D]/75 dark:text-[#F5F2F3]/75 border-[#2D2D2D]/15'
                     }`}
                   >
                     FIPE {fipeContext.codigoFipe}
@@ -977,10 +966,10 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                       setExactYearOnly((v) => !v);
                       setPage(1);
                     }}
-                    className={`h-6 inline-flex items-center px-2 rounded-[4px] text-[11px] tabular-nums border cursor-pointer ${
+                    className={`h-6 inline-flex items-center px-2 rounded-[8px] text-[11px] tabular-nums border cursor-pointer ${
                       exactYearOnly
-                        ? 'bg-[#3ecf8e]/15 text-[#15803d] dark:text-[#3ecf8e] border-[#3ecf8e]/50'
-                        : 'bg-[#fafafa] dark:bg-[#121212] text-[#707070] dark:text-[#a1a1aa] border-[#dfdfdf] dark:border-[#27272a]'
+                        ? 'bg-[#CBE4F0] text-[#2D2D2D] border-[#2D2D2D]/30 font-semibold'
+                        : 'bg-[#FAF6F7] dark:bg-[#242226] text-[#2D2D2D]/75 dark:text-[#F5F2F3]/75 border-[#2D2D2D]/15'
                     }`}
                   >
                     Ano {fipeContext.year}
@@ -994,10 +983,10 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                       setCambioFilter((cur) => (cur === fipeIntentCambio ? 'todos' : fipeIntentCambio));
                       setPage(1);
                     }}
-                    className={`h-6 inline-flex items-center px-2 rounded-[4px] text-[11px] border cursor-pointer ${
+                    className={`h-6 inline-flex items-center px-2 rounded-[8px] text-[11px] border cursor-pointer ${
                       cambioFilter === fipeIntentCambio
-                        ? 'bg-[#3ecf8e]/15 text-[#15803d] dark:text-[#3ecf8e] border-[#3ecf8e]/50'
-                        : 'bg-[#fafafa] dark:bg-[#121212] text-[#707070] dark:text-[#a1a1aa] border-[#dfdfdf] dark:border-[#27272a]'
+                        ? 'bg-[#CBE4F0] text-[#2D2D2D] border-[#2D2D2D]/30 font-semibold'
+                        : 'bg-[#FAF6F7] dark:bg-[#242226] text-[#2D2D2D]/75 dark:text-[#F5F2F3]/75 border-[#2D2D2D]/15'
                     }`}
                   >
                     {fipeContext.transmission}
@@ -1013,10 +1002,10 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                       );
                       setPage(1);
                     }}
-                    className={`h-6 inline-flex items-center px-2 rounded-[4px] text-[11px] border cursor-pointer ${
+                    className={`h-6 inline-flex items-center px-2 rounded-[8px] text-[11px] border cursor-pointer ${
                       combustivelFilter === fipeContext.fuel
-                        ? 'bg-[#3ecf8e]/15 text-[#15803d] dark:text-[#3ecf8e] border-[#3ecf8e]/50'
-                        : 'bg-[#fafafa] dark:bg-[#121212] text-[#707070] dark:text-[#a1a1aa] border-[#dfdfdf] dark:border-[#27272a]'
+                        ? 'bg-[#D0F0C0] text-[#2D2D2D] border-[#2D2D2D]/30 font-semibold'
+                        : 'bg-[#FAF6F7] dark:bg-[#242226] text-[#2D2D2D]/75 dark:text-[#F5F2F3]/75 border-[#2D2D2D]/15'
                     }`}
                   >
                     {fipeContext.fuel}
@@ -1027,7 +1016,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
               <button
                 type="button"
                 onClick={resetFilters}
-                className="text-[11px] text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed] underline underline-offset-2 cursor-pointer"
+                className="text-xs font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/75 hover:text-[#2D2D2D] underline underline-offset-2 cursor-pointer"
               >
                 Limpar referência
               </button>
@@ -1038,22 +1027,22 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
         {/* Results count & Sort bar */}
         <div
           ref={resultsTopRef}
-          className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 scroll-mt-4"
+          className="knolling-card px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 scroll-mt-20"
         >
-          <div className="text-xs text-[#707070] dark:text-[#a1a1aa]">
+          <div className="text-xs text-[#2D2D2D]/75 dark:text-[#F5F2F3]/75">
             <span className="tabular-nums">
               {totalItems === 0 ? (
                 <>
-                  Exibindo <strong className="text-[#171717] dark:text-[#ededed]">0</strong> anúncios
+                  Exibindo <strong className="text-[#2D2D2D] dark:text-[#F5F2F3]">0</strong> anúncios
                 </>
               ) : (
                 <>
                   Exibindo{' '}
-                  <strong className="text-[#171717] dark:text-[#ededed]">
+                  <strong className="text-[#2D2D2D] dark:text-[#F5F2F3]">
                     {rangeStart.toLocaleString('pt-BR')}–{rangeEnd.toLocaleString('pt-BR')}
                   </strong>{' '}
                   de{' '}
-                  <strong className="text-[#171717] dark:text-[#ededed]">
+                  <strong className="text-[#2D2D2D] dark:text-[#F5F2F3]">
                     {totalItems.toLocaleString('pt-BR')}
                   </strong>{' '}
                   {totalItems === 1 ? 'anúncio' : 'anúncios'}
@@ -1063,7 +1052,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
           </div>
 
           <div className="flex items-center justify-between sm:justify-end gap-2">
-            <span className="text-xs text-[#707070] dark:text-[#a1a1aa] whitespace-nowrap">
+            <span className="text-xs font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/75 whitespace-nowrap">
               Ordenar por:
             </span>
             <CustomDropdown
@@ -1089,31 +1078,36 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
           </div>
         </div>
 
-        {/* Cards grid */}
+        {/* 2-Column Knolling Flat-Lay Cards Grid (No 3-equal-columns) */}
         {loading && carros.length === 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[0, 1, 2, 3, 4, 5].map((idx) => (
-              <div
-                key={idx}
-                className="h-80 rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#18181b] animate-pulse"
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+            {[0, 1, 2, 3].map((idx) => (
+              <div key={idx} className="knolling-card p-4 space-y-3">
+                <div className="knolling-shimmer aspect-[16/10] w-full rounded-[10px]" />
+                <div className="knolling-shimmer h-5 w-2/3 rounded-xl" />
+                <div className="knolling-shimmer h-14 w-full rounded-xl" />
+                <div className="flex items-center justify-between pt-1">
+                  <div className="knolling-shimmer h-8 w-20 rounded-xl" />
+                  <div className="knolling-shimmer h-8 w-28 rounded-xl" />
+                </div>
+              </div>
             ))}
           </div>
         ) : carros.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[#dfdfdf] dark:border-[#27272a] p-10 text-center space-y-2">
-            <Car className="w-8 h-8 text-[#9a9a9a] mx-auto" aria-hidden="true" />
-            <p className="text-sm font-medium text-[#171717] dark:text-[#ededed]">
+          <div className="knolling-card p-10 text-center space-y-2.5">
+            <Car className="w-8 h-8 text-[#2D2D2D]/50 dark:text-[#F5F2F3]/50 mx-auto" aria-hidden="true" />
+            <p className="text-base font-bold text-[#2D2D2D] dark:text-[#F5F2F3]">
               Nenhum veículo encontrado para os filtros atuais
             </p>
-            <p className="text-xs text-[#707070] dark:text-[#a1a1aa]">
+            <p className="text-sm text-[#2D2D2D]/70 dark:text-[#F5F2F3]/70">
               {cityFilter === 'Joinville'
                 ? 'Tente limpar filtros ou trocar a cidade para "Todas as cidades".'
                 : 'Tente limpar ou ajustar os filtros selecionados.'}
             </p>
           </div>
         ) : (
-          <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 ${loading ? 'opacity-70 transition-opacity' : ''}`}>
-            {carros.map((car) => {
+          <div className={`grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 ${loading ? 'opacity-70 transition-opacity' : ''}`}>
+            {carros.map((car, idx) => {
               const firstImg = car.images[0];
               const thumb = firstImg?.thumbUrl;
               const diffPct = car.fipeDiffPct;
@@ -1123,9 +1117,11 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                 <article
                   key={car.id}
                   onClick={() => setSelectedCar(car)}
-                  className="group rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] hover:border-[#3ecf8e]/60 transition-colors overflow-hidden flex flex-col cursor-pointer"
+                  style={{ animationDelay: `${Math.min(idx, 6) * 60}ms` }}
+                  className="group knolling-card knolling-enter hover:border-[#2D2D2D]/35 hover:-translate-y-[1px] p-3.5 sm:p-4 flex flex-col cursor-pointer"
                 >
-                  <div className="relative aspect-[16/10] bg-[#f5f5f5] dark:bg-[#121212] overflow-hidden flex items-center justify-center">
+                  {/* Overhead Flat-Lay Framed Photo */}
+                  <div className="relative aspect-[16/10] rounded-[10px] border border-[#2D2D2D]/12 bg-[#FAF6F7] dark:bg-[#242226] overflow-hidden flex items-center justify-center">
                     {thumb ? (
                       <img
                         key={thumb}
@@ -1136,35 +1132,34 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                         className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
                       />
                     ) : (
-                      <Car className="w-10 h-10 text-[#b2b2b2] dark:text-[#52525b]" aria-hidden="true" />
+                      <Car className="w-10 h-10 text-[#2D2D2D]/35 dark:text-[#F5F2F3]/35" aria-hidden="true" />
                     )}
 
                     <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1.5">
-                      <span className="inline-flex items-center h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-medium bg-black/75 text-white backdrop-blur-xs">
+                      <span className="inline-flex items-center h-6 px-2.5 rounded-[8px] text-[11px] leading-none font-semibold bg-[#2D2D2D]/85 text-[#FFFDFB] backdrop-blur-xs">
                         {car.portalName}
                       </span>
                       {car.sellerType && (
-                        <span className="inline-flex items-center h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-medium bg-white/90 dark:bg-[#18181b]/90 text-[#171717] dark:text-[#ededed]">
+                        <span className="inline-flex items-center h-6 px-2.5 rounded-[8px] text-[11px] leading-none font-semibold bg-[#FFFDFB]/95 text-[#2D2D2D] border border-[#2D2D2D]/15">
                           {car.sellerType}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="p-4 flex-1 flex flex-col justify-between gap-3">
-                    <div className="space-y-2">
+                  <div className="pt-3.5 flex-1 flex flex-col justify-between gap-3">
+                    <div className="space-y-2.5">
+                      {/* Pastel Spec Tags */}
                       <div className="flex flex-wrap items-center gap-1.5">
                         {car.year && (
-                          <span className="inline-flex items-center h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-medium tabular-nums bg-[#fafafa] dark:bg-[#121212] text-[#171717] dark:text-[#ededed] border border-[#ededed] dark:border-[#27272a]">
+                          <span className="inline-flex items-center h-5 sm:h-[22px] px-2 rounded-[8px] text-[10px] sm:text-[11px] leading-none font-semibold tabular-nums bg-[#FFFDFB] text-[#2D2D2D] border border-[#2D2D2D]/15">
                             {car.year}
                           </span>
                         )}
                         {diffPct !== null && (
                           <span
-                            className={`inline-flex items-center gap-1 h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-medium tabular-nums border ${
-                              isBelow
-                                ? 'bg-[#3ecf8e]/15 text-[#15803d] dark:text-[#3ecf8e] border-[#3ecf8e]/40'
-                                : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                            className={`inline-flex items-center gap-1 h-5 sm:h-[22px] px-2 rounded-[8px] text-[10px] sm:text-[11px] leading-none font-semibold tabular-nums border border-[#2D2D2D]/15 text-[#2D2D2D] ${
+                              isBelow ? 'bg-[#D0F0C0]' : 'bg-[#F6D0D6]'
                             }`}
                           >
                             {isBelow ? (
@@ -1176,62 +1171,63 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                           </span>
                         )}
                         {car.engineSize && (
-                          <span className="inline-flex items-center h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-medium tabular-nums bg-[#fafafa] dark:bg-[#121212] text-[#707070] dark:text-[#a1a1aa] border border-[#ededed] dark:border-[#27272a]">
+                          <span className="inline-flex items-center h-5 sm:h-[22px] px-2 rounded-[8px] text-[10px] sm:text-[11px] leading-none font-semibold tabular-nums bg-[#E6E6FA] text-[#2D2D2D] border border-[#2D2D2D]/15">
                             {car.engineSize}
                           </span>
                         )}
                         {car.isTurbo && (
-                          <span className="inline-flex items-center h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-medium bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/30">
+                          <span className="inline-flex items-center h-5 sm:h-[22px] px-2 rounded-[8px] text-[10px] sm:text-[11px] leading-none font-semibold bg-[#CBE4F0] text-[#2D2D2D] border border-[#2D2D2D]/15">
                             Turbo
                           </span>
                         )}
                       </div>
 
-                      <h3 className="text-sm font-semibold text-[#171717] dark:text-[#ededed] line-clamp-2">
+                      <h3 className="text-base font-bold text-[#2D2D2D] dark:text-[#F5F2F3] line-clamp-2 leading-snug">
                         {car.title}
                       </h3>
 
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-lg font-bold text-[#171717] dark:text-[#ededed] tabular-nums">
+                      {/* Price vs FIPE Comparison Tray */}
+                      <div className="bg-[#FAF6F7] dark:bg-[#242226] rounded-xl p-3 border border-[#2D2D2D]/10 dark:border-[#F5F2F3]/12 flex items-baseline justify-between gap-2">
+                        <span className="text-lg sm:text-xl font-bold text-[#2D2D2D] dark:text-[#F5F2F3] tabular-nums">
                           {formatBRL(car.price)}
                         </span>
                         {car.fipeReferenceValue && (
-                          <span className="text-[11px] text-[#707070] dark:text-[#a1a1aa] tabular-nums">
+                          <span className="text-xs font-medium text-[#2D2D2D]/70 dark:text-[#F5F2F3]/75 tabular-nums">
                             FIPE {formatBRL(car.fipeReferenceValue)}
                           </span>
                         )}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[#707070] dark:text-[#a1a1aa]">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#2D2D2D]/75 dark:text-[#F5F2F3]/75">
                         {car.mileageKm !== null && (
                           <span className="inline-flex items-center gap-1 tabular-nums">
-                            <Gauge className="w-3 h-3 text-[#3ecf8e]" aria-hidden="true" />
+                            <Gauge className="w-3.5 h-3.5" aria-hidden="true" />
                             {car.mileageKm.toLocaleString('pt-BR')} km
                           </span>
                         )}
                         {car.transmission && (
                           <span className="inline-flex items-center gap-1">
-                            <Settings2 className="w-3 h-3 text-[#3ecf8e]" aria-hidden="true" />
+                            <Settings2 className="w-3.5 h-3.5" aria-hidden="true" />
                             {car.transmission}
                           </span>
                         )}
                         {car.fuel && (
                           <span className="inline-flex items-center gap-1">
-                            <Fuel className="w-3 h-3 text-[#3ecf8e]" aria-hidden="true" />
+                            <Fuel className="w-3.5 h-3.5" aria-hidden="true" />
                             {car.fuel}
                           </span>
                         )}
                       </div>
 
-                      <p className="inline-flex items-center gap-1 text-[11px] text-[#9a9a9a] dark:text-[#71717a] truncate">
-                        <MapPin className="w-3 h-3 shrink-0" aria-hidden="true" />
+                      <p className="inline-flex items-center gap-1 text-xs text-[#2D2D2D]/65 dark:text-[#F5F2F3]/65 truncate">
+                        <MapPin className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                         <span>
                           {[car.neighborhood, car.city, car.state].filter(Boolean).join(', ') || 'Joinville, SC'}
                         </span>
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-[#ededed] dark:border-[#27272a]">
+                    <div className="flex items-center justify-between gap-2 pt-3 border-t border-[#2D2D2D]/12 dark:border-[#F5F2F3]/12">
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
@@ -1241,10 +1237,10 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                             e.stopPropagation();
                             void handleToggleFavorite(car);
                           }}
-                          className={`h-8 w-8 inline-flex items-center justify-center rounded-[6px] border cursor-pointer ${
+                          className={`h-8 w-8 inline-flex items-center justify-center rounded-xl border transition-colors cursor-pointer ${
                             car.favorite
-                              ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/40'
-                              : 'bg-[#fafafa] dark:bg-[#121212] text-[#707070] dark:text-[#a1a1aa] border-[#dfdfdf] dark:border-[#27272a] hover:border-rose-500/40'
+                              ? 'bg-[#F6D0D6] text-[#2D2D2D] border-[#2D2D2D]/30'
+                              : 'bg-[#FAF6F7] dark:bg-[#242226] text-[#2D2D2D]/70 dark:text-[#F5F2F3]/70 border-[#2D2D2D]/15 hover:bg-[#F6D0D6]/55'
                           }`}
                         >
                           <Heart className={`w-3.5 h-3.5 ${car.favorite ? 'fill-current' : ''}`} aria-hidden="true" />
@@ -1258,10 +1254,10 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                             e.stopPropagation();
                             void handleToggleHidden(car);
                           }}
-                          className={`h-8 w-8 inline-flex items-center justify-center rounded-[6px] border cursor-pointer ${
+                          className={`h-8 w-8 inline-flex items-center justify-center rounded-xl border transition-colors cursor-pointer ${
                             car.hidden
-                              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40'
-                              : 'bg-[#fafafa] dark:bg-[#121212] text-[#707070] dark:text-[#a1a1aa] border-[#dfdfdf] dark:border-[#27272a] hover:border-amber-500/40'
+                              ? 'bg-[#E6E6FA] text-[#2D2D2D] border-[#2D2D2D]/30'
+                              : 'bg-[#FAF6F7] dark:bg-[#242226] text-[#2D2D2D]/70 dark:text-[#F5F2F3]/70 border-[#2D2D2D]/15 hover:bg-[#E6E6FA]/65'
                           }`}
                         >
                           <EyeOff className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1273,10 +1269,10 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="h-8 inline-flex items-center gap-1 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] hover:border-[#3ecf8e]/60 text-xs font-medium text-[#171717] dark:text-[#ededed]"
+                        className="h-8 inline-flex items-center gap-1.5 px-3 rounded-xl border border-[#2D2D2D]/15 bg-[#CBE4F0] hover:bg-[#b5d7e8] text-xs font-semibold text-[#2D2D2D] transition-colors"
                       >
                         <span>Ver anúncio</span>
-                        <ExternalLink className="w-3 h-3 text-[#3ecf8e]" aria-hidden="true" />
+                        <ExternalLink className="w-3 h-3" aria-hidden="true" />
                       </a>
                     </div>
                   </div>
@@ -1288,18 +1284,18 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 pt-4 pb-6">
+          <div className="flex items-center justify-center gap-2.5 pt-4 pb-6">
             <button
               type="button"
               disabled={page <= 1 || loading}
               onClick={() => goToPage(page - 1)}
-              className="h-8 inline-flex items-center gap-1 px-3 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] text-xs font-medium text-[#171717] dark:text-[#ededed] hover:border-[#3ecf8e]/50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-8 inline-flex items-center gap-1 px-3 rounded-xl border-[1.5px] border-[#2D2D2D]/20 bg-[#FFFDFB] dark:bg-[#2D2D2D] text-xs font-semibold text-[#2D2D2D] dark:text-[#F5F2F3] hover:bg-[#F6D0D6]/40 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
             >
               <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Anterior</span>
             </button>
 
-            <span className="text-xs text-[#707070] dark:text-[#a1a1aa] px-3 font-medium tabular-nums">
+            <span className="text-xs text-[#2D2D2D] dark:text-[#F5F2F3] bg-[#FFFDFB] dark:bg-[#2D2D2D] border border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 rounded-xl px-3.5 h-8 inline-flex items-center font-semibold tabular-nums">
               Página {page.toLocaleString('pt-BR')} de {totalPages.toLocaleString('pt-BR')}
             </span>
 
@@ -1307,7 +1303,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
               type="button"
               disabled={page >= totalPages || loading}
               onClick={() => goToPage(page + 1)}
-              className="h-8 inline-flex items-center gap-1 px-3 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] text-xs font-medium text-[#171717] dark:text-[#ededed] hover:border-[#3ecf8e]/50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-8 inline-flex items-center gap-1 px-3 rounded-xl border-[1.5px] border-[#2D2D2D]/20 bg-[#FFFDFB] dark:bg-[#2D2D2D] text-xs font-semibold text-[#2D2D2D] dark:text-[#F5F2F3] hover:bg-[#CBE4F0]/55 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
             >
               <span>Próxima</span>
               <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />

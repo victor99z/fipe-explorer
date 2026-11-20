@@ -38,14 +38,13 @@ export default function CustomDropdown<T extends string | number = string>({
   menuClassName = '',
   align = 'left',
   renderTrigger,
-  isActive = false,
+  isActive,
 }: CustomDropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Close dropdown on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -60,7 +59,6 @@ export default function CustomDropdown<T extends string | number = string>({
     };
   }, [isOpen]);
 
-  // Close on ESC
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
@@ -75,7 +73,6 @@ export default function CustomDropdown<T extends string | number = string>({
     };
   }, [isOpen]);
 
-  // Dynamic safe viewport positioning so dropdown never overflows left or right
   const [dropdownPositionStyle, setDropdownPositionStyle] = useState<React.CSSProperties>({});
 
   useEffect(() => {
@@ -85,22 +82,22 @@ export default function CustomDropdown<T extends string | number = string>({
         const rect = dropdownRef.current.getBoundingClientRect();
         const viewportWidth = window.innerWidth;
         const menuWidth = Math.min(280, viewportWidth - 24);
-        
+
         let targetLeft = rect.left;
         if (align === 'right' || rect.left + menuWidth > viewportWidth - 12) {
           targetLeft = rect.right - menuWidth;
         }
-        
+
         const clampedLeft = Math.max(12, Math.min(targetLeft, viewportWidth - menuWidth - 12));
         const offsetLeft = clampedLeft - rect.left;
-        
+
         setDropdownPositionStyle({
           left: `${offsetLeft}px`,
           minWidth: `${Math.max(rect.width, Math.min(220, menuWidth))}px`,
           maxWidth: `${viewportWidth - 24}px`,
         });
       };
-      
+
       updatePosition();
       window.addEventListener('resize', updatePosition);
       window.addEventListener('scroll', updatePosition, true);
@@ -111,7 +108,6 @@ export default function CustomDropdown<T extends string | number = string>({
     }
   }, [isOpen, align]);
 
-  // Focus search input when open
   useEffect(() => {
     if (isOpen && searchable && searchInputRef.current) {
       setTimeout(() => searchInputRef.current?.focus(), 50);
@@ -124,9 +120,10 @@ export default function CustomDropdown<T extends string | number = string>({
   const selectedOption = options.find((opt) => String(opt.value) === String(value));
   const displayLabel = selectedOption ? selectedOption.label : placeholder;
 
-  const filteredOptions = searchable && searchTerm.trim()
-    ? options.filter((opt) => opt.label.toLowerCase().includes(searchTerm.toLowerCase()))
-    : options;
+  const filteredOptions =
+    searchable && searchTerm.trim()
+      ? options.filter((opt) => opt.label.toLowerCase().includes(searchTerm.toLowerCase()))
+      : options;
 
   const activeState =
     isActive !== undefined
@@ -144,20 +141,21 @@ export default function CustomDropdown<T extends string | number = string>({
           aria-expanded={isOpen}
           aria-haspopup="listbox"
           className={cn(
-            "h-8 w-full inline-flex items-center justify-between gap-2 px-2.5 rounded-[6px] text-xs transition-colors border cursor-pointer focus:outline-none",
+            "h-8 w-full inline-flex items-center justify-between gap-2 px-3 rounded-xl text-xs font-medium transition-all duration-200 border cursor-pointer focus:outline-none",
             isOpen
-              ? "border-[#3ecf8e] text-[#171717] dark:text-[#ededed] bg-[#ffffff] dark:bg-[#18181b] shadow-xs"
+              ? "border-[#2D2D2D] bg-[#CBE4F0]/55 text-[#2D2D2D] dark:border-[#CBE4F0] dark:bg-[#3B3948] dark:text-[#F5F2F3] shadow-[0_2px_10px_rgba(0,0,0,0.06)]"
               : activeState
-              ? "border-[#171717] dark:border-[#3ecf8e] text-[#171717] dark:text-[#ededed] bg-[#ffffff] dark:bg-[#18181b]"
-              : "border-[#dfdfdf] dark:border-[#27272a] text-[#707070] dark:text-[#a1a1aa] bg-[#ffffff] dark:bg-[#121212] hover:bg-[#fafafa] dark:hover:bg-[#27272a] hover:text-[#171717] dark:hover:text-[#ededed]"
+              ? "border-[#2D2D2D]/30 bg-[#CBE4F0] text-[#2D2D2D] font-semibold dark:border-[#CBE4F0]/70 dark:bg-[#CBE4F0] dark:text-[#2D2D2D]"
+              : "border-[#2D2D2D]/20 bg-[#FFFDFB] text-[#2D2D2D]/80 hover:bg-[#FAF6F7] hover:text-[#2D2D2D] dark:border-[#F5F2F3]/20 dark:bg-[#242226] dark:text-[#F5F2F3]/80 dark:hover:bg-[#3B3948]"
           )}
         >
           <span className="truncate">{displayLabel}</span>
           <ChevronDown
             className={cn(
-              "w-3 h-3 flex-shrink-0 transition-transform duration-150",
-              isOpen ? "rotate-180 text-[#3ecf8e]" : "text-[#9a9a9a] dark:text-[#71717a]"
+              "w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200",
+              isOpen ? "rotate-180 text-[#2D2D2D] dark:text-[#CBE4F0]" : "text-[#2D2D2D]/55 dark:text-[#F5F2F3]/60"
             )}
+            aria-hidden="true"
           />
         </button>
       )}
@@ -166,28 +164,29 @@ export default function CustomDropdown<T extends string | number = string>({
         <div
           style={dropdownPositionStyle}
           className={cn(
-            "absolute top-full mt-1.5 bg-[#ffffff] dark:bg-[#18181b] border border-[#dfdfdf] dark:border-[#27272a] rounded-[8px] shadow-2xl z-50 p-1.5 flex flex-col animate-in fade-in duration-100",
+            "absolute top-full mt-1.5 bg-[#FFFDFB] dark:bg-[#2D2D2D] border border-[#2D2D2D]/20 dark:border-[#F5F2F3]/20 rounded-xl shadow-[0_8px_24px_rgba(45,45,45,0.12)] z-[200] p-1.5 flex flex-col",
             menuClassName
           )}
         >
           {searchable && (
             <div className="relative mb-1.5 px-0.5">
-              <Search className="w-3.5 h-3.5 text-[#9a9a9a] dark:text-[#71717a] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Search className="w-3.5 h-3.5 text-[#2D2D2D]/50 dark:text-[#F5F2F3]/50 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
               <input
                 ref={searchInputRef}
                 type="text"
                 placeholder={searchPlaceholder}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-7 w-full rounded-[4px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] pl-7 pr-6 text-xs text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:outline-none focus-visible:outline-none focus:ring-1 focus:ring-[#3ecf8e] transition-colors"
+                className="h-8 w-full rounded-xl border border-[#2D2D2D]/20 dark:border-[#F5F2F3]/20 bg-[#FAF6F7] dark:bg-[#242226] pl-8 pr-6 text-xs text-[#2D2D2D] dark:text-[#F5F2F3] placeholder:text-[#2D2D2D]/45 dark:placeholder:text-[#F5F2F3]/45 focus:border-[#2D2D2D] focus:ring-2 focus:ring-[#CBE4F0] focus:ring-offset-1 focus:outline-none transition-colors"
               />
               {searchTerm && (
                 <button
                   type="button"
+                  aria-label="Limpar busca"
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9a9a9a] dark:text-[#71717a] hover:text-[#171717] dark:hover:text-[#ededed] p-0.5"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#2D2D2D]/50 dark:text-[#F5F2F3]/50 hover:text-[#2D2D2D] dark:hover:text-[#F5F2F3] p-0.5 cursor-pointer"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3 h-3" aria-hidden="true" />
                 </button>
               )}
             </div>
@@ -195,7 +194,7 @@ export default function CustomDropdown<T extends string | number = string>({
 
           <div className="max-h-56 overflow-y-auto space-y-0.5 pr-0.5">
             {filteredOptions.length === 0 ? (
-              <div className="py-3 px-2 text-center text-xs text-[#707070] dark:text-[#a1a1aa]">
+              <div className="py-3 px-2 text-center text-xs text-[#2D2D2D]/65 dark:text-[#F5F2F3]/65">
                 Nenhuma opção encontrada
               </div>
             ) : (
@@ -210,14 +209,14 @@ export default function CustomDropdown<T extends string | number = string>({
                       setIsOpen(false);
                     }}
                     className={cn(
-                      "w-full flex items-center justify-between px-2.5 py-1.5 rounded-[4px] text-xs text-left cursor-pointer transition-colors",
+                      "w-full flex items-center justify-between px-2.5 py-1.5 rounded-[8px] text-xs text-left cursor-pointer transition-colors duration-150",
                       isSelected
-                        ? "bg-[#fafafa] dark:bg-[#27272a] text-[#171717] dark:text-[#ededed] font-medium"
-                        : "text-[#707070] dark:text-[#a1a1aa] hover:bg-[#fafafa] dark:hover:bg-[#27272a] hover:text-[#171717] dark:hover:text-[#ededed]"
+                        ? "bg-[#CBE4F0] text-[#2D2D2D] font-semibold"
+                        : "text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 hover:bg-[#E6E6FA]/60 dark:hover:bg-[#3B3948] hover:text-[#2D2D2D] dark:hover:text-[#F5F2F3]"
                     )}
                   >
                     <span className="truncate mr-2">{opt.label}</span>
-                    {isSelected && <Check className="w-3.5 h-3.5 text-[#3ecf8e] flex-shrink-0" />}
+                    {isSelected && <Check className="w-3.5 h-3.5 text-[#2D2D2D] flex-shrink-0" aria-hidden="true" />}
                   </button>
                 );
               })

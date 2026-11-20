@@ -1,65 +1,52 @@
 ---
 name: frontend-ux-engineer
 description: >-
-  Frontend & UX engineering runbook for fipex. Use this skill whenever auditing,
-  creating, refactoring, or polishing React/Tailwind UI components, typography,
-  filters, automotive data cards, modals, accessibility, or responsive layouts
-  in frontend/src.
+  Frontend & UX engineering runbook for fipex following the Knolling Pastel Flat
+  Lay specification (design.md). Use this skill whenever auditing, creating,
+  refactoring, or polishing React/Tailwind UI components, typography, filters,
+  automotive data cards, modals, accessibility, or responsive layouts in
+  frontend/src.
 ---
 
-# Frontend & UX Engineer (fipex)
+# Frontend & UX Engineer (fipex — Knolling Pastel Flat Lay)
 
-Runbook para manter a interface do **fipex** consistente, acessível, responsiva e legível para consulta de dados financeiros e automotivos (FIPE + INMETRO PBEV).
+Runbook baseado em [design.md](../../design.md) (**Knolling Pastel Flat Lay**) para manter a interface do **fipex** organizada em geometria ortogonal de 90°, acessível, responsiva e legível para consulta de dados financeiros e automotivos (FIPE + INMETRO PBEV + Anúncios Joinville).
 
-## 1. Disciplina Tipográfica & Numérica
+## 1. Paleta & Superfícies (Sem Preto Puro `#000000`)
 
-- **Fonte principal (`--font-sans`)**: `Inter` com `font-feature-settings: "cv02", "cv03", "cv04", "cv11"`.
-- **Números tabulares obrigatórios**: Todos os preços (`R$`), percentuais (`%`), anos, contagens e métricas de consumo (`km/l`, `km/le`, `MJ/km`, `km`) devem usar `Inter` + classe `.tabular-nums` (`font-variant-numeric: tabular-nums`) e formatação `pt-BR` (`toLocaleString('pt-BR')` e vírgula decimal).
-- **Monospace restrita (`--font-mono`)**: Usar `JetBrains Mono` exclusivamente para códigos técnicos (ex.: `codigo_fipe` como `005476-3`, banners de query/CLI ou nomes de arquivo/dataset), nunca em preços, variações percentuais ou paginação.
-- **Quebra de texto**: Aplicar `text-wrap: balance` em títulos curtos (`h1, h2, h3`) e `text-wrap: pretty` em parágrafos e listas (`p, li`).
+- **Fundo Principal (Split Vertical 50/50)**: Blush Pastel (`#F6D0D6`) na metade esquerda e Lavanda (`#E6E6FA`) na metade direita (`.knolling-split-bg`), sem ultrapassar 80% de saturação.
+- **Modo Escuro Harmonioso (`.dark`)**: Grafite/Charcoal `#2D2D2D` / `#242226` (nunca `#000000`) com acentos em tons pastel dessaturados.
+- **Papel Fosco (Matte Paper Stock)**: `#FFFDFB` para cards principais, modais e barra de navegação (`1px` de borda `rgba(45,45,45,0.14)` e sombra suave `0 2px 12px rgba(0,0,0,0.06)`).
+- **Compartimentos Pastel**:
+  - **Sky Accent (`#CBE4F0`)**: CTAs primários, aba ativa, badges de ano/turbo e anel de foco (`2px` com offset `2px`).
+  - **Soft Mint (`#D0F0C0`)**: oportunidades abaixo da FIPE, nota PBE A/B e consumo INMETRO.
+  - **Lavender (`#E6E6FA`)**: grades de especificações técnicas e códigos FIPE.
+  - **Blush (`#F6D0D6`)**: alertas sutis acima da FIPE, favoritos e pico máximo.
+- **Texto Primário**: `#2D2D2D` (nunca `#000000`).
 
-## 2. Geometria de Tags, Badges & Controles
+## 2. Disciplina Tipográfica & Numérica
 
-- **Tags de cabeçalho dos cards**: Todas na mesma linha devem compartilhar altura e alinhamento idênticos:
-  `inline-flex items-center h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none`
-- **Tags de cabeçalho do modal**:
-  `inline-flex items-center h-5 sm:h-6 px-2 rounded-[4px] text-[10px] sm:text-xs leading-none`
-- **Tags do bloco INMETRO**:
-  `inline-flex items-center h-6 px-2 rounded-[4px] text-[11px] leading-none`
-- **Botões de barra e filtros**: Altura padronizada (`h-8`), `inline-flex items-center justify-center`, sem ícones duplicados (ex.: nunca combinar emoji `⚡` com `<Zap />`).
-- **Paleta semântica Nota PBE**:
-  - `A`: `bg-[#3ecf8e]/15 text-[#15803d] dark:text-[#3ecf8e] border-[#3ecf8e]/40`
-  - `B`: `bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30`
-  - `C`: `bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30`
-  - `D` / `E`: `bg-[#fafafa] dark:bg-[#121212] text-[#707070] dark:text-[#a1a1aa] border-[#ededed] dark:border-[#27272a]`
+- **Fonte principal (`--font-sans`)**: `Lato` (`700` para Display/Hero/Títulos, `500` para labels/captions, `400` para corpo `16px/1.6` com `max-w-[72ch]`).
+- **Números tabulares obrigatórios**: Todos os preços (`R$`), percentuais (`%`), anos, contagens e métricas de consumo (`km/l`, `km/le`, `MJ/km`, `km`) devem usar `Lato` + `.tabular-nums` (`font-variant-numeric: tabular-nums`) e formatação `pt-BR`.
+- **Monospace (`--font-mono`)**: `JetBrains Mono` para `codigo_fipe` (ex.: `005476-3`), índices de bandeja knolling e metadados técnicos (`DuckDB Query Engine`).
+- **Quebra de texto**: `text-wrap: balance` em títulos (`h1, h2, h3`) e `text-wrap: pretty` em parágrafos (`p, li`).
 
-## 3. UX de Pesquisa, Cards & Modais
+## 3. Layout, Formas & Contrato de Z-Index
 
-- **Feedback claro de estado ativo**:
-  - Exibir a faixa de preço ativa (mínimo e máximo calculados pela faixa inteligente ou ajuste manual) ao lado do campo de orçamento.
-  - Exibir contadores formatados em `pt-BR`.
-- **Cards clicáveis**:
-  - Todo card de veículo deve responder ao clique para abrir o histórico, com realce sutil de borda (`hover:border-[#3ecf8e]/60`) e sincronização com o botão `Ver Histórico`.
-  - Evitar truncamentos ambíguos em mobile e garantir que `Ver Histórico` use `e.stopPropagation()` ou o mesmo handler sem ações duplicadas.
-- **Modais (`VehicleHistoryModal`)**:
-  - Fechamento ao clicar no backdrop (light dismiss) e ao pressionar `Escape`.
-  - Bloqueio de scroll do `document.body` enquanto aberto (`overflow: hidden` com restauração no cleanup).
-  - Atributos semânticos `role="dialog"`, `aria-modal="true"` e `aria-labelledby`.
+- **Contêiner & Viewport**: `min-h-[100dvh]` (nunca `h-screen`), `max-w-[1280px] mx-auto px-6`.
+- **Raio base (`12px`)**: `rounded-xl` em botões, cards, inputs e modais; compartimentos internos com alinhamento estrito em 90°.
+- **Regra contra 3 colunas iguais**: Hero em tela dividida (`split-screen`) e **grids de cards/listagens em no máximo 2 colunas** (`grid-cols-1 md:grid-cols-2`), nunca 3 colunas de largura igual.
+- **Z-index contract**: base (`0`) / sticky-nav (`z-[100]`) / overlay-dropdown (`z-[200]`) / modal (`z-[300]`) / toast (`z-[500]`).
+- **Skeletons (Sem spinners circulares)**: Estados de carregamento usam `.knolling-shimmer` em blocos proporcionais ao conteúdo — **proibido usar `animate-spin` / spinners circulares**.
 
-## 4. Acessibilidade & Padrões Modernos
+## 4. Acessibilidade & Padrões
 
-- Declarar `<html lang="pt-BR">` e `<title>` descritivo.
-- Associar todos os `<label>` aos respectivos controles via `htmlFor` + `id`.
-- Usar `aria-pressed` em pills/botões de filtro alternáveis e `aria-expanded` / `aria-haspopup="listbox"` em dropdowns.
-- Aplicar `aria-hidden="true"` em ícones puramente decorativos.
-- Garantir anel de foco visível apenas na navegação por teclado via `:focus-visible`.
+- Declarar `<html lang="pt-BR">` e `<title>` descritivo; zero emojis na UI (somente `lucide-react` ou SVG inline com `aria-hidden="true"`).
+- Associar `<label>` acima de cada input (`htmlFor` + `id`), sem labels flutuantes.
+- `aria-pressed` em toggles/pílulas, `aria-expanded` / `aria-haspopup="listbox"` em dropdowns e light dismiss (`Escape` + backdrop click) com trava de scroll em modais.
+- Foco visível com anel `#CBE4F0` (`outline: 2px solid #CBE4F0; outline-offset: 2px`).
 
 ## 5. Checklist de Validação
 
-Após qualquer alteração no frontend:
-
-1. Rodar `cd frontend && npm run typecheck && npm run build` e confirmar `exit code 0`.
-2. Verificar no navegador ou dev server (`http://localhost:3000`):
-   - Tags alinhadas com altura uniforme no card e no modal (light & dark mode).
-   - Formatação numérica `pt-BR` com `tabular-nums` em preços, porcentagens e métricas INMETRO.
-   - Navegação por teclado (`Tab`, `Enter`, `Escape`) e fechamento do modal ao clicar fora.
+1. `cd frontend && npm run typecheck && npm run build` com `exit code 0`.
+2. Verificar no navegador (`http://localhost:3000`): ambas as abas (`Tabela FIPE` e `Anúncios Joinville`) e modais em layout knolling 2 colunas, fontes `Lato` + `JetBrains Mono`, ausência de spinners circulares e ausência de overflow horizontal.

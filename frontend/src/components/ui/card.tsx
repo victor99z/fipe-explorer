@@ -6,7 +6,7 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
     <div
       ref={ref}
       className={cn(
-        "rounded-xl border border-[#dfdfdf] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] text-[#171717] dark:text-[#ededed] shadow-xs transition-all",
+        "rounded-xl border border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 bg-[#FFFDFB] dark:bg-[#2D2D2D] text-[#2D2D2D] dark:text-[#F5F2F3] shadow-[0_2px_12px_rgba(0,0,0,0.06)] transition-all duration-200 ease-out",
         className
       )}
       {...props}
@@ -31,7 +31,7 @@ const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTML
     <h3
       ref={ref}
       className={cn(
-        "text-base sm:text-lg font-medium leading-none tracking-tight text-[#171717] dark:text-[#ededed]",
+        "text-base sm:text-lg font-bold leading-none tracking-tight text-[#2D2D2D] dark:text-[#F5F2F3]",
         className
       )}
       {...props}
@@ -44,7 +44,7 @@ const CardDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttribu
   ({ className, ...props }, ref) => (
     <p
       ref={ref}
-      className={cn("text-sm text-[#707070] dark:text-[#a1a1aa] leading-relaxed", className)}
+      className={cn("text-sm text-[#2D2D2D]/70 dark:text-[#F5F2F3]/75 leading-relaxed", className)}
       {...props}
     />
   )
@@ -53,7 +53,7 @@ CardDescription.displayName = "CardDescription";
 
 const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("p-5 sm:p-6 pt-0 text-[#171717] dark:text-[#ededed]", className)} {...props} />
+    <div ref={ref} className={cn("p-5 sm:p-6 pt-0 text-[#2D2D2D] dark:text-[#F5F2F3]", className)} {...props} />
   )
 );
 CardContent.displayName = "CardContent";

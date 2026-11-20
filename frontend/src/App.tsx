@@ -62,11 +62,10 @@ export default function App() {
   const [listingsSearch, setListingsSearch] = useState<FipeListingSearchIntent | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('fipex_theme');
+      const saved = localStorage.getItem('fipex_knolling_theme');
       if (saved === 'dark' || saved === 'light') return saved;
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
-    return 'dark';
+    return 'light';
   });
 
   useEffect(() => {
@@ -76,7 +75,7 @@ export default function App() {
     } else {
       root.classList.remove('dark');
     }
-    localStorage.setItem('fipex_theme', theme);
+    localStorage.setItem('fipex_knolling_theme', theme);
   }, [theme]);
 
   const toggleTheme = () => {
@@ -90,7 +89,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#ffffff] dark:bg-[#121212] text-[#171717] dark:text-[#ededed] transition-colors">
+    <div className="min-h-[100dvh] flex flex-col knolling-split-bg text-[#2D2D2D] dark:text-[#F5F2F3] transition-colors duration-200">
       <Navbar
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -98,7 +97,7 @@ export default function App() {
         onChangeSection={setActiveSection}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <main className="flex-1 max-w-[1280px] w-full mx-auto px-6 py-8 sm:py-12">
         {activeSection === 'fipe' ? (
           <BudgetFinderView onSearchListings={handleSearchVehicleListings} />
         ) : (
@@ -107,20 +106,24 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-[#ededed] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] py-8 mt-12 transition-colors">
-        <div className="max-w-7xl mx-auto px-4 text-center text-xs text-[#707070] dark:text-[#a1a1aa] space-y-1.5">
-          <p className="font-mono">fipex.parquet • DuckDB SQL Engine</p>
-          <p className="text-[#9a9a9a] dark:text-[#71717a]">9.42M registros históricos FIPE processados em milissegundos</p>
-          <p className="pt-2 text-[11px] text-[#707070] dark:text-[#a1a1aa] flex items-center justify-center gap-1 flex-wrap">
+      <footer className="border-t border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 bg-[#FFFDFB]/90 dark:bg-[#2D2D2D]/90 backdrop-blur-xs py-8 mt-14 transition-colors duration-200">
+        <div className="max-w-[1280px] mx-auto px-6 text-center text-xs text-[#2D2D2D]/75 dark:text-[#F5F2F3]/75 space-y-1.5">
+          <p className="font-mono font-medium text-[#2D2D2D] dark:text-[#F5F2F3]">
+            SPEC. 90° // fipex.parquet • DuckDB SQL Engine
+          </p>
+          <p className="text-[#2D2D2D]/65 dark:text-[#F5F2F3]/65 tabular-nums">
+            9,42M registros históricos FIPE processados em milissegundos
+          </p>
+          <p className="pt-2 text-[11px] flex items-center justify-center gap-1 flex-wrap">
             <span>Agradecimento ao</span>
             <a
               href="https://huggingface.co/datasets/alanwgt/fipex-veiculos-brasil"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[#171717] dark:text-[#ededed] hover:text-[#3ecf8e] dark:hover:text-[#3ecf8e] font-mono font-medium underline underline-offset-2 transition-colors"
+              className="inline-flex items-center gap-1 text-[#2D2D2D] dark:text-[#F5F2F3] bg-[#CBE4F0]/55 hover:bg-[#CBE4F0] dark:bg-[#3B3948] dark:hover:bg-[#CBE4F0] dark:hover:text-[#2D2D2D] px-2 py-0.5 rounded-[8px] font-mono font-medium border border-[#2D2D2D]/15 transition-colors"
             >
-              alanwgt/fipex-veiculos-brasil
-              <ExternalLink className="w-3 h-3 text-[#3ecf8e]" />
+              <span>alanwgt/fipex-veiculos-brasil</span>
+              <ExternalLink className="w-3 h-3" aria-hidden="true" />
             </a>
             <span>pelo dataset</span>
           </p>

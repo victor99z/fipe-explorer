@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Search, ChevronLeft, ChevronRight, Check, X, 
-  ChevronDown, SlidersHorizontal, RotateCcw, 
-  Zap, Leaf, BatteryCharging, Fuel, TrendingUp, TrendingDown, Info
+import {
+  Search, ChevronLeft, ChevronRight, Check, X,
+  ChevronDown, SlidersHorizontal, RotateCcw,
+  Zap, Leaf, BatteryCharging, Fuel, TrendingUp, TrendingDown, Info,
+  Database, ArrowUpRight, Sparkles
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -119,17 +120,15 @@ export default function BudgetFinderView({
   onSwitchTab: _onSwitchTab,
   onSearchListings,
 }: BudgetFinderViewProps) {
-  // Budget inputs
   const [budgetValue, setBudgetValue] = useState<string>('80000');
-  const [useSmartRange, setUseSmartRange] = useState<boolean>(true); // 80% to 100% of budget
+  const [useSmartRange, setUseSmartRange] = useState<boolean>(true);
   const [showAdvancedPricing, setShowAdvancedPricing] = useState<boolean>(false);
   const [minPrice, setMinPrice] = useState<string>('64000');
   const [maxPrice, setMaxPrice] = useState<string>('80000');
 
-  // Filters
-  const [motorizacao, setMotorizacao] = useState<string>('todos'); // 'todos', 'turbo', 'aspirado'
-  const [cambio, setCambio] = useState<string>('todos'); // 'todos', 'automatico', 'manual'
-  const [litragem, setLitragem] = useState<string>('todos'); // 'todos', '1.0', '1.4', etc.
+  const [motorizacao, setMotorizacao] = useState<string>('todos');
+  const [cambio, setCambio] = useState<string>('todos');
+  const [litragem, setLitragem] = useState<string>('todos');
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [searchModel, setSearchModel] = useState<string>('');
   const [minYear, setMinYear] = useState<string>('2018');
@@ -138,7 +137,6 @@ export default function BudgetFinderView({
   const [ordenacao, setOrdenacao] = useState<string>('preco_desc');
   const [page, setPage] = useState<number>(1);
 
-  // External data
   const [allBrands, setAllBrands] = useState<string[]>([]);
   const [availableEngines, setAvailableEngines] = useState<EngineSizeItem[]>([]);
   const [availableFuels, setAvailableFuels] = useState<FuelItem[]>([]);
@@ -146,12 +144,10 @@ export default function BudgetFinderView({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Brand dropdown state
   const [brandDropdownOpen, setBrandDropdownOpen] = useState<boolean>(false);
   const [brandSearchTerm, setBrandSearchTerm] = useState<string>('');
   const brandDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Modal vehicle history
   const [selectedVehicleForHistory, setSelectedVehicleForHistory] = useState<Vehicle | null>(null);
 
   const parsePriceInput = (raw: string): string => raw.replace(/\D/g, '');
@@ -163,7 +159,6 @@ export default function BudgetFinderView({
     return Number.isNaN(num) ? '' : num.toLocaleString('pt-BR');
   };
 
-  // Sync smart range when budget changes
   const applyBudget = (rawVal: string, isSmart: boolean = useSmartRange) => {
     const clean = parsePriceInput(rawVal);
     setBudgetValue(clean);
@@ -186,7 +181,6 @@ export default function BudgetFinderView({
     setPage(1);
   };
 
-  // Close brand dropdown on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (brandDropdownRef.current && !brandDropdownRef.current.contains(event.target as Node)) {
@@ -197,7 +191,6 @@ export default function BudgetFinderView({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Dynamic safe viewport positioning so brand popover never overflows left or right
   const [brandDropdownStyle, setBrandDropdownStyle] = useState<React.CSSProperties>({});
 
   useEffect(() => {
@@ -207,12 +200,12 @@ export default function BudgetFinderView({
         const rect = brandDropdownRef.current.getBoundingClientRect();
         const viewportWidth = window.innerWidth;
         const menuWidth = Math.min(288, viewportWidth - 24);
-        
+
         let targetLeft = rect.left;
         if (rect.left + menuWidth > viewportWidth - 12) {
           targetLeft = rect.right - menuWidth;
         }
-        
+
         const clampedLeft = Math.max(12, Math.min(targetLeft, viewportWidth - menuWidth - 12));
         const offsetLeft = clampedLeft - rect.left;
 
@@ -232,7 +225,6 @@ export default function BudgetFinderView({
     }
   }, [brandDropdownOpen]);
 
-  // Fetch brands, engine sizes and fuels on mount
   useEffect(() => {
     async function loadFilterOptions() {
       try {
@@ -251,7 +243,6 @@ export default function BudgetFinderView({
     loadFilterOptions();
   }, []);
 
-  // Main search fetch
   useEffect(() => {
     let isCancelled = false;
 
@@ -336,63 +327,115 @@ export default function BudgetFinderView({
   };
 
   return (
-    <div className="w-full space-y-8 sm:space-y-12">
-      
-      {/* 1. HERO SECTION */}
-      <section className="pt-4 sm:pt-12 pb-2 sm:pb-4">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-          
-          {/* Left Column: Big Headline with Emerald Accent + CTAs */}
-          <div className="lg:col-span-7 space-y-4 sm:space-y-6">
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-medium tracking-tight text-[#171717] dark:text-[#ededed] leading-[1.1] sm:leading-[1.08]" style={{ letterSpacing: '-0.04em' }}>
-              Consulte no seu orçamento
-              <span className="block text-[#3ecf8e]">
-                Filtre carros na FIPE
+    <div className="w-full space-y-10 sm:space-y-14">
+
+      {/* 1. SPLIT-SCREEN KNOLLING HERO */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch">
+        {/* Left: Editorial Flat-Lay Paper Tray */}
+        <div className="lg:col-span-7 knolling-card knolling-enter p-6 sm:p-8 flex flex-col justify-between gap-6">
+          <div className="space-y-4">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-[#E6E6FA] text-[#2D2D2D] border border-[#2D2D2D]/15 text-xs font-mono font-medium">
+              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>FIG. 01 // EXPLORADOR FIPE &amp; INMETRO</span>
+            </span>
+
+            <h1
+              className="font-bold tracking-tight text-[#2D2D2D] dark:text-[#F5F2F3] leading-[1.12]"
+              style={{ fontSize: 'clamp(2.25rem, 4.2vw, 3.25rem)' }}
+            >
+              Consulte no seu orçamento.
+              <span className="inline-block mt-2 px-3 py-1 rounded-xl bg-[#CBE4F0] text-[#2D2D2D] border border-[#2D2D2D]/15 text-[0.72em] leading-snug font-bold">
+                Filtre carros na FIPE em 90°
               </span>
             </h1>
 
-            {/* Action buttons below headline */}
-            <div className="flex flex-wrap items-center gap-3 pt-1 sm:pt-2">
-              <a
-                href="#filtro-console"
-                className="inline-flex items-center justify-center bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-sm px-4 py-2 sm:py-2.5 rounded-[6px] transition-colors shadow-xs"
-              >
-                Pesquisar veículos
-              </a>
-            </div>
-          </div>
-
-          {/* Right Column: Technical Explanatory Lead Text */}
-          <div className="lg:col-span-5 pt-1 lg:pt-3">
-            <p className="text-sm sm:text-lg text-[#707070] dark:text-[#a1a1aa] leading-relaxed">
-              Descubra quais carros você pode comprar hoje com o seu valor disponível. Filtre instantaneamente mais de 9.4 milhões de registros FIPE por cilindrada do motor (1.0, 1.4, 2.0+), alimentação turbo e transmissão automática.
+            <p className="text-base text-[#2D2D2D]/78 dark:text-[#F5F2F3]/80 leading-[1.6] max-w-[68ch]">
+              Organize suas opções de compra com precisão visual: cruze instantaneamente{' '}
+              <strong className="tabular-nums font-bold text-[#2D2D2D] dark:text-[#F5F2F3]">9,42 milhões</strong>{' '}
+              de registros históricos FIPE por cilindrada do motor, alimentação turbo, câmbio e eficiência energética PBEV do INMETRO.
             </p>
-
-            <div className="mt-4 sm:mt-6 flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-2 text-xs text-[#707070] dark:text-[#a1a1aa] font-mono border-t border-[#ededed] dark:border-[#27272a] pt-3 sm:pt-4">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#3ecf8e]" />
-                <span>Base FIPEX 2026</span>
-              </div>
-              <div>DuckDB Query Engine</div>
-              <div>9.42M rows</div>
-            </div>
           </div>
 
+          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-[#2D2D2D]/12 dark:border-[#F5F2F3]/12">
+            <a
+              href="#filtro-console"
+              className="h-10 inline-flex items-center justify-center gap-2 bg-[#CBE4F0] hover:bg-[#b5d7e8] text-[#2D2D2D] font-semibold text-sm px-5 rounded-xl border border-[#2D2D2D]/15 shadow-[0_2px_10px_rgba(45,45,45,0.08)] transition-all duration-200 active:-translate-y-[1px]"
+            >
+              <span>Pesquisar veículos</span>
+              <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+            </a>
+
+            <span className="text-xs font-mono text-[#2D2D2D]/65 dark:text-[#F5F2F3]/65">
+              Base FIPEX 2026 • DuckDB Query Engine
+            </span>
+          </div>
+        </div>
+
+        {/* Right: Knolling Overhead Specimen Board (2x2 orthogonal objects) */}
+        <div
+          className="lg:col-span-5 knolling-card knolling-enter p-5 sm:p-6 flex flex-col justify-between gap-4"
+          style={{ animationDelay: '80ms' }}
+        >
+          <div className="flex items-center justify-between border-b border-[#2D2D2D]/12 dark:border-[#F5F2F3]/12 pb-3">
+            <span className="text-[11px] font-mono font-medium uppercase tracking-wider text-[#2D2D2D]/70 dark:text-[#F5F2F3]/70">
+              Specimen Board // 0° / 90°
+            </span>
+            <span className="text-[11px] font-mono tabular-nums px-2 py-0.5 rounded-[8px] bg-[#D0F0C0] text-[#2D2D2D] border border-[#2D2D2D]/15">
+              ATIV. LIVE
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 flex-1">
+            <div className="rounded-xl bg-[#F6D0D6]/85 border border-[#2D2D2D]/15 p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.05)] flex flex-col justify-between gap-2 text-[#2D2D2D]">
+              <Database className="w-4 h-4" aria-hidden="true" />
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider opacity-75">Histórico FIPE</p>
+                <p className="text-lg font-bold tabular-nums leading-tight mt-0.5">9,42M linhas</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-[#CBE4F0]/90 border border-[#2D2D2D]/15 p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.05)] flex flex-col justify-between gap-2 text-[#2D2D2D]">
+              <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider opacity-75">Faixa Ativa</p>
+                <p className="text-lg font-bold tabular-nums leading-tight mt-0.5">80% – 100%</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-[#D0F0C0]/90 border border-[#2D2D2D]/15 p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.05)] flex flex-col justify-between gap-2 text-[#2D2D2D]">
+              <Fuel className="w-4 h-4" aria-hidden="true" />
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider opacity-75">Selo PBEV</p>
+                <p className="text-base font-bold leading-tight mt-0.5">km/l &amp; MJ/km</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-[#E6E6FA]/95 border border-[#2D2D2D]/15 p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.05)] flex flex-col justify-between gap-2 text-[#2D2D2D]">
+              <Search className="w-4 h-4" aria-hidden="true" />
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider opacity-75">Cruzamento Real</p>
+                <p className="text-base font-bold leading-tight mt-0.5">Anúncios vs FIPE</p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* 2. THE CONSOLE CARD: Developer Studio / Query Builder Container */}
-      <section id="filtro-console" className="rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] shadow-xs transition-colors">
-        
-        {/* Console Header Bar */}
-        <div className="px-3.5 sm:px-5 py-2.5 sm:py-3.5 bg-[#fafafa] dark:bg-[#121212] border-b border-[#ededed] dark:border-[#27272a] rounded-t-xl flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#3ecf8e]" />
-            <span className="text-xs font-mono font-medium text-[#171717] dark:text-[#ededed]">fipex query builder</span>
-            <span className="text-[11px] text-[#9a9a9a] dark:text-[#71717a] font-mono hidden xs:inline">--type=carro</span>
+      {/* 2. KNOLLING QUERY BUILDER CONSOLE */}
+      <section id="filtro-console" className="knolling-card overflow-visible">
+        {/* Console Header */}
+        <div className="px-4 sm:px-6 py-3 bg-[#E6E6FA]/75 dark:bg-[#3B3948] border-b border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 rounded-t-xl flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#2D2D2D] dark:bg-[#CBE4F0]" aria-hidden="true" />
+            <span className="text-xs font-mono font-semibold text-[#2D2D2D] dark:text-[#F5F2F3]">
+              fipex.knolling.query
+            </span>
+            <span className="text-[11px] text-[#2D2D2D]/65 dark:text-[#F5F2F3]/65 font-mono hidden xs:inline">
+              // --type=carro
+            </span>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
             <button
               type="button"
               aria-pressed={useSmartRange}
@@ -401,13 +444,16 @@ export default function BudgetFinderView({
                 setUseSmartRange(next);
                 applyBudget(budgetValue, next);
               }}
-              className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-[4px] border transition-colors cursor-pointer text-[11px] sm:text-xs ${
-                useSmartRange 
-                  ? 'border-[#3ecf8e] bg-[#ffffff] dark:bg-[#18181b] text-[#171717] dark:text-[#ededed] font-medium' 
-                  : 'border-[#dfdfdf] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed]'
+              className={`h-7 inline-flex items-center gap-1.5 px-2.5 rounded-xl border transition-colors cursor-pointer text-[11px] font-medium ${
+                useSmartRange
+                  ? 'bg-[#D0F0C0] text-[#2D2D2D] border-[#2D2D2D]/20 font-semibold'
+                  : 'bg-[#FFFDFB] dark:bg-[#242226] text-[#2D2D2D]/75 dark:text-[#F5F2F3]/75 border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 hover:bg-[#FAF6F7]'
               }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${useSmartRange ? 'bg-[#3ecf8e]' : 'bg-[#dfdfdf] dark:bg-[#3f3f46]'}`} aria-hidden="true" />
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${useSmartRange ? 'bg-[#2D2D2D]' : 'bg-[#2D2D2D]/35 dark:bg-[#F5F2F3]/35'}`}
+                aria-hidden="true"
+              />
               <span className="hidden sm:inline">Faixa inteligente (80% a 100%)</span>
               <span className="sm:hidden">Faixa intel. (80-100%)</span>
             </button>
@@ -416,7 +462,7 @@ export default function BudgetFinderView({
               type="button"
               aria-expanded={showAdvancedPricing}
               onClick={() => setShowAdvancedPricing(!showAdvancedPricing)}
-              className="text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed] flex items-center gap-1 transition-colors cursor-pointer text-[11px] sm:text-xs"
+              className="h-7 px-2.5 rounded-xl border border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 bg-[#FFFDFB] dark:bg-[#242226] text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 hover:bg-[#CBE4F0]/55 hover:text-[#2D2D2D] flex items-center gap-1 transition-colors cursor-pointer text-[11px] font-medium"
             >
               <SlidersHorizontal className="w-3 h-3" aria-hidden="true" />
               <span className="hidden sm:inline">{showAdvancedPricing ? 'Fechar ajuste' : 'Ajustar min/max'}</span>
@@ -426,7 +472,7 @@ export default function BudgetFinderView({
             <button
               type="button"
               onClick={handleResetFilters}
-              className="text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed] flex items-center gap-1 transition-colors cursor-pointer text-[11px] sm:text-xs"
+              className="h-7 px-2.5 rounded-xl border border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 bg-[#FFFDFB] dark:bg-[#242226] text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 hover:bg-[#F6D0D6]/55 hover:text-[#2D2D2D] flex items-center gap-1 transition-colors cursor-pointer text-[11px] font-medium"
             >
               <RotateCcw className="w-3 h-3" aria-hidden="true" />
               <span>Limpar</span>
@@ -434,17 +480,19 @@ export default function BudgetFinderView({
           </div>
         </div>
 
-        {/* Console Body: Input & Filters */}
-        <div className="p-3.5 sm:p-6 space-y-4 sm:space-y-6">
-          
-          {/* Main Budget Bar */}
-          <div className="space-y-2 sm:space-y-3">
+        {/* Console Body */}
+        <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
+          {/* Orçamento Disponível */}
+          <div className="space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <label htmlFor="budget-input" className="text-[11px] sm:text-xs font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
+              <label
+                htmlFor="budget-input"
+                className="text-xs font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider"
+              >
                 Orçamento Disponível
               </label>
               {(minPrice || maxPrice) && (
-                <span className="inline-flex items-center h-5 px-2 rounded-[4px] text-[11px] leading-none font-medium tabular-nums text-[#707070] dark:text-[#a1a1aa] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a]">
+                <span className="inline-flex items-center h-6 px-2.5 rounded-xl text-[11px] leading-none font-semibold tabular-nums text-[#2D2D2D] bg-[#CBE4F0]/65 border border-[#2D2D2D]/15">
                   Faixa ativa:{' '}
                   {minPrice ? `R$ ${Number(minPrice).toLocaleString('pt-BR')}` : 'R$ 0'}
                   {' a '}
@@ -453,9 +501,9 @@ export default function BudgetFinderView({
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
-              <div className="relative flex-1 flex items-center rounded-[6px] bg-[#ffffff] dark:bg-[#121212] border border-[#dfdfdf] dark:border-[#27272a] px-3 py-1.5 shadow-xs focus-within:border-[#3ecf8e] dark:focus-within:border-[#3ecf8e] focus-within:ring-1 focus-within:ring-[#3ecf8e] transition-colors">
-                <span className="text-sm font-medium text-[#707070] dark:text-[#a1a1aa] mr-2 select-none">R$</span>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="relative flex-1 flex items-center rounded-xl bg-[#FAF6F7] dark:bg-[#242226] border border-[#2D2D2D]/20 dark:border-[#F5F2F3]/20 px-3.5 h-10 focus-within:border-[#2D2D2D] focus-within:ring-2 focus-within:ring-[#CBE4F0] focus-within:ring-offset-2 transition-all">
+                <span className="text-sm font-bold text-[#2D2D2D]/70 dark:text-[#F5F2F3]/70 mr-2 select-none">R$</span>
                 <input
                   id="budget-input"
                   type="text"
@@ -463,21 +511,21 @@ export default function BudgetFinderView({
                   value={formatPriceInput(budgetValue)}
                   onChange={(e) => applyBudget(e.target.value)}
                   placeholder="Ex: 80.000"
-                  className={`w-full bg-transparent text-[#171717] dark:text-[#ededed] font-semibold tabular-nums text-base sm:text-lg focus:outline-none focus-visible:outline-none placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] ${budgetValue ? 'pr-6' : ''}`}
+                  className={`w-full bg-transparent text-[#2D2D2D] dark:text-[#F5F2F3] font-bold tabular-nums text-base sm:text-lg focus:outline-none placeholder:text-[#2D2D2D]/40 dark:placeholder:text-[#F5F2F3]/40 ${budgetValue ? 'pr-6' : ''}`}
                 />
                 {budgetValue && (
                   <button
                     type="button"
                     aria-label="Limpar orçamento"
                     onClick={() => applyBudget('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9a9a9a] dark:text-[#71717a] hover:text-[#171717] dark:hover:text-[#ededed] p-0.5 cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#2D2D2D]/50 dark:text-[#F5F2F3]/50 hover:text-[#2D2D2D] dark:hover:text-[#F5F2F3] p-0.5 cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 )}
               </div>
 
-              {/* Quick shortcut pills */}
+              {/* Shortcut Pills */}
               <div className="flex flex-wrap items-center gap-1.5">
                 {[30000, 50000, 70000, 80000, 100000, 120000, 150000, 200000, 300000].map((val) => {
                   const isActive = Number(budgetValue) === val;
@@ -487,10 +535,10 @@ export default function BudgetFinderView({
                       type="button"
                       aria-pressed={isActive}
                       onClick={() => applyBudget(val.toString())}
-                      className={`h-8 px-2.5 text-xs tabular-nums rounded-[4px] border transition-colors focus:outline-none cursor-pointer inline-flex items-center justify-center ${
-                        isActive 
-                          ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] border-[#171717] dark:border-[#3ecf8e] font-medium' 
-                          : 'bg-[#ffffff] dark:bg-[#121212] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#707070] dark:text-[#a1a1aa] border-[#dfdfdf] dark:border-[#27272a]'
+                      className={`h-8 px-2.5 text-xs tabular-nums rounded-xl border transition-all duration-200 cursor-pointer inline-flex items-center justify-center ${
+                        isActive
+                          ? 'bg-[#CBE4F0] text-[#2D2D2D] border-[#2D2D2D]/30 font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                          : 'bg-[#FFFDFB] dark:bg-[#242226] hover:bg-[#E6E6FA]/60 text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 font-medium'
                       }`}
                     >
                       {(val / 1000).toFixed(0)}k
@@ -500,11 +548,12 @@ export default function BudgetFinderView({
               </div>
             </div>
 
-            {/* Collapsible Manual Price Tuning */}
             {showAdvancedPricing && (
-              <div className="grid grid-cols-2 gap-3 p-3 rounded-[6px] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a] mt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-[#FAF6F7] dark:bg-[#242226] border border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 mt-2">
                 <div>
-                  <label htmlFor="min-price-input" className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] mb-1">Preço Mínimo (R$)</label>
+                  <label htmlFor="min-price-input" className="block text-xs font-medium text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 mb-1">
+                    Preço Mínimo (R$)
+                  </label>
                   <Input
                     id="min-price-input"
                     type="text"
@@ -516,7 +565,9 @@ export default function BudgetFinderView({
                   />
                 </div>
                 <div>
-                  <label htmlFor="max-price-input" className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] mb-1">Preço Máximo (R$)</label>
+                  <label htmlFor="max-price-input" className="block text-xs font-medium text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 mb-1">
+                    Preço Máximo (R$)
+                  </label>
                   <Input
                     id="max-price-input"
                     type="text"
@@ -531,19 +582,19 @@ export default function BudgetFinderView({
             )}
           </div>
 
-          <div className="border-t border-[#ededed] dark:border-[#27272a]" />
+          <div className="border-t border-[#2D2D2D]/12 dark:border-[#F5F2F3]/12" />
 
           {/* Propulsão & Combustível */}
           <div className="space-y-2">
             <div className="flex items-center justify-between h-5">
-              <label className="text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider block">
+              <span className="text-xs font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider">
                 Propulsão / Combustível
-              </label>
+              </span>
               {combustivel !== 'todos' && (
-                <button 
+                <button
                   type="button"
                   onClick={() => { setCombustivel('todos'); setPage(1); }}
-                  className="text-[11px] text-[#171717] dark:text-[#ededed] underline hover:text-[#707070] dark:hover:text-[#a1a1aa] focus:outline-none cursor-pointer whitespace-nowrap"
+                  className="text-xs text-[#2D2D2D] dark:text-[#CBE4F0] underline hover:opacity-75 cursor-pointer whitespace-nowrap"
                 >
                   Limpar
                 </button>
@@ -551,65 +602,60 @@ export default function BudgetFinderView({
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
-              {/* 1. Todos os Combustíveis (Padrão) */}
               <button
                 type="button"
                 aria-pressed={combustivel === 'todos' || combustivel === ''}
                 onClick={() => { setCombustivel('todos'); setPage(1); }}
-                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center justify-center focus:outline-none cursor-pointer ${
+                className={`h-8 px-3 rounded-xl text-xs border transition-colors inline-flex items-center justify-center cursor-pointer ${
                   combustivel === 'todos' || combustivel === ''
-                    ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium'
-                    : 'bg-[#ffffff] dark:bg-[#18181b] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#171717] dark:text-[#ededed] border border-[#dfdfdf] dark:border-[#27272a]'
+                    ? 'bg-[#CBE4F0] text-[#2D2D2D] border-[#2D2D2D]/25 font-semibold'
+                    : 'bg-[#FFFDFB] dark:bg-[#242226] hover:bg-[#FAF6F7] text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 font-medium'
                 }`}
               >
                 Todos
               </button>
 
-              {/* 2. Flex & Gasolina */}
               <button
                 type="button"
                 aria-pressed={combustivel === 'flex,gasolina'}
                 onClick={() => { setCombustivel('flex,gasolina'); setPage(1); }}
-                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center gap-1.5 justify-center focus:outline-none cursor-pointer ${
+                className={`h-8 px-3 rounded-xl text-xs border transition-colors inline-flex items-center gap-1.5 justify-center cursor-pointer ${
                   combustivel === 'flex,gasolina'
-                    ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium'
-                    : 'bg-[#ffffff] dark:bg-[#18181b] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#171717] dark:text-[#ededed] border border-[#dfdfdf] dark:border-[#27272a]'
+                    ? 'bg-[#CBE4F0] text-[#2D2D2D] border-[#2D2D2D]/25 font-semibold'
+                    : 'bg-[#FFFDFB] dark:bg-[#242226] hover:bg-[#FAF6F7] text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 font-medium'
                 }`}
               >
-                <span>Flex & Gasolina</span>
+                <span>Flex &amp; Gasolina</span>
               </button>
 
-              {/* 3. Híbridos & Elétricos (Destaque Especial) */}
               <button
                 type="button"
                 aria-pressed={combustivel === 'hibrido_eletrico'}
                 onClick={() => { setCombustivel('hibrido_eletrico'); setPage(1); }}
-                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center gap-1.5 justify-center focus:outline-none cursor-pointer border ${
+                className={`h-8 px-3 rounded-xl text-xs border transition-colors inline-flex items-center gap-1.5 justify-center cursor-pointer ${
                   combustivel === 'hibrido_eletrico'
-                    ? 'bg-[#3ecf8e] text-[#171717] border-[#3ecf8e] font-semibold shadow-xs'
-                    : 'border-emerald-500/50 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 font-medium'
+                    ? 'bg-[#D0F0C0] text-[#2D2D2D] border-[#2D2D2D]/30 font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                    : 'bg-[#D0F0C0]/45 hover:bg-[#D0F0C0]/80 text-[#2D2D2D] dark:text-[#D0F0C0] dark:bg-[#2F3B31] border-[#2D2D2D]/15 font-medium'
                 }`}
               >
                 <Zap className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                <span>Híbridos & Elétricos</span>
+                <span>Híbridos &amp; Elétricos</span>
               </button>
 
-              {/* 4. Apenas Híbrido */}
               <button
                 type="button"
                 aria-pressed={combustivel === 'hibrido'}
                 onClick={() => { setCombustivel('hibrido'); setPage(1); }}
-                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center gap-1.5 justify-center focus:outline-none cursor-pointer ${
+                className={`h-8 px-3 rounded-xl text-xs border transition-colors inline-flex items-center gap-1.5 justify-center cursor-pointer ${
                   combustivel === 'hibrido'
-                    ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium'
-                    : 'bg-[#ffffff] dark:bg-[#18181b] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#171717] dark:text-[#ededed] border border-[#dfdfdf] dark:border-[#27272a]'
+                    ? 'bg-[#D0F0C0] text-[#2D2D2D] border-[#2D2D2D]/25 font-semibold'
+                    : 'bg-[#FFFDFB] dark:bg-[#242226] hover:bg-[#D0F0C0]/35 text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 font-medium'
                 }`}
               >
-                <Leaf className="w-3.5 h-3.5 text-emerald-500 shrink-0" aria-hidden="true" />
+                <Leaf className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                 <span>Híbrido</span>
               </button>
 
-              {/* 5. Apenas Elétrico */}
               <button
                 type="button"
                 aria-pressed={combustivel === 'eletrico'}
@@ -620,17 +666,16 @@ export default function BudgetFinderView({
                   setCambio('todos');
                   setPage(1);
                 }}
-                className={`h-8 px-3 rounded-[6px] text-xs transition-colors inline-flex items-center gap-1.5 justify-center focus:outline-none cursor-pointer ${
+                className={`h-8 px-3 rounded-xl text-xs border transition-colors inline-flex items-center gap-1.5 justify-center cursor-pointer ${
                   combustivel === 'eletrico'
-                    ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium'
-                    : 'bg-[#ffffff] dark:bg-[#18181b] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#171717] dark:text-[#ededed] border border-[#dfdfdf] dark:border-[#27272a]'
+                    ? 'bg-[#CBE4F0] text-[#2D2D2D] border-[#2D2D2D]/25 font-semibold'
+                    : 'bg-[#FFFDFB] dark:bg-[#242226] hover:bg-[#CBE4F0]/35 text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 font-medium'
                 }`}
               >
-                <BatteryCharging className="w-3.5 h-3.5 text-cyan-500 shrink-0" aria-hidden="true" />
+                <BatteryCharging className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                 <span>Elétrico</span>
               </button>
 
-              {/* 6. Dropdown Outros */}
               <CustomDropdown
                 value={['flex,gasolina', 'hibrido_eletrico', 'hibrido', 'eletrico', 'todos', ''].includes(combustivel) ? '' : combustivel}
                 onChange={(val) => {
@@ -641,25 +686,25 @@ export default function BudgetFinderView({
                 align="right"
                 menuClassName="w-56 max-w-[calc(100vw-2rem)]"
                 options={[
-                  { 
-                    value: 'diesel', 
-                    label: `Diesel ${availableFuels.find(f => f.nome === 'Diesel') ? `(${availableFuels.find(f => f.nome === 'Diesel')?.total_modelos})` : ''}`.trim() 
+                  {
+                    value: 'diesel',
+                    label: `Diesel ${availableFuels.find(f => f.nome === 'Diesel') ? `(${availableFuels.find(f => f.nome === 'Diesel')?.total_modelos})` : ''}`.trim()
                   },
-                  { 
-                    value: 'flex', 
-                    label: `Apenas Flex ${availableFuels.find(f => f.nome === 'Flex') ? `(${availableFuels.find(f => f.nome === 'Flex')?.total_modelos})` : ''}`.trim() 
+                  {
+                    value: 'flex',
+                    label: `Apenas Flex ${availableFuels.find(f => f.nome === 'Flex') ? `(${availableFuels.find(f => f.nome === 'Flex')?.total_modelos})` : ''}`.trim()
                   },
-                  { 
-                    value: 'gasolina', 
-                    label: `Apenas Gasolina ${availableFuels.find(f => f.nome === 'Gasolina') ? `(${availableFuels.find(f => f.nome === 'Gasolina')?.total_modelos})` : ''}`.trim() 
+                  {
+                    value: 'gasolina',
+                    label: `Apenas Gasolina ${availableFuels.find(f => f.nome === 'Gasolina') ? `(${availableFuels.find(f => f.nome === 'Gasolina')?.total_modelos})` : ''}`.trim()
                   },
-                  { 
-                    value: 'alcool', 
-                    label: `Álcool / Etanol ${availableFuels.find(f => f.nome === 'Álcool') ? `(${availableFuels.find(f => f.nome === 'Álcool')?.total_modelos})` : ''}`.trim() 
+                  {
+                    value: 'alcool',
+                    label: `Álcool / Etanol ${availableFuels.find(f => f.nome === 'Álcool') ? `(${availableFuels.find(f => f.nome === 'Álcool')?.total_modelos})` : ''}`.trim()
                   },
-                  { 
-                    value: 'gnv', 
-                    label: `Gás Natural (GNV) ${availableFuels.find(f => f.nome === 'Gás Natural') ? `(${availableFuels.find(f => f.nome === 'Gás Natural')?.total_modelos})` : ''}`.trim() 
+                  {
+                    value: 'gnv',
+                    label: `Gás Natural (GNV) ${availableFuels.find(f => f.nome === 'Gás Natural') ? `(${availableFuels.find(f => f.nome === 'Gás Natural')?.total_modelos})` : ''}`.trim()
                   }
                 ]}
                 renderTrigger={({ isOpen, setIsOpen }) => {
@@ -667,17 +712,19 @@ export default function BudgetFinderView({
                   return (
                     <button
                       type="button"
+                      aria-expanded={isOpen}
+                      aria-haspopup="listbox"
                       onClick={() => setIsOpen(!isOpen)}
-                      className={`h-8 inline-flex items-center gap-1.5 px-2.5 rounded-[6px] text-xs transition-colors border cursor-pointer focus:outline-none ${
+                      className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-xl text-xs transition-colors border cursor-pointer ${
                         isOpen
-                          ? 'border-[#3ecf8e] text-[#171717] dark:text-[#ededed] bg-[#ffffff] dark:bg-[#18181b] shadow-xs'
+                          ? 'border-[#2D2D2D] bg-[#CBE4F0]/60 text-[#2D2D2D]'
                           : isOtherSelected
-                          ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] border-[#171717] dark:border-[#3ecf8e] font-medium'
-                          : 'border-[#dfdfdf] dark:border-[#27272a] text-[#707070] dark:text-[#a1a1aa] bg-[#ffffff] dark:bg-[#121212] hover:bg-[#fafafa] dark:hover:bg-[#27272a]'
+                          ? 'bg-[#CBE4F0] text-[#2D2D2D] border-[#2D2D2D]/25 font-semibold'
+                          : 'border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 bg-[#FFFDFB] dark:bg-[#242226] hover:bg-[#FAF6F7]'
                       }`}
                     >
                       <span className="capitalize">{isOtherSelected ? combustivel : '+ Outros'}</span>
-                      <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180 text-[#3ecf8e]' : ''}`} />
+                      <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
                     </button>
                   );
                 }}
@@ -687,209 +734,174 @@ export default function BudgetFinderView({
 
           {combustivel !== 'eletrico' && (
             <>
-              <div className="border-t border-[#ededed] dark:border-[#27272a]" />
+              <div className="border-t border-[#2D2D2D]/12 dark:border-[#F5F2F3]/12" />
 
-              {/* Technical Filters: Litragem, Alimentação, Câmbio */}
+              {/* Technical Filters */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-            
-            {/* Cilindrada do Motor */}
-            <div className="lg:col-span-6 space-y-2">
-              <div className="flex items-center justify-between h-5">
-                <label className="text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
-                  Cilindrada do Motor
-                </label>
-                {litragem !== 'todos' && (
-                  <button 
-                    type="button"
-                    onClick={() => { setLitragem('todos'); setPage(1); }}
-                    className="text-[11px] text-[#171717] dark:text-[#ededed] underline hover:text-[#707070] dark:hover:text-[#a1a1aa] focus:outline-none cursor-pointer"
-                  >
-                    Limpar
-                  </button>
-                )}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                {POPULAR_ENGINES.map((eng) => {
-                  const isSelected = litragem === eng.id;
-                  return (
-                    <button
-                      key={eng.id}
-                      type="button"
-                      aria-pressed={isSelected}
-                      onClick={() => { setLitragem(eng.id); setPage(1); }}
-                      className={`h-8 px-3 rounded-[6px] text-xs tabular-nums transition-colors inline-flex items-center justify-center focus:outline-none cursor-pointer ${
-                        isSelected
-                          ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium'
-                          : 'bg-[#ffffff] dark:bg-[#18181b] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#171717] dark:text-[#ededed] border border-[#dfdfdf] dark:border-[#27272a]'
-                      }`}
-                    >
-                      {eng.label}
-                    </button>
-                  );
-                })}
-
-                <CustomDropdown
-                  value={POPULAR_ENGINES.some(e => e.id === litragem) ? '' : (litragem === 'todos' ? '' : litragem)}
-                  onChange={(val) => {
-                    setLitragem(String(val) || 'todos');
-                    setPage(1);
-                  }}
-                  placeholder="+ Outras"
-                  searchable={true}
-                  searchPlaceholder="Buscar cilindrada..."
-                  menuClassName="w-64 max-w-[calc(100vw-2rem)]"
-                  align="right"
-                  isActive={!POPULAR_ENGINES.some(e => e.id === litragem) && litragem !== 'todos'}
-                  options={[
-                    { value: '', label: 'Todas as outras (limpar)' },
-                    ...availableEngines
-                      .filter(e => !POPULAR_ENGINES.some(p => p.id === e.litragem))
-                      .map(e => ({
-                        value: e.litragem,
-                        label: `Motor ${e.litragem} (${e.total_modelos})`
-                      }))
-                  ]}
-                  renderTrigger={({ isOpen, setIsOpen }) => {
-                    const isOtherSelected = !POPULAR_ENGINES.some(e => e.id === litragem) && litragem !== 'todos';
-                    return (
+                <div className="lg:col-span-6 space-y-2">
+                  <div className="flex items-center justify-between h-5">
+                    <span className="text-xs font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider">
+                      Cilindrada do Motor
+                    </span>
+                    {litragem !== 'todos' && (
                       <button
                         type="button"
-                        onClick={() => setIsOpen(!isOpen)}
-                        className={`h-8 inline-flex items-center gap-1.5 px-2.5 rounded-[6px] text-xs transition-colors border cursor-pointer focus:outline-none ${
-                          isOpen
-                            ? 'border-[#3ecf8e] text-[#171717] dark:text-[#ededed] bg-[#ffffff] dark:bg-[#18181b] shadow-xs'
-                            : isOtherSelected
-                            ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] border-[#171717] dark:border-[#3ecf8e] font-medium'
-                            : 'border-[#dfdfdf] dark:border-[#27272a] text-[#707070] dark:text-[#a1a1aa] bg-[#ffffff] dark:bg-[#121212] hover:bg-[#fafafa] dark:hover:bg-[#27272a]'
-                        }`}
+                        onClick={() => { setLitragem('todos'); setPage(1); }}
+                        className="text-xs text-[#2D2D2D] dark:text-[#CBE4F0] underline hover:opacity-75 cursor-pointer"
                       >
-                        <span>{isOtherSelected ? `Motor ${litragem}` : '+ Outras'}</span>
-                        <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180 text-[#3ecf8e]' : ''}`} />
+                        Limpar
                       </button>
-                    );
-                  }}
-                />
-              </div>
-            </div>
+                    )}
+                  </div>
 
-            {/* Alimentação (Turbo vs Aspirado) */}
-            <div className="lg:col-span-3 space-y-2">
-              <div className="flex items-center h-5">
-                <label className="text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider block">
-                  Alimentação
-                </label>
-              </div>
-              <div className="grid grid-cols-3 gap-1 bg-[#fafafa] dark:bg-[#121212] p-1 rounded-[6px] border border-[#ededed] dark:border-[#27272a]">
-                <button
-                  type="button"
-                  aria-pressed={motorizacao === 'todos'}
-                  onClick={() => { setMotorizacao('todos'); setPage(1); }}
-                  className={`py-1.5 text-xs rounded-[4px] transition-colors focus:outline-none cursor-pointer ${
-                    motorizacao === 'todos' 
-                      ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium shadow-xs' 
-                      : 'text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed]'
-                  }`}
-                >
-                  Todos
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={motorizacao === 'turbo'}
-                  onClick={() => { setMotorizacao('turbo'); setPage(1); }}
-                  className={`py-1.5 text-xs rounded-[4px] transition-colors focus:outline-none cursor-pointer ${
-                    motorizacao === 'turbo' 
-                      ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium shadow-xs' 
-                      : 'text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed]'
-                  }`}
-                >
-                  Turbo
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={motorizacao === 'aspirado'}
-                  onClick={() => { setMotorizacao('aspirado'); setPage(1); }}
-                  className={`py-1.5 text-xs rounded-[4px] transition-colors focus:outline-none cursor-pointer ${
-                    motorizacao === 'aspirado' 
-                      ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium shadow-xs' 
-                      : 'text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed]'
-                  }`}
-                >
-                  Aspirado
-                </button>
-              </div>
-            </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {POPULAR_ENGINES.map((eng) => {
+                      const isSelected = litragem === eng.id;
+                      return (
+                        <button
+                          key={eng.id}
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => { setLitragem(eng.id); setPage(1); }}
+                          className={`h-8 px-3 rounded-xl text-xs tabular-nums border transition-colors inline-flex items-center justify-center cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#CBE4F0] text-[#2D2D2D] border-[#2D2D2D]/25 font-semibold'
+                              : 'bg-[#FFFDFB] dark:bg-[#242226] hover:bg-[#FAF6F7] text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 font-medium'
+                          }`}
+                        >
+                          {eng.label}
+                        </button>
+                      );
+                    })}
 
-            {/* Câmbio */}
-            <div className="lg:col-span-3 space-y-2">
-              <div className="flex items-center h-5">
-                <label className="text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider block">
-                  Transmissão
-                </label>
-              </div>
-              <div className="grid grid-cols-3 gap-1 bg-[#fafafa] dark:bg-[#121212] p-1 rounded-[6px] border border-[#ededed] dark:border-[#27272a]">
-                <button
-                  type="button"
-                  aria-pressed={cambio === 'todos'}
-                  onClick={() => { setCambio('todos'); setPage(1); }}
-                  className={`py-1.5 text-xs rounded-[4px] transition-colors focus:outline-none cursor-pointer ${
-                    cambio === 'todos' 
-                      ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium shadow-xs' 
-                      : 'text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed]'
-                  }`}
-                >
-                  Todos
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={cambio === 'automatico'}
-                  onClick={() => { setCambio('automatico'); setPage(1); }}
-                  className={`py-1.5 text-xs rounded-[4px] transition-colors focus:outline-none cursor-pointer ${
-                    cambio === 'automatico' 
-                      ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium shadow-xs' 
-                      : 'text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed]'
-                  }`}
-                >
-                  Automático
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={cambio === 'manual'}
-                  onClick={() => { setCambio('manual'); setPage(1); }}
-                  className={`py-1.5 text-xs rounded-[4px] transition-colors focus:outline-none cursor-pointer ${
-                    cambio === 'manual' 
-                      ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium shadow-xs' 
-                      : 'text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed]'
-                  }`}
-                >
-                  Manual
-                </button>
-              </div>
-            </div>
+                    <CustomDropdown
+                      value={POPULAR_ENGINES.some(e => e.id === litragem) ? '' : (litragem === 'todos' ? '' : litragem)}
+                      onChange={(val) => {
+                        setLitragem(String(val) || 'todos');
+                        setPage(1);
+                      }}
+                      placeholder="+ Outras"
+                      searchable={true}
+                      searchPlaceholder="Buscar cilindrada..."
+                      menuClassName="w-64 max-w-[calc(100vw-2rem)]"
+                      align="right"
+                      isActive={!POPULAR_ENGINES.some(e => e.id === litragem) && litragem !== 'todos'}
+                      options={[
+                        { value: '', label: 'Todas as outras (limpar)' },
+                        ...availableEngines
+                          .filter(e => !POPULAR_ENGINES.some(p => p.id === e.litragem))
+                          .map(e => ({
+                            value: e.litragem,
+                            label: `Motor ${e.litragem} (${e.total_modelos})`
+                          }))
+                      ]}
+                      renderTrigger={({ isOpen, setIsOpen }) => {
+                        const isOtherSelected = !POPULAR_ENGINES.some(e => e.id === litragem) && litragem !== 'todos';
+                        return (
+                          <button
+                            type="button"
+                            aria-expanded={isOpen}
+                            aria-haspopup="listbox"
+                            onClick={() => setIsOpen(!isOpen)}
+                            className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-xl text-xs transition-colors border cursor-pointer ${
+                              isOpen
+                                ? 'border-[#2D2D2D] bg-[#CBE4F0]/60 text-[#2D2D2D]'
+                                : isOtherSelected
+                                ? 'bg-[#CBE4F0] text-[#2D2D2D] border-[#2D2D2D]/25 font-semibold'
+                                : 'border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 bg-[#FFFDFB] dark:bg-[#242226] hover:bg-[#FAF6F7]'
+                            }`}
+                          >
+                            <span>{isOtherSelected ? `Motor ${litragem}` : '+ Outras'}</span>
+                            <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                          </button>
+                        );
+                      }}
+                    />
+                  </div>
+                </div>
 
-          </div>
+                {/* Alimentação */}
+                <div className="lg:col-span-3 space-y-2">
+                  <div className="flex items-center h-5">
+                    <span className="text-xs font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider block">
+                      Alimentação
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 bg-[#FAF6F7] dark:bg-[#242226] p-1 rounded-xl border border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15">
+                    {(['todos', 'turbo', 'aspirado'] as const).map((mode) => {
+                      const label = mode === 'todos' ? 'Todos' : mode === 'turbo' ? 'Turbo' : 'Aspirado';
+                      const pressed = motorizacao === mode;
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          aria-pressed={pressed}
+                          onClick={() => { setMotorizacao(mode); setPage(1); }}
+                          className={`py-1.5 text-xs rounded-[8px] transition-colors cursor-pointer ${
+                            pressed
+                              ? 'bg-[#CBE4F0] text-[#2D2D2D] font-semibold shadow-2xs'
+                              : 'text-[#2D2D2D]/70 dark:text-[#F5F2F3]/70 hover:text-[#2D2D2D] dark:hover:text-[#F5F2F3]'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Transmissão */}
+                <div className="lg:col-span-3 space-y-2">
+                  <div className="flex items-center h-5">
+                    <span className="text-xs font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider block">
+                      Transmissão
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 bg-[#FAF6F7] dark:bg-[#242226] p-1 rounded-xl border border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15">
+                    {(['todos', 'automatico', 'manual'] as const).map((mode) => {
+                      const label = mode === 'todos' ? 'Todos' : mode === 'automatico' ? 'Automático' : 'Manual';
+                      const pressed = cambio === mode;
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          aria-pressed={pressed}
+                          onClick={() => { setCambio(mode); setPage(1); }}
+                          className={`py-1.5 text-xs rounded-[8px] transition-colors cursor-pointer ${
+                            pressed
+                              ? 'bg-[#CBE4F0] text-[#2D2D2D] font-semibold shadow-2xs'
+                              : 'text-[#2D2D2D]/70 dark:text-[#F5F2F3]/70 hover:text-[#2D2D2D] dark:hover:text-[#F5F2F3]'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             </>
           )}
 
-          <div className="border-t border-[#ededed] dark:border-[#27272a]" />
+          <div className="border-t border-[#2D2D2D]/12 dark:border-[#F5F2F3]/12" />
 
           {/* Marcas, Modelo e Ano */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-            
-            {/* Marcas */}
             <div className="lg:col-span-7 space-y-2">
               <div className="flex items-center justify-between h-5">
-                <label className="text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
+                <span className="text-xs font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider">
                   Marcas
                   {selectedBrands.length > 0 && (
-                    <span className="ml-1 text-[#15803d] dark:text-[#3ecf8e] font-semibold tabular-nums">({selectedBrands.length})</span>
+                    <span className="ml-1.5 font-bold tabular-nums text-[#2D2D2D] dark:text-[#CBE4F0]">
+                      ({selectedBrands.length})
+                    </span>
                   )}
-                </label>
+                </span>
                 {selectedBrands.length > 0 && (
-                  <button 
+                  <button
                     type="button"
                     onClick={() => { setSelectedBrands([]); setPage(1); }}
-                    className="text-[11px] text-[#171717] dark:text-[#ededed] underline hover:text-[#707070] dark:hover:text-[#a1a1aa] cursor-pointer"
+                    className="text-xs text-[#2D2D2D] dark:text-[#CBE4F0] underline hover:opacity-75 cursor-pointer"
                   >
                     Desmarcar
                   </button>
@@ -905,14 +917,14 @@ export default function BudgetFinderView({
                       type="button"
                       aria-pressed={isSelected}
                       onClick={() => toggleBrand(brand)}
-                      className={`h-8 px-2.5 rounded-[6px] text-xs transition-colors inline-flex items-center justify-center gap-1.5 focus:outline-none cursor-pointer ${
+                      className={`h-8 px-2.5 rounded-xl text-xs border transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer ${
                         isSelected
-                          ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium'
-                          : 'bg-[#fafafa] dark:bg-[#121212] hover:bg-[#efefef] dark:hover:bg-[#27272a] text-[#171717] dark:text-[#ededed] border border-[#ededed] dark:border-[#27272a]'
+                          ? 'bg-[#CBE4F0] text-[#2D2D2D] border-[#2D2D2D]/30 font-semibold'
+                          : 'bg-[#FAF6F7] dark:bg-[#242226] hover:bg-[#E6E6FA]/60 text-[#2D2D2D] dark:text-[#F5F2F3] border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 font-medium'
                       }`}
                     >
-                      <span className="w-4 h-4 rounded-[3px] bg-[#ffffff] border border-black/5 flex items-center justify-center p-[1px] shrink-0">
-                        <BrandLogo brand={brand} size="xs" iconClassName="text-[#171717]" />
+                      <span className="w-4 h-4 rounded-[4px] bg-[#FFFDFB] border border-[#2D2D2D]/10 flex items-center justify-center p-[1px] shrink-0">
+                        <BrandLogo brand={brand} size="xs" iconClassName="text-[#2D2D2D]" />
                       </span>
                       <span>{brand.split(' - ')[0]}</span>
                     </button>
@@ -922,51 +934,52 @@ export default function BudgetFinderView({
                 <div className="relative inline-block" ref={brandDropdownRef}>
                   <button
                     type="button"
+                    aria-expanded={brandDropdownOpen}
+                    aria-haspopup="listbox"
                     onClick={() => {
                       setBrandDropdownOpen(!brandDropdownOpen);
                       if (!brandDropdownOpen) setBrandSearchTerm('');
                     }}
-                    className={`h-8 inline-flex items-center gap-1.5 px-2.5 rounded-[6px] text-xs transition-colors border cursor-pointer focus:outline-none ${
+                    className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-xl text-xs transition-colors border cursor-pointer ${
                       brandDropdownOpen
-                        ? 'border-[#3ecf8e] text-[#171717] dark:text-[#ededed] bg-[#ffffff] dark:bg-[#18181b] shadow-xs'
-                        : 'border-[#dfdfdf] dark:border-[#27272a] text-[#707070] dark:text-[#a1a1aa] bg-[#ffffff] dark:bg-[#121212] hover:bg-[#fafafa] dark:hover:bg-[#27272a]'
+                        ? 'border-[#2D2D2D] bg-[#CBE4F0] text-[#2D2D2D] font-semibold'
+                        : 'border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 bg-[#FFFDFB] dark:bg-[#242226] hover:bg-[#FAF6F7]'
                     }`}
                   >
                     <span>+ Todas</span>
-                    <ChevronDown className={`w-3 h-3 transition-transform ${brandDropdownOpen ? 'rotate-180 text-[#3ecf8e]' : ''}`} />
+                    <ChevronDown className={`w-3 h-3 transition-transform ${brandDropdownOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
                   </button>
 
                   {brandDropdownOpen && (
                     <div
                       style={brandDropdownStyle}
-                      className="absolute top-full mt-2 bg-[#ffffff] dark:bg-[#18181b] border border-[#dfdfdf] dark:border-[#27272a] rounded-[8px] shadow-2xl z-50 p-2.5 flex flex-col animate-in fade-in duration-100"
+                      className="absolute top-full mt-2 bg-[#FFFDFB] dark:bg-[#2D2D2D] border border-[#2D2D2D]/20 dark:border-[#F5F2F3]/20 rounded-xl shadow-[0_12px_28px_rgba(45,45,45,0.16)] z-[200] p-2.5 flex flex-col"
                     >
-                      {/* Search input inside popover */}
                       <div className="relative mb-2">
-                        <Search className="w-3.5 h-3.5 text-[#9a9a9a] dark:text-[#71717a] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <Search className="w-3.5 h-3.5 text-[#2D2D2D]/50 dark:text-[#F5F2F3]/50 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
                         <input
                           type="text"
                           placeholder="Buscar marca..."
                           value={brandSearchTerm}
                           onChange={(e) => setBrandSearchTerm(e.target.value)}
-                          className="h-8 w-full rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] pl-8 pr-7 text-xs text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:outline-none focus-visible:outline-none focus:ring-1 focus:ring-[#3ecf8e] transition-colors"
+                          className="h-8 w-full rounded-xl border border-[#2D2D2D]/20 dark:border-[#F5F2F3]/20 bg-[#FAF6F7] dark:bg-[#242226] pl-8 pr-7 text-xs text-[#2D2D2D] dark:text-[#F5F2F3] placeholder:text-[#2D2D2D]/45 dark:placeholder:text-[#F5F2F3]/45 focus:outline-none"
                           autoFocus
                         />
                         {brandSearchTerm && (
                           <button
                             type="button"
+                            aria-label="Limpar busca de marca"
                             onClick={() => setBrandSearchTerm('')}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9a9a9a] dark:text-[#71717a] hover:text-[#171717] dark:hover:text-[#ededed] p-0.5 cursor-pointer"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-[#2D2D2D]/50 dark:text-[#F5F2F3]/50 hover:text-[#2D2D2D] p-0.5 cursor-pointer"
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-3 h-3" aria-hidden="true" />
                           </button>
                         )}
                       </div>
 
-                      {/* Scrollable list of brands */}
                       <div className="max-h-56 overflow-y-auto space-y-0.5 pr-1">
                         {allBrands.filter(b => b.toLowerCase().includes(brandSearchTerm.toLowerCase())).length === 0 ? (
-                          <div className="py-4 text-center text-xs text-[#707070] dark:text-[#a1a1aa]">
+                          <div className="py-4 text-center text-xs text-[#2D2D2D]/65 dark:text-[#F5F2F3]/65">
                             Nenhuma marca encontrada
                           </div>
                         ) : (
@@ -979,19 +992,19 @@ export default function BudgetFinderView({
                                   key={b}
                                   type="button"
                                   onClick={() => toggleBrand(b)}
-                                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-[4px] text-xs text-left cursor-pointer transition-colors ${
-                                    isSel 
-                                      ? 'bg-[#fafafa] dark:bg-[#27272a] text-[#171717] dark:text-[#ededed] font-medium' 
-                                      : 'text-[#707070] dark:text-[#a1a1aa] hover:bg-[#fafafa] dark:hover:bg-[#27272a] hover:text-[#171717] dark:hover:text-[#ededed]'
+                                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-[8px] text-xs text-left cursor-pointer transition-colors ${
+                                    isSel
+                                      ? 'bg-[#CBE4F0] text-[#2D2D2D] font-semibold'
+                                      : 'text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80 hover:bg-[#E6E6FA]/60 dark:hover:bg-[#3B3948]'
                                   }`}
                                 >
                                   <div className="flex items-center gap-2 min-w-0 mr-2">
-                                    <span className="w-5 h-5 rounded-[4px] bg-[#ffffff] border border-[#ededed] dark:border-[#3f3f46] p-0.5 flex items-center justify-center shrink-0">
-                                      <BrandLogo brand={b} size="xs" iconClassName="text-[#171717]" />
+                                    <span className="w-5 h-5 rounded-[4px] bg-[#FFFDFB] border border-[#2D2D2D]/15 p-0.5 flex items-center justify-center shrink-0">
+                                      <BrandLogo brand={b} size="xs" iconClassName="text-[#2D2D2D]" />
                                     </span>
                                     <span className="truncate">{b}</span>
                                   </div>
-                                  {isSel && <Check className="w-3.5 h-3.5 text-[#3ecf8e] flex-shrink-0" />}
+                                  {isSel && <Check className="w-3.5 h-3.5 text-[#2D2D2D] flex-shrink-0" aria-hidden="true" />}
                                 </button>
                               );
                             })
@@ -1003,15 +1016,18 @@ export default function BudgetFinderView({
               </div>
             </div>
 
-            {/* Modelo */}
+            {/* Nome do Modelo */}
             <div className="lg:col-span-3 space-y-2">
               <div className="flex items-center h-5">
-                <label htmlFor="model-search-input" className="text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider block">
+                <label
+                  htmlFor="model-search-input"
+                  className="text-xs font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider block"
+                >
                   Nome do Modelo
                 </label>
               </div>
               <div className="relative">
-                <Search className="w-3.5 h-3.5 text-[#9a9a9a] dark:text-[#71717a] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+                <Search className="w-3.5 h-3.5 text-[#2D2D2D]/50 dark:text-[#F5F2F3]/50 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
                 <Input
                   id="model-search-input"
                   type="text"
@@ -1021,11 +1037,11 @@ export default function BudgetFinderView({
                   className="pl-8 pr-7 text-xs h-8"
                 />
                 {searchModel && (
-                  <button 
+                  <button
                     type="button"
                     aria-label="Limpar busca por modelo"
                     onClick={() => { setSearchModel(''); setPage(1); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9a9a9a] dark:text-[#71717a] hover:text-[#171717] dark:hover:text-[#ededed] cursor-pointer"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#2D2D2D]/50 dark:text-[#F5F2F3]/50 hover:text-[#2D2D2D] cursor-pointer"
                   >
                     <X className="w-3 h-3" aria-hidden="true" />
                   </button>
@@ -1033,18 +1049,19 @@ export default function BudgetFinderView({
               </div>
             </div>
 
-            {/* Ano */}
+            {/* Ano a partir de */}
             <div className="lg:col-span-2 space-y-2">
               <div className="flex items-center h-5">
-                <label className="text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider block">
+                <span className="text-xs font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/80 uppercase tracking-wider block">
                   Ano a partir de
-                </label>
+                </span>
               </div>
               <CustomDropdown
                 value={minYear}
                 onChange={(val) => { setMinYear(String(val)); setPage(1); }}
                 className="w-full"
                 menuClassName="w-full min-w-[160px]"
+                isActive={minYear !== '1990'}
                 options={[
                   { value: '1990', label: 'Qualquer ano' },
                   ...[2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015, 2014, 2012, 2010, 2005].map(y => ({
@@ -1054,35 +1071,41 @@ export default function BudgetFinderView({
                 ]}
               />
             </div>
-
           </div>
-
         </div>
       </section>
 
-      {/* 3. BARRA DE RESULTADOS & ORDENAÇÃO */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2">
+      {/* 3. RESULTS SUMMARY BAR */}
+      <div className="knolling-card px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-base sm:text-lg font-medium text-[#171717] dark:text-[#ededed] tracking-tight tabular-nums">
+          <h2 className="text-base sm:text-lg font-bold text-[#2D2D2D] dark:text-[#F5F2F3] tracking-tight tabular-nums">
             Veículos disponíveis até {formattedBudgetDisplay()}
           </h2>
-          <p className="text-xs text-[#707070] dark:text-[#a1a1aa]">
+          <p className="text-xs text-[#2D2D2D]/70 dark:text-[#F5F2F3]/75">
             {loading ? (
               'Consultando banco DuckDB...'
             ) : (
-              <span><strong className="tabular-nums text-[#171717] dark:text-[#ededed]">{(data?.total_encontrados || 0).toLocaleString('pt-BR')}</strong> modelos encontrados dentro dos critérios</span>
+              <span>
+                <strong className="tabular-nums text-[#2D2D2D] dark:text-[#F5F2F3]">
+                  {(data?.total_encontrados || 0).toLocaleString('pt-BR')}
+                </strong>{' '}
+                modelos encontrados dentro dos critérios
+              </span>
             )}
           </p>
         </div>
 
         <div className="flex items-center justify-between sm:justify-start gap-2">
-          <span className="text-xs text-[#707070] dark:text-[#a1a1aa] whitespace-nowrap">Ordenar por:</span>
+          <span className="text-xs font-medium text-[#2D2D2D]/75 dark:text-[#F5F2F3]/75 whitespace-nowrap">
+            Ordenar por:
+          </span>
           <CustomDropdown
             value={ordenacao}
             onChange={(val) => { setOrdenacao(String(val)); setPage(1); }}
-            className="w-44 sm:w-48"
-            menuClassName="w-52"
+            className="w-48 sm:w-52"
+            menuClassName="w-56"
             align="right"
+            isActive={ordenacao !== 'preco_desc'}
             options={[
               { value: 'preco_desc', label: 'Maior Preço (Teto)' },
               { value: 'preco_asc', label: 'Menor Preço' },
@@ -1095,45 +1118,53 @@ export default function BudgetFinderView({
         </div>
       </div>
 
-      {/* 4. GRID DE CARDS DOS CARROS: Exact Supabase Feature Card Design */}
+      {/* 4. 2-COLUMN KNOLLING SPECIMEN GRID */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-48 sm:h-56 rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] animate-pulse p-3.5 sm:p-5 flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="h-4 bg-[#ededed] dark:bg-[#27272a] rounded w-1/4" />
-                <div className="h-5 bg-[#ededed] dark:bg-[#27272a] rounded w-3/4" />
-                <div className="grid grid-cols-2 gap-2 pt-2">
-                  <div className="h-4 bg-[#ededed] dark:bg-[#27272a] rounded" />
-                  <div className="h-4 bg-[#ededed] dark:bg-[#27272a] rounded" />
-                  <div className="h-4 bg-[#ededed] dark:bg-[#27272a] rounded" />
-                  <div className="h-4 bg-[#ededed] dark:bg-[#27272a] rounded" />
-                </div>
+            <div
+              key={i}
+              className="knolling-card p-5 space-y-4 h-64 flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between">
+                <div className="knolling-shimmer h-6 w-28 rounded-xl" />
+                <div className="knolling-shimmer h-6 w-32 rounded-xl" />
               </div>
-              <div className="h-7 bg-[#ededed] dark:bg-[#27272a] rounded w-1/3" />
+              <div className="knolling-shimmer h-6 w-3/4 rounded-xl" />
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="knolling-shimmer h-14 rounded-xl" />
+                <div className="knolling-shimmer h-14 rounded-xl" />
+              </div>
+              <div className="flex items-center justify-between pt-2">
+                <div className="knolling-shimmer h-8 w-32 rounded-xl" />
+                <div className="knolling-shimmer h-8 w-28 rounded-xl" />
+              </div>
             </div>
           ))}
         </div>
       ) : error ? (
-        <div className="p-8 rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#18181b] text-center">
-          <p className="text-xs text-[#707070] dark:text-[#a1a1aa]">{error}</p>
-          <Button variant="outline" size="sm" onClick={handleResetFilters} className="mt-3">
+        <div className="knolling-card p-8 text-center space-y-3">
+          <p className="text-sm text-[#2D2D2D]/80 dark:text-[#F5F2F3]/80">{error}</p>
+          <Button variant="outline" size="sm" onClick={handleResetFilters}>
             Restaurar filtros
           </Button>
         </div>
       ) : data?.resultados?.length === 0 ? (
-        <div className="p-12 rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#18181b] text-center space-y-2">
-          <p className="text-sm font-medium text-[#171717] dark:text-[#ededed]">Nenhum veículo encontrado</p>
-          <p className="text-xs text-[#707070] dark:text-[#a1a1aa] max-w-sm mx-auto">
+        <div className="knolling-card p-12 text-center space-y-3">
+          <Search className="w-8 h-8 text-[#2D2D2D]/50 dark:text-[#F5F2F3]/50 mx-auto" aria-hidden="true" />
+          <p className="text-base font-bold text-[#2D2D2D] dark:text-[#F5F2F3]">
+            Nenhum veículo encontrado
+          </p>
+          <p className="text-sm text-[#2D2D2D]/70 dark:text-[#F5F2F3]/70 max-w-md mx-auto">
             Não encontramos veículos correspondentes aos filtros selecionados. Tente expandir a faixa de valor ou remover filtros específicos.
           </p>
-          <Button variant="outline" size="sm" onClick={handleResetFilters} className="mt-2">
+          <Button variant="outline" size="sm" onClick={handleResetFilters}>
             Limpar filtros
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-6">
-          {data?.resultados?.map((car) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+          {data?.resultados?.map((car, idx) => {
             const hasDevaluation = car.variacao_pct !== undefined && car.variacao_pct !== null;
             const isPositive = (car.variacao_pct ?? 0) >= 0;
             const hasInitialPrice = car.valor_inicial != null && car.valor_inicial > 0;
@@ -1154,52 +1185,51 @@ export default function BudgetFinderView({
               <div
                 key={`${car.codigo_fipe}-${car.ano_modelo}`}
                 onClick={() => setSelectedVehicleForHistory(car)}
-                className="group relative rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] hover:border-[#3ecf8e]/60 dark:hover:border-[#3ecf8e]/50 transition-all p-3.5 sm:p-5 flex flex-col justify-between shadow-xs hover:shadow-sm cursor-pointer"
+                style={{ animationDelay: `${Math.min(idx, 6) * 60}ms` }}
+                className="group knolling-card knolling-enter hover:border-[#2D2D2D]/35 hover:-translate-y-[1px] p-4 sm:p-5 flex flex-col justify-between cursor-pointer"
               >
                 <div>
-                  {/* Card Header (Icon + Title, just like Supabase feature card) */}
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-[6px] bg-[#ffffff] dark:bg-[#f4f4f5] border border-[#ededed] dark:border-[#3f3f46] p-1 flex items-center justify-center flex-shrink-0 shadow-2xs">
-                        <BrandLogo brand={car.nome_marca} size="md" iconClassName="text-[#171717]" />
+                  {/* Card Header Compartment */}
+                  <div className="flex items-start justify-between gap-2 pb-3 border-b border-[#2D2D2D]/10 dark:border-[#F5F2F3]/10">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-[8px] bg-[#FAF6F7] border border-[#2D2D2D]/15 p-1 flex items-center justify-center flex-shrink-0">
+                        <BrandLogo brand={car.nome_marca} size="md" iconClassName="text-[#2D2D2D]" />
                       </div>
-                      <span className="text-xs font-medium text-[#707070] dark:text-[#a1a1aa] truncate leading-none">
+                      <span className="text-xs font-bold text-[#2D2D2D] dark:text-[#F5F2F3] truncate leading-none">
                         {car.nome_marca}
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-end gap-1 flex-shrink-0">
+                    <div className="flex flex-wrap items-center justify-end gap-1.5 flex-shrink-0">
                       {isElectric && (
-                        <span className="inline-flex items-center gap-1 h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-semibold text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800/60">
+                        <span className="inline-flex items-center gap-1 h-5 sm:h-[22px] px-2 rounded-[8px] text-[10px] sm:text-[11px] leading-none font-semibold bg-[#CBE4F0] text-[#2D2D2D] border border-[#2D2D2D]/15">
                           <Zap className="w-2.5 h-2.5 shrink-0" aria-hidden="true" /> Elétrico
                         </span>
                       )}
                       {!isElectric && car.nome_combustivel === 'Híbrido' && (
-                        <span className="inline-flex items-center gap-1 h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-semibold text-emerald-600 dark:text-[#3ecf8e] bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60">
+                        <span className="inline-flex items-center gap-1 h-5 sm:h-[22px] px-2 rounded-[8px] text-[10px] sm:text-[11px] leading-none font-semibold bg-[#D0F0C0] text-[#2D2D2D] border border-[#2D2D2D]/15">
                           <Leaf className="w-2.5 h-2.5 shrink-0" aria-hidden="true" /> Híbrido
                         </span>
                       )}
                       {car.nota_pbe && (
                         <span
                           title={`Nota PBEV INMETRO: ${car.nota_pbe}${car.match_consumo === 'conjunto_mecanico' ? ' (estimado pelo conjunto mecânico)' : ''}`}
-                          className={`inline-flex items-center h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-semibold border ${
-                            car.nota_pbe === 'A'
-                              ? 'bg-[#3ecf8e]/15 text-[#15803d] dark:text-[#3ecf8e] border-[#3ecf8e]/40'
-                              : car.nota_pbe === 'B'
-                              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                          className={`inline-flex items-center h-5 sm:h-[22px] px-2 rounded-[8px] text-[10px] sm:text-[11px] leading-none font-semibold border border-[#2D2D2D]/15 ${
+                            car.nota_pbe === 'A' || car.nota_pbe === 'B'
+                              ? 'bg-[#D0F0C0] text-[#2D2D2D]'
                               : car.nota_pbe === 'C'
-                              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
-                              : 'bg-[#fafafa] dark:bg-[#121212] text-[#707070] dark:text-[#a1a1aa] border-[#ededed] dark:border-[#27272a]'
+                              ? 'bg-[#F6D0D6] text-[#2D2D2D]'
+                              : 'bg-[#FAF6F7] text-[#2D2D2D]'
                           }`}
                         >
                           PBE {car.nota_pbe}
                         </span>
                       )}
-                      <span className="inline-flex items-center h-5 sm:h-[22px] px-1.5 rounded-[4px] font-mono text-[10px] sm:text-[11px] leading-none text-[#707070] dark:text-[#a1a1aa] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a]">
+                      <span className="inline-flex items-center h-5 sm:h-[22px] px-2 rounded-[8px] font-mono text-[10px] sm:text-[11px] leading-none text-[#2D2D2D] bg-[#E6E6FA] border border-[#2D2D2D]/15">
                         {car.codigo_fipe}
                       </span>
                       {car.ano_modelo && (
-                        <span className="inline-flex items-center h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-medium tabular-nums text-[#171717] dark:text-[#ededed] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a]">
+                        <span className="inline-flex items-center h-5 sm:h-[22px] px-2 rounded-[8px] text-[10px] sm:text-[11px] leading-none font-semibold tabular-nums text-[#2D2D2D] bg-[#CBE4F0] border border-[#2D2D2D]/15">
                           {car.ano_modelo}
                         </span>
                       )}
@@ -1207,122 +1237,104 @@ export default function BudgetFinderView({
                   </div>
 
                   {/* Model Title */}
-                  <h3 className="text-sm sm:text-base font-semibold text-[#171717] dark:text-[#ededed] tracking-tight leading-snug line-clamp-2 mt-1.5 mb-2.5 sm:mb-3">
+                  <h3 className="text-base sm:text-lg font-bold text-[#2D2D2D] dark:text-[#F5F2F3] tracking-tight leading-snug line-clamp-2 mt-3 mb-3">
                     {car.nome_modelo}
                   </h3>
 
                   {isElectric ? (
-                    hasElectricMetrics ? (
-                      <div className="grid grid-cols-2 gap-x-2.5 gap-y-1.5 mb-3 sm:mb-4 text-xs text-[#707070] dark:text-[#a1a1aa] bg-[#fafafa] dark:bg-[#121212] p-2.5 rounded-[6px] border border-[#ededed] dark:border-[#27272a]">
-                        {car.autonomia_km != null && (
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 mb-3.5 text-xs bg-[#E6E6FA]/55 dark:bg-[#3B3948]/80 text-[#2D2D2D] dark:text-[#F5F2F3] p-3 rounded-xl border border-[#2D2D2D]/12 dark:border-[#F5F2F3]/15">
+                      {hasElectricMetrics ? (
+                        <>
+                          {car.autonomia_km != null && (
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <BatteryCharging className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                              <span className="truncate font-semibold tabular-nums">
+                                Autonomia {car.autonomia_km.toLocaleString('pt-BR')} km
+                              </span>
+                            </div>
+                          )}
+                          {car.consumo_urbano_eletrico != null && (
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <Zap className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                              <span className="truncate font-semibold tabular-nums">
+                                {car.consumo_urbano_eletrico.toFixed(1).replace('.', ',')}
+                                {car.consumo_rodoviario_eletrico != null
+                                  ? ` / ${car.consumo_rodoviario_eletrico.toFixed(1).replace('.', ',')}`
+                                  : ''}{' '}
+                                km/le
+                              </span>
+                            </div>
+                          )}
+                          {car.eficiencia_mj_km != null && (
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <Leaf className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                              <span className="truncate font-semibold tabular-nums">
+                                {car.eficiencia_mj_km.toFixed(2).replace('.', ',')} MJ/km
+                              </span>
+                            </div>
+                          )}
+                          {car.autonomia_km == null && (
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <BatteryCharging className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                              <span className="truncate font-semibold">Propulsão Elétrica</span>
+                            </div>
+                          )}
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <BatteryCharging className="w-3.5 h-3.5 text-cyan-500 flex-shrink-0" aria-hidden="true" />
-                            <span className="truncate text-[#171717] dark:text-[#ededed] font-medium tabular-nums">
-                              Autonomia {car.autonomia_km.toLocaleString('pt-BR')} km
-                            </span>
+                            <Check className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                            <span className="truncate">{electricSpec || 'Zero Emissões (BEV)'}</span>
                           </div>
-                        )}
-
-                        {car.consumo_urbano_eletrico != null && (
-                          <div
-                            className="flex items-center gap-1.5 min-w-0"
-                            title={`Consumo energético cidade${car.consumo_rodoviario_eletrico != null ? ' / estrada' : ''} (INMETRO PBEV): ${car.consumo_urbano_eletrico.toFixed(1).replace('.', ',')}${car.consumo_rodoviario_eletrico != null ? ` / ${car.consumo_rodoviario_eletrico.toFixed(1).replace('.', ',')}` : ''} km/le`}
-                          >
-                            <Zap className="w-3.5 h-3.5 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
-                            <span className="truncate text-[#171717] dark:text-[#ededed] font-medium tabular-nums">
-                              {car.consumo_urbano_eletrico.toFixed(1).replace('.', ',')}
-                              {car.consumo_rodoviario_eletrico != null
-                                ? ` / ${car.consumo_rodoviario_eletrico.toFixed(1).replace('.', ',')}`
-                                : ''}{' '}
-                              km/le
-                            </span>
-                          </div>
-                        )}
-
-                        {car.eficiencia_mj_km != null && (
-                          <div
-                            className="flex items-center gap-1.5 min-w-0"
-                            title="Eficiência energética INMETRO PBEV"
-                          >
-                            <Leaf className="w-3.5 h-3.5 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
-                            <span className="truncate text-[#171717] dark:text-[#ededed] font-medium tabular-nums">
-                              {car.eficiencia_mj_km.toFixed(2).replace('.', ',')} MJ/km
-                            </span>
-                          </div>
-                        )}
-
-                        {car.autonomia_km == null && (
+                        </>
+                      ) : (
+                        <>
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <BatteryCharging className="w-3.5 h-3.5 text-cyan-500 flex-shrink-0" aria-hidden="true" />
-                            <span className="truncate text-[#171717] dark:text-[#ededed] font-medium">
-                              Propulsão Elétrica
-                            </span>
+                            <Zap className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                            <span className="truncate font-semibold">Propulsão Elétrica</span>
                           </div>
-                        )}
-
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <Check className="w-3.5 h-3.5 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
-                          <span className="truncate text-[#171717] dark:text-[#ededed]">
-                            {electricSpec || 'Zero Emissões (BEV)'}
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-x-2.5 gap-y-1.5 mb-3 sm:mb-4 text-xs text-[#707070] dark:text-[#a1a1aa] bg-[#fafafa] dark:bg-[#121212] p-2.5 rounded-[6px] border border-[#ededed] dark:border-[#27272a]">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <Zap className="w-3.5 h-3.5 text-cyan-500 flex-shrink-0" aria-hidden="true" />
-                          <span className="truncate text-[#171717] dark:text-[#ededed] font-medium">
-                            Propulsão Elétrica
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <Check className="w-3.5 h-3.5 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
-                          <span className="truncate text-[#171717] dark:text-[#ededed]">
-                            {electricSpec || 'Zero Emissões (BEV)'}
-                          </span>
-                        </div>
-                      </div>
-                    )
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Check className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                            <span className="truncate">{electricSpec || 'Zero Emissões (BEV)'}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   ) : (
                     <>
-                      {/* Supabase-style Compact 2x2 Specs Grid */}
-                      <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 mb-3 sm:mb-4 text-xs text-[#707070] dark:text-[#a1a1aa] bg-[#fafafa] dark:bg-[#121212] p-2.5 rounded-[6px] border border-[#ededed] dark:border-[#27272a]">
+                      {/* 2x2 Knolling Specs Compartment (Lavender) */}
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mb-3 text-xs bg-[#E6E6FA]/55 dark:bg-[#3B3948]/80 text-[#2D2D2D] dark:text-[#F5F2F3] p-3 rounded-xl border border-[#2D2D2D]/12 dark:border-[#F5F2F3]/15">
                         <div className="flex items-center gap-1.5 truncate">
-                          <Check className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
-                          <span className="truncate text-[#171717] dark:text-[#ededed] font-medium">
+                          <Check className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                          <span className="truncate font-semibold">
                             {car.litragem ? `Motor ${car.litragem}L` : 'Motor N/D'}
                           </span>
                         </div>
 
                         <div className="flex items-center gap-1.5 truncate">
-                          <Check className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
-                          <span className="truncate text-[#171717] dark:text-[#ededed]">
+                          <Check className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                          <span className="truncate">
                             {car.is_automatico ? 'Automático' : 'Manual'}
                           </span>
                         </div>
 
                         <div className="flex items-center gap-1.5 truncate">
-                          <Check className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
-                          <span className="truncate text-[#171717] dark:text-[#ededed]">
+                          <Check className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                          <span className="truncate">
                             {car.is_turbo ? 'Turbo' : 'Aspirado'}
                           </span>
                         </div>
 
                         <div className="flex items-center gap-1.5 truncate">
-                          <Check className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
-                          <span className={`truncate ${car.nome_combustivel === 'Híbrido' ? 'font-medium text-[#171717] dark:text-[#ededed]' : ''}`}>
-                            {car.nome_combustivel || 'Flex'}
-                          </span>
+                          <Check className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                          <span className="truncate">{car.nome_combustivel || 'Flex'}</span>
                         </div>
                       </div>
 
+                      {/* INMETRO Consumption Tray (Soft Mint) */}
                       {(car.consumo_urbano_gasolina != null || car.consumo_urbano_etanol != null || car.consumo_urbano_eletrico != null) && (
-                        <div className="mb-3 sm:mb-4 px-2.5 py-2 rounded-[6px] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a] space-y-1">
+                        <div className="mb-3.5 px-3 py-2.5 rounded-xl bg-[#D0F0C0]/45 dark:bg-[#2F3B31]/75 border border-[#2D2D2D]/12 dark:border-[#F5F2F3]/15 space-y-1 text-[#2D2D2D] dark:text-[#F5F2F3]">
                           {car.consumo_urbano_gasolina != null && (
                             <div className="flex items-center gap-1.5">
-                              <Fuel className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
-                              <span className="text-[#171717] dark:text-[#ededed] font-medium tabular-nums text-[11px] sm:text-xs">
+                              <Fuel className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                              <span className="font-semibold tabular-nums text-xs">
                                 {car.nome_combustivel?.toLowerCase() === 'diesel' ? 'Diesel' : 'Gasolina'}:{' '}
                                 {car.consumo_urbano_gasolina.toFixed(1).replace('.', ',')} cid
                                 {car.consumo_rodoviario_gasolina != null
@@ -1333,8 +1345,8 @@ export default function BudgetFinderView({
                           )}
                           {car.consumo_urbano_etanol != null && (
                             <div className="flex items-center gap-1.5">
-                              <Fuel className="w-3 h-3 text-[#707070] dark:text-[#a1a1aa] flex-shrink-0" aria-hidden="true" />
-                              <span className="text-[#707070] dark:text-[#a1a1aa] font-medium tabular-nums text-[11px] sm:text-xs">
+                              <Fuel className="w-3.5 h-3.5 opacity-75 flex-shrink-0" aria-hidden="true" />
+                              <span className="font-medium opacity-85 tabular-nums text-xs">
                                 Etanol: {car.consumo_urbano_etanol.toFixed(1).replace('.', ',')} cid
                                 {car.consumo_rodoviario_etanol != null
                                   ? ` / ${car.consumo_rodoviario_etanol.toFixed(1).replace('.', ',')} est km/l`
@@ -1344,8 +1356,8 @@ export default function BudgetFinderView({
                           )}
                           {car.consumo_urbano_eletrico != null && (
                             <div className="flex items-center gap-1.5">
-                              <Zap className="w-3 h-3 text-[#3ecf8e] flex-shrink-0" aria-hidden="true" />
-                              <span className="text-[#171717] dark:text-[#ededed] font-medium tabular-nums text-[11px] sm:text-xs">
+                              <Zap className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                              <span className="font-semibold tabular-nums text-xs">
                                 Elétrico: {car.consumo_urbano_eletrico.toFixed(1).replace('.', ',')} cid
                                 {car.consumo_rodoviario_eletrico != null
                                   ? ` / ${car.consumo_rodoviario_eletrico.toFixed(1).replace('.', ',')} est km/le`
@@ -1360,19 +1372,19 @@ export default function BudgetFinderView({
                   )}
                 </div>
 
-                {/* Bottom Row: Price & Action */}
-                <div className="pt-2.5 sm:pt-3.5 border-t border-[#ededed] dark:border-[#27272a] flex items-end justify-between gap-2">
+                {/* Bottom Row: FIPE Price & Knolling Actions */}
+                <div className="pt-3.5 border-t border-[#2D2D2D]/12 dark:border-[#F5F2F3]/12 flex items-end justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="text-[10px] uppercase font-medium tracking-wider text-[#9a9a9a] dark:text-[#71717a] block leading-none mb-1">
+                    <span className="text-[10px] uppercase font-medium tracking-wider text-[#2D2D2D]/65 dark:text-[#F5F2F3]/65 block leading-none mb-1">
                       Tabela FIPE
                     </span>
-                    <span className="text-lg sm:text-xl font-semibold tabular-nums tracking-tight text-[#171717] dark:text-[#ededed] block leading-tight whitespace-nowrap">
+                    <span className="text-xl font-bold tabular-nums tracking-tight text-[#2D2D2D] dark:text-[#F5F2F3] block leading-tight whitespace-nowrap">
                       {car.valor_formatado}
                     </span>
 
                     {hasDevaluation && (
                       <div
-                        className="group/tooltip relative inline-flex items-center gap-1 mt-0.5 text-[11px] tabular-nums cursor-help rounded-[4px] focus:outline-none"
+                        className="group/tooltip relative inline-flex items-center gap-1 mt-1 text-xs tabular-nums cursor-help rounded-[8px] focus:outline-none"
                         tabIndex={0}
                         aria-describedby={variacaoTooltipId}
                         onClick={(e) => e.stopPropagation()}
@@ -1383,57 +1395,52 @@ export default function BudgetFinderView({
                           }
                         }}
                       >
-                        {isPositive ? (
-                          <span className="inline-flex items-center gap-0.5 text-[#15803d] dark:text-[#3ecf8e] font-medium">
+                        <span
+                          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] font-semibold text-[11px] border border-[#2D2D2D]/15 ${
+                            isPositive
+                              ? 'bg-[#D0F0C0] text-[#2D2D2D]'
+                              : 'bg-[#F6D0D6]/85 text-[#2D2D2D]'
+                          }`}
+                        >
+                          {isPositive ? (
                             <TrendingUp className="w-3 h-3 shrink-0" aria-hidden="true" />
-                            +{Number(car.variacao_pct).toFixed(2).replace('.', ',')}%
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-0.5 text-[#707070] dark:text-[#a1a1aa] font-medium">
+                          ) : (
                             <TrendingDown className="w-3 h-3 shrink-0" aria-hidden="true" />
-                            {Number(car.variacao_pct).toFixed(2).replace('.', ',')}%
-                          </span>
-                        )}
-                        <span className="text-[#9a9a9a] dark:text-[#71717a] text-[10px] underline decoration-dotted decoration-[#c7c7c7] dark:decoration-[#52525b] underline-offset-2">
+                          )}
+                          {isPositive ? '+' : ''}{Number(car.variacao_pct).toFixed(2).replace('.', ',')}%
+                        </span>
+                        <span className="text-[#2D2D2D]/65 dark:text-[#F5F2F3]/65 text-[11px] underline decoration-dotted underline-offset-2">
                           no período
                         </span>
-                        <Info
-                          className="w-3 h-3 text-[#9a9a9a] dark:text-[#71717a] group-hover/tooltip:text-[#3ecf8e] group-focus-within/tooltip:text-[#3ecf8e] transition-colors shrink-0"
-                          aria-hidden="true"
-                        />
+                        <Info className="w-3 h-3 text-[#2D2D2D]/60 dark:text-[#F5F2F3]/60 shrink-0" aria-hidden="true" />
 
-                        {/* Calculation Breakdown Tooltip */}
                         <div
                           id={variacaoTooltipId}
                           role="tooltip"
-                          className="pointer-events-none opacity-0 invisible group-hover/tooltip:pointer-events-auto group-hover/tooltip:opacity-100 group-hover/tooltip:visible group-focus-within/tooltip:pointer-events-auto group-focus-within/tooltip:opacity-100 group-focus-within/tooltip:visible transition-opacity duration-150 absolute bottom-full left-0 mb-2 w-64 z-30 rounded-[8px] border border-[#dfdfdf] dark:border-[#3f3f46] bg-[#ffffff] dark:bg-[#1c1c1f] p-3 shadow-xl text-left text-[11px] leading-snug text-[#171717] dark:text-[#ededed] after:content-[''] after:absolute after:top-full after:left-0 after:w-full after:h-2"
+                          className="pointer-events-none opacity-0 invisible group-hover/tooltip:pointer-events-auto group-hover/tooltip:opacity-100 group-hover/tooltip:visible group-focus-within/tooltip:pointer-events-auto group-focus-within/tooltip:opacity-100 group-focus-within/tooltip:visible transition-opacity duration-200 absolute bottom-full left-0 mb-2 w-64 z-[200] rounded-xl border border-[#2D2D2D]/20 dark:border-[#F5F2F3]/20 bg-[#FFFDFB] dark:bg-[#2D2D2D] p-3 shadow-[0_8px_24px_rgba(45,45,45,0.14)] text-left text-[11px] leading-snug text-[#2D2D2D] dark:text-[#F5F2F3]"
                         >
-                          <p className="font-semibold text-[11px] text-[#171717] dark:text-[#ededed] mb-1.5">
-                            Cálculo da Variação FIPE
-                          </p>
+                          <p className="font-bold text-[11px] mb-1.5">Cálculo da Variação FIPE</p>
                           <div className="space-y-1 text-[11px] tabular-nums">
-                            <div className="flex items-center justify-between gap-2 text-[#707070] dark:text-[#a1a1aa]">
+                            <div className="flex items-center justify-between gap-2 opacity-75">
                               <span>1º registro na FIPE:</span>
-                              <span className="font-medium text-[#171717] dark:text-[#ededed]">
+                              <span className="font-semibold opacity-100">
                                 {car.valor_inicial_formatado || 'N/A'}
                               </span>
                             </div>
-                            <div className="flex items-center justify-between gap-2 text-[#707070] dark:text-[#a1a1aa]">
+                            <div className="flex items-center justify-between gap-2 opacity-75">
                               <span>Preço atual ({car.periodo_referencia}):</span>
-                              <span className="font-medium text-[#171717] dark:text-[#ededed]">
-                                {car.valor_formatado}
-                              </span>
+                              <span className="font-semibold opacity-100">{car.valor_formatado}</span>
                             </div>
                             {diffRsFormatted && (
-                              <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#ededed] dark:border-[#27272a]">
-                                <span className="text-[#707070] dark:text-[#a1a1aa]">Diferença acumulada:</span>
-                                <span className={`font-semibold ${isPositive ? 'text-[#15803d] dark:text-[#3ecf8e]' : 'text-[#171717] dark:text-[#ededed]'}`}>
+                              <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#2D2D2D]/12 dark:border-[#F5F2F3]/12">
+                                <span className="opacity-75">Diferença acumulada:</span>
+                                <span className="font-bold">
                                   {diffRsFormatted} ({isPositive ? '+' : ''}{Number(car.variacao_pct).toFixed(2).replace('.', ',')}%)
                                 </span>
                               </div>
                             )}
                           </div>
-                          <p className="mt-2 pt-1.5 border-t border-[#ededed] dark:border-[#27272a] text-[10px] text-[#9a9a9a] dark:text-[#71717a] font-mono">
+                          <p className="mt-2 pt-1.5 border-t border-[#2D2D2D]/12 dark:border-[#F5F2F3]/12 text-[10px] opacity-70 font-mono">
                             Fórmula: ((Atual − Inicial) ÷ Inicial) × 100
                           </p>
                         </div>
@@ -1441,33 +1448,33 @@ export default function BudgetFinderView({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     {onSearchListings && (
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
+                        size="icon"
                         title={`Buscar anúncios de ${car.nome_marca} ${car.nome_modelo}`}
                         aria-label={`Buscar anúncios de ${car.nome_marca} ${car.nome_modelo}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           onSearchListings(car);
                         }}
-                        className="h-8 w-8 p-0 inline-flex items-center justify-center text-[#707070] dark:text-[#a1a1aa] hover:text-[#15803d] dark:hover:text-[#3ecf8e] hover:border-[#3ecf8e]/60 transition-colors cursor-pointer"
+                        className="h-8 w-8 bg-[#E6E6FA]/70 hover:bg-[#E6E6FA]"
                       >
-                        <Search className="w-3.5 h-3.5 text-[#3ecf8e]" aria-hidden="true" />
+                        <Search className="w-3.5 h-3.5" aria-hidden="true" />
                       </Button>
                     )}
 
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="default"
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedVehicleForHistory(car);
                       }}
-                      className="text-xs h-8 px-3 font-medium group-hover:border-[#171717] dark:group-hover:border-[#3ecf8e] group-hover:text-[#171717] dark:group-hover:text-[#3ecf8e] transition-colors cursor-pointer"
+                      className="text-xs h-8 px-3.5 font-semibold"
                     >
                       Ver Histórico
                     </Button>
@@ -1479,9 +1486,9 @@ export default function BudgetFinderView({
         </div>
       )}
 
-      {/* 5. PAGINAÇÃO */}
+      {/* 5. PAGINATION */}
       {data && data.total_paginas > 1 && (
-        <div className="flex items-center justify-center gap-2 pt-6 pb-8">
+        <div className="flex items-center justify-center gap-2.5 pt-2 pb-6">
           <Button
             variant="outline"
             size="sm"
@@ -1493,7 +1500,7 @@ export default function BudgetFinderView({
             Anterior
           </Button>
 
-          <span className="text-xs text-[#707070] dark:text-[#a1a1aa] px-3 font-medium tabular-nums">
+          <span className="text-xs text-[#2D2D2D] dark:text-[#F5F2F3] bg-[#FFFDFB] dark:bg-[#2D2D2D] border border-[#2D2D2D]/15 dark:border-[#F5F2F3]/15 rounded-xl px-3.5 h-8 inline-flex items-center font-semibold tabular-nums">
             Página {page.toLocaleString('pt-BR')} de {data.total_paginas.toLocaleString('pt-BR')}
           </span>
 
@@ -1510,7 +1517,6 @@ export default function BudgetFinderView({
         </div>
       )}
 
-      {/* Modal de Histórico */}
       {selectedVehicleForHistory && (
         <VehicleHistoryModal
           vehicle={selectedVehicleForHistory}
@@ -1518,7 +1524,6 @@ export default function BudgetFinderView({
           onSearchListings={onSearchListings}
         />
       )}
-
     </div>
   );
 }
