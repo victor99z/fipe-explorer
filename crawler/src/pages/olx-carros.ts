@@ -8,9 +8,11 @@ import {
   inferFuel,
   inferSellerType,
   inferTransmission,
+  isNonCarListing,
   normalizeBrand,
   parseCarText,
 } from "../utils/car-parser";
+import { DEFAULT_OLX_CARS_URL } from "../clients/db-adapter";
 import {
   runScraper,
   type ExtractedCarListing,
@@ -29,8 +31,7 @@ import {
   type RawDomCarCard,
 } from "./extractors";
 
-const DEFAULT_URL =
-  "https://www.olx.com.br/autos-e-pecas/estado-sc/norte-de-santa-catarina/joinville";
+const DEFAULT_URL = DEFAULT_OLX_CARS_URL;
 
 export const OLX_CAR_SELECTORS: DomCardSelectors = {
   cardSelector: 'section.olx-adcard, [data-ds-component="DS-AdCard"]',
@@ -90,7 +91,15 @@ export function isValidOlxCarUrl(rawUrl: string): boolean {
     return false;
   }
 
-  return /\/(autos-e-pecas|d)(\/|$)/i.test(url.pathname);
+  if (
+    /\/(motos|pecas-e-acessorios|caminhoes|onibus|barcos-e-aeronaves|quadriciclos|triciclos)(\/|$)/i.test(
+      url.pathname,
+    )
+  ) {
+    return false;
+  }
+
+  return /\/(carros-vans-e-utilitarios|d)(\/|$)/i.test(url.pathname);
 }
 
 function filterOlxCarImages(candidates: string[], baseUrl: string): string[] {
@@ -128,6 +137,7 @@ export function mapOlxCarCard(
   const ref = canonicalizeRefUrl(resolved);
   const price = parseCurrencyToNumber(raw.price);
   const parsed = parseCarText(raw.title, `${raw.details} ${raw.seller}`);
+  if (isNonCarListing(raw.title, ref, parsed.brand)) return null;
   const loc = parseOlxAddress(raw.address);
   const imageCandidates = raw.images?.length ? raw.images : raw.image ? [raw.image] : [];
   const images = filterOlxCarImages(imageCandidates, baseUrl);
@@ -205,6 +215,7 @@ export function parseOlxNextData(
     const brand =
       normalizeBrand(propMap.get("vehicle_brand") ?? propMap.get("brand")) ??
       parsed.brand;
+    if (isNonCarListing(title, ref, brand)) continue;
     const model =
       propMap.get("vehicle_model") ?? propMap.get("model") ?? parsed.model;
     const version =
@@ -305,7 +316,13 @@ export const getOlxCarros = (
         const nextData = await extractNextDataScript(page);
         const fromNextData = parseOlxNextData(nextData, siteUrl);
         const fromJsonLd = (await extractJsonLdCarListings(page, 600)).filter(
-          (item) => isValidOlxCarUrl(item.ref),
+          (item) =>
+            isValidOlxCarUrl(item.ref) &&
+            !isNonCarListing(
+              item.text_description,
+              item.ref,
+              item.features.brand,
+            ),
         );
         const fromDom = await extractDomListings(
           page,

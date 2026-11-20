@@ -4,12 +4,14 @@ import { SCRAPER_REGISTRY } from "./pages";
 import type { ExtractedCarListing } from "./pages/base-scraper";
 import { CarrosRepository } from "./repository/carros-repository";
 import { CrawlerRunsRepository } from "./repository/crawler-runs-repository";
+import { backfillUnmatchedCarros } from "./services/fipe-enricher";
 
 interface CliOptions {
   pageStartOverride: number | null;
   shouldDelete: boolean;
   cleanOlx: boolean;
   seedOnly: boolean;
+  backfillFipe: boolean;
   sampleLimit: number | null;
   allSites: boolean;
   siteFilter: string | null;
@@ -33,6 +35,7 @@ function parseCliArgs(argv: string[]): CliOptions {
   const shouldDelete = deleteArg ? deleteArg.split("=")[1] === "true" : false;
   const cleanOlx = argv.includes("--clean-olx");
   const seedOnly = argv.includes("--seed-only");
+  const backfillFipe = argv.includes("--backfill-fipe");
   const allSites = argv.includes("--all-sites");
   const daemon = argv.includes("--daemon");
   const siteArg = argv.find((arg) => arg.startsWith("--site="));
@@ -43,6 +46,7 @@ function parseCliArgs(argv: string[]): CliOptions {
     shouldDelete,
     cleanOlx,
     seedOnly,
+    backfillFipe,
     sampleLimit,
     allSites,
     siteFilter,
@@ -72,6 +76,7 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
     shouldDelete,
     cleanOlx,
     seedOnly,
+    backfillFipe,
     sampleLimit,
     allSites,
     siteFilter,
@@ -113,7 +118,14 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
 
   if (cleanOlx) {
     const res = await CarrosRepository.deleteInvalidOlxInBatch();
-    Logger.info(res, "Deleted invalid OLX listings from carros_temp");
+    Logger.info(res, "Deleted invalid/non-car OLX listings from carros_temp");
+    await CrawlerRunsRepository.flushLogs();
+    return;
+  }
+
+  if (backfillFipe) {
+    const res = await backfillUnmatchedCarros();
+    Logger.info(res, "Completed FIPE backfill");
     await CrawlerRunsRepository.flushLogs();
     return;
   }
@@ -121,13 +133,24 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
   try {
     const cleaned = await CarrosRepository.deleteInvalidOlxInBatch();
     if (cleaned.deleted > 0) {
-      Logger.info(cleaned, "Cleaned invalid OLX listings from carros_temp");
+      Logger.info(cleaned, "Cleaned invalid/non-car listings from carros_temp");
     }
   } catch (err) {
     Logger.warn(
       { err: err instanceof Error ? err.message : String(err) },
-      "Failed to clean invalid OLX listings before crawl",
+      "Failed to clean invalid/non-car listings before crawl",
     );
+  }
+
+  if (sampleLimit === null) {
+    try {
+      await backfillUnmatchedCarros();
+    } catch (err) {
+      Logger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        "Failed to backfill FIPE matches before crawl",
+      );
+    }
   }
 
   const listings = await CarrosRepository.getAllListings();

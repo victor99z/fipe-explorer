@@ -2,13 +2,19 @@ import type { SeedListing } from "../models/listing";
 
 export type { SeedListing } from "../models/listing";
 
+export const LEGACY_OLX_CARS_URL =
+  "https://www.olx.com.br/autos-e-pecas/estado-sc/norte-de-santa-catarina/joinville";
+
+export const DEFAULT_OLX_CARS_URL =
+  "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-sc/norte-de-santa-catarina/joinville";
+
 export const DEFAULT_SEED_LISTINGS: readonly SeedListing[] = [
   {
     id: "listing-olx-carros",
     name: "olx-carros",
     active: true,
     lastPage: 1,
-    url: "https://www.olx.com.br/autos-e-pecas/estado-sc/norte-de-santa-catarina/joinville",
+    url: DEFAULT_OLX_CARS_URL,
     maxPages: 50,
     delayMs: 2500,
   },
@@ -42,11 +48,19 @@ export interface CarroInsert {
   fuel?: string;
   color?: string;
   bodyType?: string;
+  engineSize?: string;
+  isTurbo?: boolean;
   sellerType?: string;
   neighborhood?: string;
   city?: string;
   state?: string;
   fipePrice?: number;
+  fipeCode?: string;
+  fipeBrand?: string;
+  fipeModel?: string;
+  fipeYear?: number;
+  fipeRefPeriod?: string;
+  fipeDiffPct?: number;
 }
 
 export interface CarroUpdate {
@@ -65,11 +79,31 @@ export interface CarroUpdate {
   fuel?: string;
   color?: string;
   bodyType?: string;
+  engineSize?: string;
+  isTurbo?: boolean;
   sellerType?: string;
   neighborhood?: string;
   city?: string;
   state?: string;
   fipePrice?: number;
+  fipeCode?: string;
+  fipeBrand?: string;
+  fipeModel?: string;
+  fipeYear?: number;
+  fipeRefPeriod?: string;
+  fipeDiffPct?: number;
+}
+
+export interface CarroFipePatch {
+  engineSize?: string;
+  isTurbo?: boolean;
+  fipePrice: number;
+  fipeCode: string;
+  fipeBrand: string;
+  fipeModel: string;
+  fipeYear: number;
+  fipeRefPeriod: string;
+  fipeDiffPct: number;
 }
 
 export interface CarroPatch {
@@ -99,11 +133,19 @@ export interface CarroRow {
   fuel: string | null;
   color: string | null;
   bodyType: string | null;
+  engineSize: string | null;
+  isTurbo: boolean;
   sellerType: string | null;
   neighborhood: string | null;
   city: string | null;
   state: string | null;
   fipePrice: number | null;
+  fipeCode: string | null;
+  fipeBrand: string | null;
+  fipeModel: string | null;
+  fipeYear: number | null;
+  fipeRefPeriod: string | null;
+  fipeDiffPct: number | null;
   isFavorite: boolean;
   isHidden: boolean;
   notes: string | null;
@@ -178,6 +220,8 @@ export interface DbAdapter {
   insertCarro(data: CarroInsert): Promise<void>;
   updateCarro(id: string, data: CarroUpdate): Promise<void>;
   patchCarro(id: string, data: CarroPatch): Promise<void>;
+  updateCarroFipe(id: string, data: CarroFipePatch): Promise<void>;
+  getCarrosMissingFipe(limit: number): Promise<CarroRow[]>;
   deleteCarro(id: string): Promise<void>;
   deleteAllCarros(): Promise<number>;
   deleteInvalidOlxCarros(): Promise<number>;

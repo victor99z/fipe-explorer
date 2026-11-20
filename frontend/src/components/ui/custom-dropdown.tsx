@@ -128,7 +128,10 @@ export default function CustomDropdown<T extends string | number = string>({
     ? options.filter((opt) => opt.label.toLowerCase().includes(searchTerm.toLowerCase()))
     : options;
 
-  const activeState = isActive || (value !== undefined && value !== null && value !== '' && value !== '1990');
+  const activeState =
+    isActive !== undefined
+      ? isActive
+      : value !== undefined && value !== null && value !== '' && value !== '1990';
 
   return (
     <div className={cn("relative inline-block text-left", className)} ref={dropdownRef}>

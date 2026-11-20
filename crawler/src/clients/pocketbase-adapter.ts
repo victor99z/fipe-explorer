@@ -1,8 +1,12 @@
 import PocketBase, { ClientResponseError } from "pocketbase";
 import { Logger } from "../config/logger";
+import { isNonCarListing } from "../utils/car-parser";
 import { DownloadImageAndCreateFile } from "../utils/download-image";
 import {
+  DEFAULT_OLX_CARS_URL,
   DEFAULT_SEED_LISTINGS,
+  LEGACY_OLX_CARS_URL,
+  type CarroFipePatch,
   type CarroInsert,
   type CarroPatch,
   type CarroRow,
@@ -78,15 +82,34 @@ const CARROS_TEMP_FIELDS: CollectionFieldSpec[] = [
   { name: "fuel", type: "text" },
   { name: "color", type: "text" },
   { name: "body_type", type: "text" },
+  { name: "engine_size", type: "text" },
+  { name: "is_turbo", type: "bool" },
   { name: "seller_type", type: "text" },
   { name: "neighborhood", type: "text" },
   { name: "city", type: "text" },
   { name: "state", type: "text" },
   { name: "fipe_price", type: "number" },
+  { name: "fipe_code", type: "text" },
+  { name: "fipe_brand", type: "text" },
+  { name: "fipe_model", type: "text" },
+  { name: "fipe_year", type: "number" },
+  { name: "fipe_ref_period", type: "text" },
+  { name: "fipe_diff_pct", type: "number" },
   { name: "is_favorite", type: "bool" },
   { name: "is_hidden", type: "bool" },
   { name: "notes", type: "text" },
   ...AUTODATE_FIELDS,
+];
+
+const CARROS_TEMP_INDEXES: string[] = [
+  "CREATE INDEX idx_carros_ref ON carros_temp (ref)",
+  "CREATE INDEX idx_carros_updated ON carros_temp (updated DESC)",
+  "CREATE INDEX idx_carros_city_price ON carros_temp (city, price)",
+  "CREATE INDEX idx_carros_brand_year ON carros_temp (brand, year)",
+  "CREATE INDEX idx_carros_filters ON carros_temp (city, brand, transmission, fuel, is_turbo, engine_size, year, price)",
+  "CREATE INDEX idx_carros_fipe ON carros_temp (fipe_price, fipe_diff_pct)",
+  "CREATE INDEX idx_carros_fipe_code ON carros_temp (fipe_code)",
+  "CREATE INDEX idx_carros_mileage ON carros_temp (mileage_km)",
 ];
 
 const CRAWLER_RUNS_FIELDS: CollectionFieldSpec[] = [
@@ -215,11 +238,19 @@ function toCarroRow(record: Record<string, unknown>): CarroRow {
     fuel: toStringOrNull(record.fuel),
     color: toStringOrNull(record.color),
     bodyType: toStringOrNull(record.body_type),
+    engineSize: toStringOrNull(record.engine_size),
+    isTurbo: Boolean(record.is_turbo),
     sellerType: toStringOrNull(record.seller_type),
     neighborhood: toStringOrNull(record.neighborhood),
     city: toStringOrNull(record.city),
     state: toStringOrNull(record.state),
     fipePrice: toNumberOrNull(record.fipe_price),
+    fipeCode: toStringOrNull(record.fipe_code),
+    fipeBrand: toStringOrNull(record.fipe_brand),
+    fipeModel: toStringOrNull(record.fipe_model),
+    fipeYear: toNumberOrNull(record.fipe_year),
+    fipeRefPeriod: toStringOrNull(record.fipe_ref_period),
+    fipeDiffPct: toNumberOrNull(record.fipe_diff_pct),
     isFavorite: Boolean(record.is_favorite),
     isHidden: Boolean(record.is_hidden),
     notes: toStringOrNull(record.notes),
@@ -363,6 +394,7 @@ export class PocketBaseAdapter implements DbAdapter {
   private async ensureMissingFields(
     name: string,
     desiredFields: CollectionFieldSpec[],
+    desiredIndexes: string[] = [],
   ): Promise<void> {
     if (typeof this.pb.collections?.getOne !== "function") return;
     if (typeof this.pb.collections?.update !== "function") return;
@@ -370,19 +402,42 @@ export class PocketBaseAdapter implements DbAdapter {
       const col = (await this.pb.collections.getOne(name)) as {
         id?: string;
         fields?: Array<Record<string, unknown>>;
+        indexes?: string[];
       };
       if (!col || !Array.isArray(col.fields)) return;
       const existingNames = new Set(
         col.fields.map((f) => String(f.name ?? "")).filter(Boolean),
       );
-      const missing = desiredFields.filter((f) => !existingNames.has(f.name));
-      if (missing.length === 0) return;
-      await this.pb.collections.update(col.id ?? name, {
-        fields: [...col.fields, ...missing],
-      } as never);
+      const missingFields = desiredFields.filter((f) => !existingNames.has(f.name));
+
+      const existingIndexes = Array.isArray(col.indexes) ? col.indexes : [];
+      const existingIndexNames = new Set(
+        existingIndexes
+          .map((idx) => idx.match(/INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i)?.[1] ?? "")
+          .filter(Boolean),
+      );
+      const missingIndexes = desiredIndexes.filter((idx) => {
+        const idxName = idx.match(/INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i)?.[1] ?? "";
+        return idxName && !existingIndexNames.has(idxName);
+      });
+
+      if (missingFields.length === 0 && missingIndexes.length === 0) return;
+
+      const patchPayload: Record<string, unknown> = {
+        fields: [...col.fields, ...missingFields],
+      };
+      if (missingIndexes.length > 0) {
+        patchPayload.indexes = [...existingIndexes, ...missingIndexes];
+      }
+
+      await this.pb.collections.update(col.id ?? name, patchPayload as never);
       Logger.info(
-        { collection: name, added: missing.map((m) => m.name) },
-        `Updated PocketBase collection ${name} with missing fields`,
+        {
+          collection: name,
+          addedFields: missingFields.map((m) => m.name),
+          addedIndexes: missingIndexes.length,
+        },
+        `Updated PocketBase collection ${name} schema/indexes`,
       );
     } catch {
       // Ignore when collections metadata endpoint is unavailable
@@ -398,11 +453,12 @@ export class PocketBaseAdapter implements DbAdapter {
       createRule?: string | null;
       updateRule?: string | null;
       deleteRule?: string | null;
+      indexes?: string[];
     } = {},
   ): Promise<boolean> {
     try {
       await this.pb.collection(name).getList(1, 1, { fields: "id" });
-      await this.ensureMissingFields(name, fields);
+      await this.ensureMissingFields(name, fields, rules.indexes ?? []);
       return true;
     } catch (err) {
       if (!isNotFoundError(err)) {
@@ -418,6 +474,9 @@ export class PocketBaseAdapter implements DbAdapter {
       createRule: rules.createRule ?? "@request.auth.id != ''",
       updateRule: rules.updateRule ?? "@request.auth.id != ''",
       deleteRule: rules.deleteRule ?? "@request.auth.id != ''",
+      ...(rules.indexes && rules.indexes.length > 0
+        ? { indexes: rules.indexes }
+        : {}),
     };
 
     try {
@@ -476,6 +535,7 @@ export class PocketBaseAdapter implements DbAdapter {
     await this.ensureCollectionExists(
       PB_CAR_COLLECTIONS.CARROS,
       CARROS_TEMP_FIELDS,
+      { indexes: CARROS_TEMP_INDEXES },
     );
 
     const runsReady = await this.ensureCollectionExists(
@@ -495,11 +555,22 @@ export class PocketBaseAdapter implements DbAdapter {
     try {
       const existing = await this.pb
         .collection(PB_CAR_COLLECTIONS.LISTINGS)
-        .getFullList<{ id: string; name?: string }>({ fields: "id,name" });
+        .getFullList<{ id: string; name?: string; url?: string }>({
+          fields: "id,name,url",
+        });
 
       const existingNames = new Set(
         existing.map((r) => r.name).filter((n): n is string => Boolean(n)),
       );
+
+      for (const rec of existing) {
+        if (rec.name === "olx-carros" && rec.url === LEGACY_OLX_CARS_URL) {
+          await this.pb.collection(PB_CAR_COLLECTIONS.LISTINGS).update(rec.id, {
+            url: DEFAULT_OLX_CARS_URL,
+          });
+          Logger.info("Migrated olx-carros URL to cars-only category");
+        }
+      }
 
       for (const seed of DEFAULT_SEED_LISTINGS) {
         if (existingNames.has(seed.name)) continue;
@@ -539,11 +610,19 @@ export class PocketBaseAdapter implements DbAdapter {
       fuel: data.fuel ?? "",
       color: data.color ?? "",
       body_type: data.bodyType ?? "",
+      engine_size: data.engineSize ?? "",
+      is_turbo: Boolean(data.isTurbo),
       seller_type: data.sellerType ?? "",
       neighborhood: data.neighborhood ?? "",
       city: data.city ?? "",
       state: data.state ?? "",
       fipe_price: data.fipePrice ?? 0,
+      fipe_code: data.fipeCode ?? "",
+      fipe_brand: data.fipeBrand ?? "",
+      fipe_model: data.fipeModel ?? "",
+      fipe_year: data.fipeYear ?? 0,
+      fipe_ref_period: data.fipeRefPeriod ?? "",
+      fipe_diff_pct: data.fipeDiffPct ?? 0,
     };
 
     if ("ref" in data) {
@@ -633,6 +712,34 @@ export class PocketBaseAdapter implements DbAdapter {
     await this.pb.collection(PB_CAR_COLLECTIONS.CARROS).update(id, body);
   }
 
+  async updateCarroFipe(id: string, data: CarroFipePatch): Promise<void> {
+    await this.ensureAuth();
+    const body: Record<string, unknown> = {
+      fipe_price: data.fipePrice,
+      fipe_code: data.fipeCode,
+      fipe_brand: data.fipeBrand,
+      fipe_model: data.fipeModel,
+      fipe_year: data.fipeYear,
+      fipe_ref_period: data.fipeRefPeriod,
+      fipe_diff_pct: data.fipeDiffPct,
+    };
+    if (data.engineSize) body.engine_size = data.engineSize;
+    if (data.isTurbo !== undefined) body.is_turbo = Boolean(data.isTurbo);
+    await this.pb.collection(PB_CAR_COLLECTIONS.CARROS).update(id, body);
+  }
+
+  async getCarrosMissingFipe(limit: number): Promise<CarroRow[]> {
+    await this.ensureAuth();
+    const res = await this.pb
+      .collection(PB_CAR_COLLECTIONS.CARROS)
+      .getList<Record<string, unknown>>(1, limit, {
+        filter: 'fipe_code = "" && year > 0',
+        fields:
+          "id,ref,text_description,price,year,brand,model,version,transmission,fuel,engine_size,is_turbo,fipe_price",
+      });
+    return res.items.map(toCarroRow);
+  }
+
   async deleteCarro(id: string): Promise<void> {
     await this.ensureAuth();
     await this.pb.collection(PB_CAR_COLLECTIONS.CARROS).delete(id);
@@ -674,19 +781,29 @@ export class PocketBaseAdapter implements DbAdapter {
     await this.ensureAuth();
     const records = await this.pb
       .collection(PB_CAR_COLLECTIONS.CARROS)
-      .getFullList<{ id: string; ref?: string }>({
-        filter: 'ref ~ "olx.com.br"',
-        fields: "id,ref",
+      .getFullList<{
+        id: string;
+        ref?: string;
+        text_description?: string;
+        brand?: string;
+      }>({
+        fields: "id,ref,text_description,brand",
       });
 
     const invalid = records.filter((rec) => {
       const ref = typeof rec.ref === "string" ? rec.ref : "";
+      const title =
+        typeof rec.text_description === "string" ? rec.text_description : "";
+      const brand = typeof rec.brand === "string" ? rec.brand : "";
+      if (isNonCarListing(title, ref, brand)) return true;
+
       const lower = ref.toLowerCase();
+      if (!lower.includes("olx.com.br")) return false;
       return (
-        lower.includes("olx.com.br") &&
-        (lower.includes("/vi/") ||
-          lower.includes("rec=") ||
-          (!lower.includes("/autos-e-pecas/") && !lower.includes("/d/")))
+        lower.includes("/vi/") ||
+        lower.includes("rec=") ||
+        (!lower.includes("/carros-vans-e-utilitarios/") &&
+          !lower.includes("/d/"))
       );
     });
 

@@ -6,6 +6,7 @@ import { Logger } from "../config/logger";
 import { CrawlerRunsRepository } from "../repository/crawler-runs-repository";
 import { CarrosRepository } from "../repository/carros-repository";
 import type { CarFeatures } from "../models/carro";
+import { enrichListingsWithFipe } from "../services/fipe-enricher";
 import { detectAntiBotChallenge } from "./extractors";
 
 puppeteer.use(StealthPlugin());
@@ -181,7 +182,7 @@ export async function runScraper(
         continue;
       }
 
-      for (const item of extracted) {
+      for (const item of await enrichListingsWithFipe(extracted)) {
         try {
           await CarrosRepository.create({
             ref: item.ref,

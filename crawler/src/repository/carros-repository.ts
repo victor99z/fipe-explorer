@@ -38,11 +38,19 @@ interface StructuredCarroFields {
   fuel?: string;
   color?: string;
   bodyType?: string;
+  engineSize?: string;
+  isTurbo?: boolean;
   sellerType?: string;
   neighborhood?: string;
   city?: string;
   state?: string;
   fipePrice?: number;
+  fipeCode?: string;
+  fipeBrand?: string;
+  fipeModel?: string;
+  fipeYear?: number;
+  fipeRefPeriod?: string;
+  fipeDiffPct?: number;
 }
 
 function extractStructuredFields(
@@ -75,6 +83,8 @@ function extractStructuredFields(
     fuel: nonEmptyString(features.fuel),
     color: nonEmptyString(features.color),
     bodyType: nonEmptyString(features.body_type),
+    engineSize: nonEmptyString(features.engine_size),
+    isTurbo: typeof features.is_turbo === "boolean" ? features.is_turbo : false,
     sellerType: nonEmptyString(features.seller_type),
     neighborhood: nonEmptyString(features.neighborhood),
     city: nonEmptyString(features.city),
@@ -83,6 +93,20 @@ function extractStructuredFields(
       typeof features.fipe_price === "number" &&
       Number.isFinite(features.fipe_price)
         ? features.fipe_price
+        : undefined,
+    fipeCode: nonEmptyString(features.fipe_code),
+    fipeBrand: nonEmptyString(features.fipe_brand),
+    fipeModel: nonEmptyString(features.fipe_model),
+    fipeYear:
+      typeof features.fipe_year === "number" &&
+      Number.isFinite(features.fipe_year)
+        ? features.fipe_year
+        : undefined,
+    fipeRefPeriod: nonEmptyString(features.fipe_ref_period),
+    fipeDiffPct:
+      typeof features.fipe_diff_pct === "number" &&
+      Number.isFinite(features.fipe_diff_pct)
+        ? features.fipe_diff_pct
         : undefined,
   };
 }
@@ -120,11 +144,19 @@ export class CarrosRepository {
       fuel: structured.fuel,
       color: structured.color,
       bodyType: structured.bodyType,
+      engineSize: structured.engineSize,
+      isTurbo: structured.isTurbo,
       sellerType: structured.sellerType,
       neighborhood: structured.neighborhood,
       city: structured.city,
       state: structured.state,
       fipePrice: structured.fipePrice,
+      fipeCode: structured.fipeCode,
+      fipeBrand: structured.fipeBrand,
+      fipeModel: structured.fipeModel,
+      fipeYear: structured.fipeYear,
+      fipeRefPeriod: structured.fipeRefPeriod,
+      fipeDiffPct: structured.fipeDiffPct,
     };
 
     const existing = await db.findCarroByRef(ref);

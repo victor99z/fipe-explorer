@@ -4,6 +4,7 @@ import unicodedata
 from typing import List, Dict, Any, Tuple, Optional
 from backend.core.config import settings
 from backend.core import database
+from backend.core.cache import cache_store
 from backend.core.database import db_session
 from backend.repositories.query_builder import SqlQueryBuilder
 from backend.domain.calculations import format_currency
@@ -225,18 +226,17 @@ class VehicleRepository:
         return total, items
 
     @staticmethod
-    def match_listings_fipe(items: List[Dict[str, Any]]) -> Tuple[bool, Dict[str, Dict[str, Any]]]:
-        """Match scraped car listings against latest FIPE prices in DuckDB."""
+    def _get_fipe_car_catalog_by_year() -> Tuple[bool, Dict[int, List[Tuple[str, str, str, int, Optional[str], float, int, int, set]]]]:
         if not os.path.exists(settings.PARQUET_FILE):
             settings.PARQUET_FILE = settings.resolve_parquet_file()
         if not os.path.exists(settings.PARQUET_FILE):
             return False, {}
 
-        years = sorted({int(it["year"]) for it in items if it.get("year") and 1960 <= int(it["year"]) <= 2030})
-        if not years:
-            return True, {}
+        cache_key = "fipe_match_catalog_carro_v1"
+        cached = cache_store.get(cache_key)
+        if cached is not None:
+            return True, cached
 
-        placeholders = ", ".join(["?"] * len(years))
         query = f"""
             WITH latest_ref AS (
                 SELECT ano_referencia, mes_referencia
@@ -259,12 +259,12 @@ class VehicleRepository:
             WHERE p.tipo_veiculo = 'carro'
               AND p.ano_referencia = lr.ano_referencia
               AND p.mes_referencia = lr.mes_referencia
-              AND CAST(p.ano_modelo AS INT) IN ({placeholders})
+              AND CAST(p.ano_modelo AS INT) BETWEEN 1960 AND 2030
               AND p.valor_centavos > 0
         """
 
         with db_session() as con:
-            rows = con.execute(query, years).fetchall()
+            rows = con.execute(query).fetchall()
 
         by_year: Dict[int, List[Tuple[str, str, str, int, Optional[str], float, int, int, set]]] = {}
         for r in rows:
@@ -273,6 +273,16 @@ class VehicleRepository:
             by_year.setdefault(yr, []).append(
                 (r[0], r[1], r[2], yr, r[4], float(r[5]), int(r[6]), int(r[7]), tokens)
             )
+
+        cache_store.set(cache_key, by_year, ttl_seconds=3600)
+        return True, by_year
+
+    @staticmethod
+    def match_listings_fipe(items: List[Dict[str, Any]]) -> Tuple[bool, Dict[str, Dict[str, Any]]]:
+        """Match scraped car listings against latest FIPE prices in DuckDB (cached catalog)."""
+        dataset_available, by_year = VehicleRepository._get_fipe_car_catalog_by_year()
+        if not dataset_available:
+            return False, {}
 
         matches: Dict[str, Dict[str, Any]] = {}
         for item in items:

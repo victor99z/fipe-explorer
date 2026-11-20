@@ -107,6 +107,25 @@ export function inferEngineSize(text: string): {
   };
 }
 
+const NON_CAR_URL_PATTERN =
+  /\/(motos|pecas-e-acessorios|caminhoes|onibus|barcos-e-aeronaves|quadriciclos|triciclos)(\/|$)/i;
+
+const NON_CAR_TITLE_PATTERN =
+  /\b(motos?|motocicleta|scooter|biz\s*\d*|cg\s*\d*|titan\s*\d*|fan\s*\d*|start\s*160|nxr|bros\s*\d*|xre\s*\d*|cb\s*(?:250|300|500|650|1000)|twister|hornet|pop\s*110|pcx\s*\d*|adv\s*150|nmax|xmax|fazer\s*\d*|factor\s*\d*|lander\s*\d*|tenere|xtz|mt-?0[379]|ninja\s*\d*|z400|versys|yamaha|kawasaki|ducati|harley(?:-davidson)?|dafra|shineray|royal\s*enfield|ktm|burgman|gsx|hayabusa|v-strom|capacete|bauleto|para-?choque|sucata|som\s*automotivo|quadriciclo|triciclo)\b/i;
+
+export function isNonCarListing(
+  title: string | undefined | null,
+  url?: string | null,
+  brand?: string | null,
+): boolean {
+  if (url && NON_CAR_URL_PATTERN.test(url)) {
+    return true;
+  }
+  const combined = `${brand ?? ""} ${title ?? ""}`.trim();
+  if (!combined) return false;
+  return NON_CAR_TITLE_PATTERN.test(combined);
+}
+
 export interface ParsedCarText {
   brand?: string;
   model?: string;

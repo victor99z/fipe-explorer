@@ -95,7 +95,7 @@ class VehicleService:
         }
 
     def match_listings_fipe(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
-        clipped = items[:100]
+        clipped = items[:200]
         dataset_available, matches = self.repo.match_listings_fipe(clipped)
         return {
             "dataset_available": dataset_available,

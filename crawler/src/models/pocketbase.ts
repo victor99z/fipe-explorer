@@ -22,7 +22,15 @@ export interface CarroRecord {
   neighborhood: string;
   city: string;
   state: string;
+  engine_size: string;
+  is_turbo: boolean;
   fipe_price: number;
+  fipe_code: string;
+  fipe_brand: string;
+  fipe_model: string;
+  fipe_year: number;
+  fipe_ref_period: string;
+  fipe_diff_pct: number;
   is_favorite: boolean;
   is_hidden: boolean;
   notes: string;

@@ -26,6 +26,42 @@ describe("OLX carros scraper", () => {
         "https://www.olx.com.br/imoveis/apartamento-joinville-123",
       ),
     ).toBe(false);
+    expect(
+      isValidOlxCarUrl(
+        "https://sc.olx.com.br/norte-de-santa-catarina/autos-e-pecas/motos/honda-cg-160-titan-12345",
+      ),
+    ).toBe(false);
+    expect(
+      isValidOlxCarUrl(
+        "https://sc.olx.com.br/norte-de-santa-catarina/autos-e-pecas/pecas-e-acessorios/roda-aro-17-12345",
+      ),
+    ).toBe(false);
+  });
+
+  test("rejects motorcycles and parts even under car URLs", () => {
+    expect(
+      mapOlxCarCard({
+        title: "Honda CG 160 Titan 2023",
+        href: "/norte-de-santa-catarina/autos-e-pecas/carros-vans-e-utilitarios/honda-cg-160-123",
+        address: "Joinville, Centro",
+        price: "R$ 17.500",
+        details: "12.000 km",
+        seller: "Particular",
+        image: "",
+      }),
+    ).toBeNull();
+
+    expect(
+      mapOlxCarCard({
+        title: "Yamaha Fazer 250 ABS 2022",
+        href: "/norte-de-santa-catarina/autos-e-pecas/carros-vans-e-utilitarios/yamaha-fazer-250-123",
+        address: "Joinville, Centro",
+        price: "R$ 21.000",
+        details: "9.000 km",
+        seller: "Loja",
+        image: "",
+      }),
+    ).toBeNull();
   });
 
   test("maps OLX DOM card", () => {

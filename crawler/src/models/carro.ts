@@ -16,6 +16,12 @@ export interface CarFeatures {
   seller_type?: string;
   plate_end?: string;
   fipe_price?: number;
+  fipe_code?: string;
+  fipe_brand?: string;
+  fipe_model?: string;
+  fipe_year?: number;
+  fipe_ref_period?: string;
+  fipe_diff_pct?: number;
   neighborhood?: string;
   city?: string;
   state?: string;

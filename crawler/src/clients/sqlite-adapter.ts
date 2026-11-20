@@ -1,8 +1,12 @@
 import { Database, type SQLQueryBindings } from "bun:sqlite";
 import { mkdirSync } from "fs";
 import { dirname } from "path";
+import { isNonCarListing } from "../utils/car-parser";
 import {
+  DEFAULT_OLX_CARS_URL,
   DEFAULT_SEED_LISTINGS,
+  LEGACY_OLX_CARS_URL,
+  type CarroFipePatch,
   type CarroInsert,
   type CarroPatch,
   type CarroRow,
@@ -55,12 +59,22 @@ function mapCarroRow(row: Record<string, unknown>): CarroRow {
     fuel: typeof row.fuel === "string" ? row.fuel : null,
     color: typeof row.color === "string" ? row.color : null,
     bodyType: typeof row.body_type === "string" ? row.body_type : null,
+    engineSize: typeof row.engine_size === "string" ? row.engine_size : null,
+    isTurbo: Boolean(row.is_turbo),
     sellerType: typeof row.seller_type === "string" ? row.seller_type : null,
     neighborhood:
       typeof row.neighborhood === "string" ? row.neighborhood : null,
     city: typeof row.city === "string" ? row.city : null,
     state: typeof row.state === "string" ? row.state : null,
     fipePrice: typeof row.fipe_price === "number" ? row.fipe_price : null,
+    fipeCode: typeof row.fipe_code === "string" ? row.fipe_code : null,
+    fipeBrand: typeof row.fipe_brand === "string" ? row.fipe_brand : null,
+    fipeModel: typeof row.fipe_model === "string" ? row.fipe_model : null,
+    fipeYear: typeof row.fipe_year === "number" ? row.fipe_year : null,
+    fipeRefPeriod:
+      typeof row.fipe_ref_period === "string" ? row.fipe_ref_period : null,
+    fipeDiffPct:
+      typeof row.fipe_diff_pct === "number" ? row.fipe_diff_pct : null,
     isFavorite: Boolean(row.is_favorite),
     isHidden: Boolean(row.is_hidden),
     notes: typeof row.notes === "string" ? row.notes : null,
@@ -157,11 +171,19 @@ export class SqliteAdapter implements DbAdapter {
         fuel TEXT DEFAULT '',
         color TEXT DEFAULT '',
         body_type TEXT DEFAULT '',
+        engine_size TEXT DEFAULT '',
+        is_turbo INTEGER NOT NULL DEFAULT 0,
         seller_type TEXT DEFAULT '',
         neighborhood TEXT DEFAULT '',
         city TEXT DEFAULT '',
         state TEXT DEFAULT '',
         fipe_price REAL DEFAULT 0,
+        fipe_code TEXT DEFAULT '',
+        fipe_brand TEXT DEFAULT '',
+        fipe_model TEXT DEFAULT '',
+        fipe_year INTEGER DEFAULT 0,
+        fipe_ref_period TEXT DEFAULT '',
+        fipe_diff_pct REAL DEFAULT 0,
         is_favorite INTEGER NOT NULL DEFAULT 0,
         is_hidden INTEGER NOT NULL DEFAULT 0,
         notes TEXT DEFAULT '',
@@ -169,6 +191,10 @@ export class SqliteAdapter implements DbAdapter {
         updated TEXT
       );
     `);
+
+    this.db.run("CREATE INDEX IF NOT EXISTS idx_carros_updated ON carros_temp (updated DESC);");
+    this.db.run("CREATE INDEX IF NOT EXISTS idx_carros_city_price ON carros_temp (city, price);");
+    this.db.run("CREATE INDEX IF NOT EXISTS idx_carros_fipe ON carros_temp (fipe_price, fipe_diff_pct);");
 
     this.db.run(`
       CREATE TABLE IF NOT EXISTS car_crawler_runs (
@@ -214,6 +240,10 @@ export class SqliteAdapter implements DbAdapter {
       );
     }
 
+    this.db
+      .prepare("UPDATE car_listings SET url = ?, updated = ? WHERE name = 'olx-carros' AND url = ?")
+      .run(DEFAULT_OLX_CARS_URL, now, LEGACY_OLX_CARS_URL);
+
     this.initialized = true;
   }
 
@@ -244,9 +274,10 @@ export class SqliteAdapter implements DbAdapter {
         `INSERT INTO carros_temp (
           id, ref, text_description, features, id_listing, images, image_urls,
           price, year, mileage_km, brand, model, version, transmission, fuel,
-          color, body_type, seller_type, neighborhood, city, state, fipe_price,
+          color, body_type, engine_size, is_turbo, seller_type, neighborhood, city, state,
+          fipe_price, fipe_code, fipe_brand, fipe_model, fipe_year, fipe_ref_period, fipe_diff_pct,
           is_favorite, is_hidden, notes, created, updated
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, '', ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, '', ?, ?)`,
       )
       .run(
         data.id,
@@ -266,11 +297,19 @@ export class SqliteAdapter implements DbAdapter {
         data.fuel ?? "",
         data.color ?? "",
         data.bodyType ?? "",
+        data.engineSize ?? "",
+        data.isTurbo ? 1 : 0,
         data.sellerType ?? "",
         data.neighborhood ?? "",
         data.city ?? "",
         data.state ?? "",
         data.fipePrice ?? 0,
+        data.fipeCode ?? "",
+        data.fipeBrand ?? "",
+        data.fipeModel ?? "",
+        data.fipeYear ?? 0,
+        data.fipeRefPeriod ?? "",
+        data.fipeDiffPct ?? 0,
         data.created.toISOString(),
         data.updated.toISOString(),
       );
@@ -282,8 +321,10 @@ export class SqliteAdapter implements DbAdapter {
         `UPDATE carros_temp SET
           text_description = ?, features = ?, id_listing = ?, images = ?, image_urls = ?,
           price = ?, year = ?, mileage_km = ?, brand = ?, model = ?, version = ?,
-          transmission = ?, fuel = ?, color = ?, body_type = ?, seller_type = ?,
-          neighborhood = ?, city = ?, state = ?, fipe_price = ?, updated = ?
+          transmission = ?, fuel = ?, color = ?, body_type = ?, engine_size = ?, is_turbo = ?,
+          seller_type = ?, neighborhood = ?, city = ?, state = ?,
+          fipe_price = ?, fipe_code = ?, fipe_brand = ?, fipe_model = ?, fipe_year = ?,
+          fipe_ref_period = ?, fipe_diff_pct = ?, updated = ?
         WHERE id = ?`,
       )
       .run(
@@ -302,14 +343,62 @@ export class SqliteAdapter implements DbAdapter {
         data.fuel ?? "",
         data.color ?? "",
         data.bodyType ?? "",
+        data.engineSize ?? "",
+        data.isTurbo ? 1 : 0,
         data.sellerType ?? "",
         data.neighborhood ?? "",
         data.city ?? "",
         data.state ?? "",
         data.fipePrice ?? 0,
+        data.fipeCode ?? "",
+        data.fipeBrand ?? "",
+        data.fipeModel ?? "",
+        data.fipeYear ?? 0,
+        data.fipeRefPeriod ?? "",
+        data.fipeDiffPct ?? 0,
         data.updated.toISOString(),
         id,
       );
+  }
+
+  async updateCarroFipe(id: string, data: CarroFipePatch): Promise<void> {
+    this.db
+      .prepare(
+        `UPDATE carros_temp SET
+          engine_size = COALESCE(NULLIF(?, ''), engine_size),
+          is_turbo = CASE WHEN ? = 1 THEN 1 ELSE is_turbo END,
+          fipe_price = ?,
+          fipe_code = ?,
+          fipe_brand = ?,
+          fipe_model = ?,
+          fipe_year = ?,
+          fipe_ref_period = ?,
+          fipe_diff_pct = ?,
+          updated = ?
+        WHERE id = ?`,
+      )
+      .run(
+        data.engineSize ?? "",
+        data.isTurbo ? 1 : 0,
+        data.fipePrice,
+        data.fipeCode,
+        data.fipeBrand,
+        data.fipeModel,
+        data.fipeYear,
+        data.fipeRefPeriod,
+        data.fipeDiffPct,
+        new Date().toISOString(),
+        id,
+      );
+  }
+
+  async getCarrosMissingFipe(limit: number): Promise<CarroRow[]> {
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM carros_temp WHERE (fipe_code IS NULL OR fipe_code = '') AND year > 0 LIMIT ?",
+      )
+      .all(limit) as Record<string, unknown>[];
+    return rows.map(mapCarroRow);
   }
 
   async patchCarro(id: string, data: CarroPatch): Promise<void> {
@@ -353,16 +442,24 @@ export class SqliteAdapter implements DbAdapter {
 
   async deleteInvalidOlxCarros(): Promise<number> {
     const rows = this.db
-      .prepare("SELECT id, ref FROM carros_temp WHERE lower(ref) LIKE '%olx.com.br%'")
-      .all() as Array<{ id: string; ref: string }>;
+      .prepare("SELECT id, ref, text_description, brand FROM carros_temp")
+      .all() as Array<{
+      id: string;
+      ref: string;
+      text_description: string | null;
+      brand: string | null;
+    }>;
 
     const invalidIds = rows
       .filter((r) => {
+        if (isNonCarListing(r.text_description, r.ref, r.brand)) return true;
         const lower = r.ref.toLowerCase();
+        if (!lower.includes("olx.com.br")) return false;
         return (
           lower.includes("/vi/") ||
           lower.includes("rec=") ||
-          (!lower.includes("/autos-e-pecas/") && !lower.includes("/d/"))
+          (!lower.includes("/carros-vans-e-utilitarios/") &&
+            !lower.includes("/d/"))
         );
       })
       .map((r) => r.id);

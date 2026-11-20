@@ -100,7 +100,7 @@ describe("SqliteAdapter & Repositories integration", () => {
 
 describe("PocketBaseAdapter unit tests (mocked client)", () => {
   test("creates missing collections and seeds car_listings", async () => {
-    const createdCollections: string[] = [];
+    const createdCollections: Array<{ name: string; indexes?: string[] }> = [];
     const createdListings: Array<Record<string, unknown>> = [];
 
     const mockClient = {
@@ -108,14 +108,14 @@ describe("PocketBaseAdapter unit tests (mocked client)", () => {
       authStore: { isValid: true, token: "tok", clear: () => {}, save: () => {} },
       filter: (expr: string) => expr,
       collections: {
-        create: async (payload: { name: string }) => {
-          createdCollections.push(payload.name);
+        create: async (payload: { name: string; indexes?: string[] }) => {
+          createdCollections.push({ name: payload.name, indexes: payload.indexes });
           return payload;
         },
       },
       collection: (name: string) => ({
         getList: async () => {
-          if (createdCollections.includes(name)) {
+          if (createdCollections.some((c) => c.name === name)) {
             return { items: [], totalItems: 0 };
           }
           throw { status: 404 };
@@ -138,12 +138,14 @@ describe("PocketBaseAdapter unit tests (mocked client)", () => {
 
     await pbAdapter.ensureSchema();
 
-    expect(createdCollections).toEqual([
+    expect(createdCollections.map((c) => c.name)).toEqual([
       "car_listings",
       "carros_temp",
       "car_crawler_runs",
       "car_crawler_logs",
     ]);
+    const carrosCol = createdCollections.find((c) => c.name === "carros_temp");
+    expect(carrosCol?.indexes?.length).toBeGreaterThanOrEqual(5);
     expect(createdListings.map((l) => l.name)).toEqual([
       "olx-carros",
       "webmotors-carros",

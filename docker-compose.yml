@@ -137,10 +137,14 @@ services:
       - POCKETBASE_TOKEN=${POCKETBASE_TOKEN:-}
       - POCKETBASE_UPLOAD_IMAGES=${POCKETBASE_UPLOAD_IMAGES:-true}
       - CRAWLER_INTERVAL_HOURS=${CRAWLER_INTERVAL_HOURS:-6}
+      - FIPEX_BACKEND_URL=${FIPEX_BACKEND_URL:-http://backend:8000}
     volumes:
       - ./crawler/logs:/app/logs
     networks:
       - fipex-net
+    depends_on:
+      backend:
+        condition: service_healthy
 
   # ----------------------------------------------------------------------------
   # Cloudflare Tunnel: Conexão segura de saída para a borda da Cloudflare
