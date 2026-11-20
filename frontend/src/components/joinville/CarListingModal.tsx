@@ -17,7 +17,7 @@ import {
   UserCheck,
   X,
 } from 'lucide-react';
-import type { CarListingItem } from '../../services/pocketbase';
+import { applyCarImageFallback, type CarListingItem } from '../../services/pocketbase';
 
 interface CarListingModalProps {
   car: CarListingItem | null;
@@ -77,7 +77,8 @@ export function CarListingModal({
   if (!car) return null;
 
   const images = car.images;
-  const activeImage = images[photoIdx]?.fullUrl;
+  const activeEntry = images[photoIdx];
+  const activeImage = activeEntry?.fullUrl;
   const fipeVal = car.fipeReferenceValue;
   const diffPct = car.fipeDiffPct;
   const isBelowFipe = diffPct !== null && diffPct <= 0;
@@ -157,8 +158,10 @@ export function CarListingModal({
               <div className="relative aspect-[16/10] w-full rounded-lg overflow-hidden border border-[#ededed] dark:border-[#27272a] bg-[#f5f5f5] dark:bg-[#121212] flex items-center justify-center">
                 {activeImage ? (
                   <img
+                    key={activeImage}
                     src={activeImage}
                     alt={car.title}
+                    onError={(e) => applyCarImageFallback(e.currentTarget, activeEntry?.fallbackUrl)}
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -203,7 +206,12 @@ export function CarListingModal({
                           : 'border-transparent opacity-70 hover:opacity-100'
                       }`}
                     >
-                      <img src={img.thumbUrl} alt="" className="w-full h-full object-cover" />
+                      <img
+                        src={img.thumbUrl}
+                        alt=""
+                        onError={(e) => applyCarImageFallback(e.currentTarget, img.fallbackUrl)}
+                        className="w-full h-full object-cover"
+                      />
                     </button>
                   ))}
                 </div>

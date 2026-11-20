@@ -18,6 +18,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import {
+  applyCarImageFallback,
   createPocketBaseClient,
   fetchCarFacetsAndStats,
   fetchPagedCarListings,
@@ -1113,7 +1114,8 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
         ) : (
           <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 ${loading ? 'opacity-70 transition-opacity' : ''}`}>
             {carros.map((car) => {
-              const thumb = car.images[0]?.thumbUrl;
+              const firstImg = car.images[0];
+              const thumb = firstImg?.thumbUrl;
               const diffPct = car.fipeDiffPct;
               const isBelow = diffPct !== null && diffPct <= 0;
 
@@ -1126,9 +1128,11 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                   <div className="relative aspect-[16/10] bg-[#f5f5f5] dark:bg-[#121212] overflow-hidden flex items-center justify-center">
                     {thumb ? (
                       <img
+                        key={thumb}
                         src={thumb}
                         alt={car.title}
                         loading="lazy"
+                        onError={(e) => applyCarImageFallback(e.currentTarget, firstImg?.fallbackUrl)}
                         className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
                       />
                     ) : (

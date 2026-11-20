@@ -14,6 +14,8 @@ const CAR_PREFS_STORAGE_KEY = 'fipex_car_prefs';
 
 const LIST_CARD_FIELDS = [
   'id',
+  'collectionId',
+  'collectionName',
   'ref',
   'text_description',
   'id_listing',
@@ -50,6 +52,7 @@ const LIST_CARD_FIELDS = [
 export interface CarImage {
   fullUrl: string;
   thumbUrl: string;
+  fallbackUrl?: string;
 }
 
 export interface LocalCarPref {
@@ -223,20 +226,49 @@ function inferPortalFromUrl(ref: string): string {
 
 function buildCarImages(pb: PocketBase, record: Record<string, unknown>): CarImage[] {
   const uploaded = parseStringArray(record.images);
-  const remoteUrls = parseStringArray(record.image_urls);
+  const remoteUrls = parseStringArray(record.image_urls).filter((u) => /^https?:\/\//i.test(u));
 
   if (uploaded.length > 0) {
-    return uploaded.map((filename) => {
-      if (/^https?:\/\//i.test(filename)) {
-        return { fullUrl: filename, thumbUrl: filename };
-      }
-      const fullUrl = pb.files.getURL(record as never, filename);
-      const thumbUrl = pb.files.getURL(record as never, filename, { thumb: '480x360' });
-      return { fullUrl, thumbUrl };
-    });
+    const fileRecord = {
+      ...record,
+      collectionName: toStringVal(record.collectionName) || PB_CAR_COLLECTIONS.CARROS,
+    };
+
+    const resolved = uploaded
+      .map((filename, idx): CarImage | null => {
+        const remoteFallback = remoteUrls[idx];
+        if (/^https?:\/\//i.test(filename)) {
+          return { fullUrl: filename, thumbUrl: filename, fallbackUrl: remoteFallback };
+        }
+        const fullUrl = pb.files.getURL(fileRecord as never, filename);
+        const thumbUrl = pb.files.getURL(fileRecord as never, filename, { thumb: '480x360' });
+        if (!fullUrl && !thumbUrl) return null;
+        return {
+          fullUrl: fullUrl || thumbUrl,
+          thumbUrl: thumbUrl || fullUrl,
+          ...(remoteFallback ? { fallbackUrl: remoteFallback } : {}),
+        };
+      })
+      .filter((img): img is CarImage => img !== null && Boolean(img.fullUrl && img.thumbUrl));
+
+    if (resolved.length > 0) {
+      return resolved;
+    }
   }
 
   return remoteUrls.map((url) => ({ fullUrl: url, thumbUrl: url }));
+}
+
+export function applyCarImageFallback(
+  imgEl: HTMLImageElement,
+  fallbackUrl?: string,
+): void {
+  if (fallbackUrl && imgEl.dataset.fallbackApplied !== '1' && imgEl.src !== fallbackUrl) {
+    imgEl.dataset.fallbackApplied = '1';
+    imgEl.src = fallbackUrl;
+    return;
+  }
+  imgEl.style.display = 'none';
 }
 
 function toNumber(val: unknown): number | null {
@@ -558,7 +590,7 @@ export async function fetchPagedCarListings(
       const res = await pb
         .collection(PB_CAR_COLLECTIONS.CARROS)
         .getList<Record<string, unknown>>(params.page, perPage, {
-          fields: 'id,ref,text_description,id_listing,images,image_urls,price,year,mileage_km,brand,model,version,transmission,fuel,color,body_type,seller_type,neighborhood,city,state,fipe_price,notes',
+          fields: 'id,collectionId,collectionName,ref,text_description,id_listing,images,image_urls,price,year,mileage_km,brand,model,version,transmission,fuel,color,body_type,seller_type,neighborhood,city,state,fipe_price,notes',
         });
       return {
         items: res.items.map((r) => mapCarRecord(pb, r, localPrefs)),
