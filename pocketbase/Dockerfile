@@ -17,6 +17,8 @@ RUN ARCH=$(uname -m) && \
     rm -f /tmp/pb.zip && \
     chmod +x /pb/pocketbase
 
+COPY pb_migrations /pb/pb_migrations
+COPY pb_hooks /pb/pb_hooks
 COPY entrypoint.sh /pb/entrypoint.sh
 RUN chmod +x /pb/entrypoint.sh
 

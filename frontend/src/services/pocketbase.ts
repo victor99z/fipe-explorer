@@ -3,7 +3,13 @@ import type { FipeMatchResult } from '../types/vehicle';
 
 export const PB_CAR_COLLECTIONS = {
   CARROS: 'carros_temp',
+  CARROS_HISTORY: 'carros_history',
   LISTINGS: 'car_listings',
+  CRAWLER_RUNS: 'car_crawler_runs',
+  CRAWLER_LOGS: 'car_crawler_logs',
+  USER_CURATION: 'user_car_curation',
+  ALERTS: 'car_alerts',
+  ALERT_NOTIFICATIONS: 'car_alert_notifications',
 } as const;
 
 export const DEFAULT_POCKETBASE_URL =
@@ -45,6 +51,14 @@ const LIST_CARD_FIELDS = [
   'fipe_ref_period',
   'fipe_diff_pct',
   'notes',
+  'first_seen_at',
+  'last_seen_at',
+  'initial_price',
+  'lowest_price',
+  'highest_price',
+  'price_changes_count',
+  'last_price_change_at',
+  'listing_status',
   'created',
   'updated',
 ].join(',');
@@ -96,6 +110,14 @@ export interface CarListingItem {
   favorite: boolean;
   hidden: boolean;
   notes: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  initialPrice: number | null;
+  lowestPrice: number | null;
+  highestPrice: number | null;
+  priceChangesCount: number;
+  lastPriceChangeAt: string;
+  listingStatus: string;
   created: string;
   updated: string;
 }
@@ -133,6 +155,8 @@ export interface CarListQueryParams {
   exactFipeCode?: string;
   visibilityMode?: VisibilityMode;
   sortBy?: SortMode;
+  userId?: string | null;
+  curationMap?: LocalCarPrefsMap;
 }
 
 export interface CarListPageResult {
@@ -170,8 +194,22 @@ function safeStorageSet(key: string, value: string): void {
   }
 }
 
+let sharedPocketBaseClient: PocketBase | null = null;
+
+export function getPocketBaseClient(): PocketBase {
+  if (!sharedPocketBaseClient) {
+    const client = new PocketBase(DEFAULT_POCKETBASE_URL);
+    client.autoCancellation(false);
+    sharedPocketBaseClient = client;
+  }
+  return sharedPocketBaseClient;
+}
+
 export function createPocketBaseClient(url?: string): PocketBase {
-  const client = new PocketBase((url ?? DEFAULT_POCKETBASE_URL).replace(/\/+$/, ''));
+  if (!url) {
+    return getPocketBaseClient();
+  }
+  const client = new PocketBase(url.replace(/\/+$/, ''));
   client.autoCancellation(false);
   return client;
 }
@@ -329,7 +367,7 @@ function inferCarSpecsFromText(text: string): {
   return { isTurbo, engineSize, transmission, fuel };
 }
 
-function mapCarRecord(
+export function mapCarRecord(
   pb: PocketBase,
   record: Record<string, unknown>,
   localPrefs: LocalCarPrefsMap,
@@ -434,6 +472,17 @@ function mapCarRecord(
     favorite,
     hidden,
     notes,
+    firstSeenAt: toStringVal(record.first_seen_at) || toStringVal(record.created),
+    lastSeenAt: toStringVal(record.last_seen_at) || toStringVal(record.updated),
+    initialPrice: toNumber(record.initial_price),
+    lowestPrice: toNumber(record.lowest_price),
+    highestPrice: toNumber(record.highest_price),
+    priceChangesCount:
+      typeof record.price_changes_count === 'number' && Number.isFinite(record.price_changes_count)
+        ? record.price_changes_count
+        : 0,
+    lastPriceChangeAt: toStringVal(record.last_price_change_at),
+    listingStatus: toStringVal(record.listing_status) || 'active',
     created: toStringVal(record.created),
     updated: toStringVal(record.updated),
   };
@@ -479,6 +528,48 @@ function buildTurboFilterClause(positive: boolean): string {
     ...TURBO_FIPE_TERMS.map((t) => `fipe_model !~ "${t}"`),
   ];
   return `(${exclusions.join(' && ')})`;
+}
+
+export function buildTokenizedSearchClauses(
+  pb: PocketBase,
+  search: string | undefined,
+  fields: string[] = [
+    'text_description',
+    'brand',
+    'model',
+    'version',
+    'neighborhood',
+    'city',
+    'fipe_code',
+    'fipe_model',
+    'transmission',
+    'fuel',
+  ],
+  prefix = 'tk',
+): string[] {
+  const clauses: string[] = [];
+  const tokens = (search ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 6);
+
+  tokens.forEach((tok, idx) => {
+    const num = Number(tok);
+    if (/^\d{4}$/.test(tok) && num >= 1960 && num <= 2030) {
+      clauses.push(
+        pb.filter(`(year = {:${prefix}yr${idx}} || text_description ~ {:${prefix}${idx}})`, {
+          [`${prefix}yr${idx}`]: num,
+          [`${prefix}${idx}`]: tok,
+        }),
+      );
+    } else {
+      const ors = fields.map((f) => `${f} ~ {:${prefix}${idx}}`).join(' || ');
+      clauses.push(pb.filter(`(${ors})`, { [`${prefix}${idx}`]: tok }));
+    }
+  });
+
+  return clauses;
 }
 
 function buildFilterExpression(
@@ -636,30 +727,7 @@ function buildFilterExpression(
   }
 
   // Tokenized multi-word search
-  const tokens = (params.search ?? '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 5);
-
-  tokens.forEach((tok, idx) => {
-    const num = Number(tok);
-    if (/^\d{4}$/.test(tok) && num >= 1960 && num <= 2030) {
-      clauses.push(
-        pb.filter(`(year = {:yr${idx}} || text_description ~ {:tk${idx}})`, {
-          [`yr${idx}`]: num,
-          [`tk${idx}`]: tok,
-        }),
-      );
-    } else {
-      clauses.push(
-        pb.filter(
-          `(text_description ~ {:tk${idx}} || brand ~ {:tk${idx}} || model ~ {:tk${idx}} || version ~ {:tk${idx}} || neighborhood ~ {:tk${idx}} || city ~ {:tk${idx}} || fipe_code ~ {:tk${idx}} || fipe_model ~ {:tk${idx}} || transmission ~ {:tk${idx}} || fuel ~ {:tk${idx}})`,
-          { [`tk${idx}`]: tok },
-        ),
-      );
-    }
-  });
+  clauses.push(...buildTokenizedSearchClauses(pb, params.search));
 
   return { filter: clauses.join(' && '), shortCircuitEmpty: false };
 }
@@ -684,11 +752,43 @@ function resolveSortExpr(sortBy?: SortMode): string {
   }
 }
 
+export async function fetchUserCurationMap(
+  pb: PocketBase,
+  userId: string,
+): Promise<LocalCarPrefsMap> {
+  if (!userId) return {};
+  try {
+    const records = await pb
+      .collection(PB_CAR_COLLECTIONS.USER_CURATION)
+      .getFullList<{
+        carro_id?: string;
+        is_favorite?: boolean;
+        is_hidden?: boolean;
+        notes?: string;
+      }>({
+        filter: pb.filter('user = {:uid}', { uid: userId }),
+        fields: 'carro_id,is_favorite,is_hidden,notes',
+      });
+    const map: LocalCarPrefsMap = {};
+    for (const r of records) {
+      if (!r.carro_id) continue;
+      map[r.carro_id] = {
+        favorite: Boolean(r.is_favorite),
+        hidden: Boolean(r.is_hidden),
+        notes: typeof r.notes === 'string' ? r.notes : '',
+      };
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
 export async function fetchPagedCarListings(
   pb: PocketBase,
   params: CarListQueryParams,
 ): Promise<CarListPageResult> {
-  const localPrefs = loadLocalCarPrefs();
+  const localPrefs = params.curationMap ?? loadLocalCarPrefs();
   const perPage = params.perPage ?? 24;
   const { filter, shortCircuitEmpty } = buildFilterExpression(pb, params, localPrefs);
 
@@ -724,7 +824,9 @@ export async function fetchPagedCarListings(
       const res = await pb
         .collection(PB_CAR_COLLECTIONS.CARROS)
         .getList<Record<string, unknown>>(params.page, perPage, {
-          fields: 'id,collectionId,collectionName,ref,text_description,id_listing,images,image_urls,price,year,mileage_km,brand,model,version,transmission,fuel,color,body_type,seller_type,neighborhood,city,state,fipe_price,notes',
+          ...(filter ? { filter } : {}),
+          fields:
+            'id,collectionId,collectionName,ref,text_description,id_listing,images,image_urls,price,year,mileage_km,brand,model,version,transmission,fuel,color,body_type,seller_type,neighborhood,city,state,fipe_price,fipe_code,fipe_brand,fipe_model,fipe_year,fipe_ref_period,fipe_diff_pct,notes,created,updated',
         });
       return {
         items: res.items.map((r) => mapCarRecord(pb, r, localPrefs)),
@@ -818,20 +920,50 @@ export async function updateCarCuration(
   pb: PocketBase,
   car: CarListingItem,
   patch: { favorite?: boolean; hidden?: boolean; notes?: string },
-): Promise<void> {
-  const prefs = loadLocalCarPrefs();
-  prefs[car.id] = {
+  userId?: string | null,
+): Promise<LocalCarPref> {
+  const nextPref: LocalCarPref = {
     favorite: patch.favorite ?? car.favorite,
     hidden: patch.hidden ?? car.hidden,
     notes: patch.notes ?? car.notes,
   };
-  saveLocalCarPrefs(prefs);
 
-  if (pb.authStore.isValid) {
-    const body: Record<string, unknown> = {};
-    if (patch.favorite !== undefined) body.is_favorite = patch.favorite;
-    if (patch.hidden !== undefined) body.is_hidden = patch.hidden;
-    if (patch.notes !== undefined) body.notes = patch.notes;
-    await pb.collection(PB_CAR_COLLECTIONS.CARROS).update(car.id, body);
+  if (!userId) {
+    const prefs = loadLocalCarPrefs();
+    prefs[car.id] = nextPref;
+    saveLocalCarPrefs(prefs);
+    return nextPref;
   }
+
+  try {
+    const existing = await pb
+      .collection(PB_CAR_COLLECTIONS.USER_CURATION)
+      .getFirstListItem<{ id: string }>(
+        pb.filter('user = {:uid} && carro_id = {:cid}', { uid: userId, cid: car.id }),
+        { fields: 'id' },
+      )
+      .catch(() => null);
+
+    const payload = {
+      user: userId,
+      carro_id: car.id,
+      car_ref: car.ref,
+      is_favorite: Boolean(nextPref.favorite),
+      is_hidden: Boolean(nextPref.hidden),
+      notes: nextPref.notes ?? '',
+    };
+
+    if (existing) {
+      await pb.collection(PB_CAR_COLLECTIONS.USER_CURATION).update(existing.id, payload);
+    } else {
+      await pb.collection(PB_CAR_COLLECTIONS.USER_CURATION).create(payload);
+    }
+  } catch {
+    // Fallback to localStorage if user_car_curation is not yet created on a remote PB
+    const prefs = loadLocalCarPrefs();
+    prefs[car.id] = nextPref;
+    saveLocalCarPrefs(prefs);
+  }
+
+  return nextPref;
 }

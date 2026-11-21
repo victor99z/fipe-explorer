@@ -1,10 +1,27 @@
 import { randomUUID } from "crypto";
 import { getAdapter } from "../clients/db";
-import type { ListingRow } from "../clients/db-adapter";
+import type {
+  CarroHistoryEventType,
+  CarroRow,
+  ListingRow,
+} from "../clients/db-adapter";
+import { Logger } from "../config/logger";
 import type { CarroData } from "../models/carro";
+import {
+  doesCarMatchAlert,
+  inferPortalName,
+  type AlertCandidateCar,
+} from "../services/alert-matcher";
 
-export type { CarroRow, ListingRow, CrawlerRunRow } from "../clients/db-adapter";
+export type {
+  CarroHistoryRow,
+  CarroRow,
+  ListingRow,
+  CrawlerRunRow,
+} from "../clients/db-adapter";
 export type { CarroData } from "../models/carro";
+
+const PERIODIC_SNAPSHOT_MS = 24 * 60 * 60 * 1000;
 
 function serializeFeatures(features: CarroData["features"]): string | null {
   if (features == null) return null;
@@ -27,9 +44,30 @@ function nonEmptyString(val: unknown): string | undefined {
     : undefined;
 }
 
+function minPositive(...vals: Array<number | null | undefined>): number {
+  let best = 0;
+  for (const v of vals) {
+    if (typeof v === "number" && Number.isFinite(v) && v > 0) {
+      if (best === 0 || v < best) best = v;
+    }
+  }
+  return best;
+}
+
+function maxPositive(...vals: Array<number | null | undefined>): number {
+  let best = 0;
+  for (const v of vals) {
+    if (typeof v === "number" && Number.isFinite(v) && v > 0) {
+      if (v > best) best = v;
+    }
+  }
+  return best;
+}
+
 interface StructuredCarroFields {
   price: number;
   year: number;
+  manufactureYear?: number;
   mileageKm: number;
   brand?: string;
   model?: string;
@@ -75,6 +113,11 @@ function extractStructuredFields(
   return {
     price: finiteOrZero(features.price),
     year: finiteOrZero(features.year),
+    manufactureYear:
+      typeof features.manufacture_year === "number" &&
+      Number.isFinite(features.manufacture_year)
+        ? features.manufacture_year
+        : undefined,
     mileageKm: finiteOrZero(features.mileage_km),
     brand: nonEmptyString(features.brand),
     model: nonEmptyString(features.model),
@@ -111,6 +154,64 @@ function extractStructuredFields(
   };
 }
 
+async function evaluateAlertsForCar(params: {
+  car: AlertCandidateCar;
+  isNew: boolean;
+  priceDropped: boolean;
+  previousPrice?: number;
+  now: Date;
+}): Promise<void> {
+  const { car, isNew, priceDropped, previousPrice, now } = params;
+  if (!car.price || car.price <= 0) return;
+
+  const db = getAdapter();
+  const alerts = await db.getActiveCarAlerts();
+  if (alerts.length === 0) return;
+
+  const portal = inferPortalName(car.ref);
+
+  for (const alert of alerts) {
+    if (!doesCarMatchAlert(car, alert)) continue;
+
+    if (isNew && !alert.notifyOnNew) continue;
+    if (!isNew && !priceDropped) continue;
+    if (!isNew && priceDropped && !alert.notifyOnPriceDrop) continue;
+
+    const triggerType = priceDropped
+      ? "price_drop"
+      : alert.onlyBelowFipe
+        ? "below_fipe"
+        : "new_listing";
+    const dedupKey = `${alert.id}::${car.ref}::${triggerType}::${Math.round(car.price)}`;
+
+    const inserted = await db.insertAlertNotification({
+      userId: alert.userId,
+      alertId: alert.id,
+      carroId: car.id,
+      carRef: car.ref,
+      carTitle: car.title,
+      brand: car.brand ?? undefined,
+      model: car.model ?? undefined,
+      year: car.year ?? undefined,
+      mileageKm: car.mileageKm ?? undefined,
+      price: car.price,
+      previousPrice: priceDropped ? previousPrice : undefined,
+      fipePrice: car.fipePrice ?? undefined,
+      fipeDiffPct: car.fipeDiffPct ?? undefined,
+      portal,
+      city: car.city ?? undefined,
+      triggerType,
+      dedupKey,
+      triggeredAt: now,
+    });
+
+    await db.updateCarAlertStats(alert.id, {
+      lastCheckedAt: now,
+      ...(inserted ? { lastMatchedAt: now, matchesIncrement: 1 } : {}),
+    });
+  }
+}
+
 export class CarrosRepository {
   static async create(carroData: CarroData) {
     const ref = carroData.ref?.trim();
@@ -127,8 +228,9 @@ export class CarrosRepository {
       : (id_listing ?? null);
     const structured = extractStructuredFields(featuresJson);
     const db = getAdapter();
+    const portal = inferPortalName(ref);
 
-    const payload = {
+    const basePayload = {
       textDescription: text_description ?? null,
       features: featuresJson,
       idListing: idListingStr,
@@ -161,7 +263,164 @@ export class CarrosRepository {
 
     const existing = await db.findCarroByRef(ref);
     if (existing) {
-      await db.updateCarro(existing.id, payload);
+      let prev: CarroRow | null = null;
+      try {
+        prev = await db.getCarroById(existing.id);
+      } catch {
+        prev = null;
+      }
+
+      const prevPrice = prev?.price ?? 0;
+      const prevKm = prev?.mileageKm ?? 0;
+      const priceChanged =
+        prevPrice > 0 && structured.price > 0 && prevPrice !== structured.price;
+      const priceDropped =
+        prevPrice > 0 && structured.price > 0 && structured.price < prevPrice;
+      const mileageChanged =
+        prevKm >= 0 &&
+        structured.mileageKm > 0 &&
+        prevKm !== structured.mileageKm;
+
+      const firstSeenAt = prev?.firstSeenAt ?? prev?.created ?? now;
+      const initialPrice =
+        prev?.initialPrice && prev.initialPrice > 0
+          ? prev.initialPrice
+          : prevPrice > 0
+            ? prevPrice
+            : structured.price;
+      const lowestPrice = minPositive(
+        prev?.lowestPrice,
+        prevPrice,
+        structured.price,
+      );
+      const highestPrice = maxPositive(
+        prev?.highestPrice,
+        prevPrice,
+        structured.price,
+      );
+      const priceChangesCount =
+        (prev?.priceChangesCount ?? 0) + (priceChanged ? 1 : 0);
+      const lastPriceChangeAt = priceChanged
+        ? now
+        : (prev?.lastPriceChangeAt ?? null);
+
+      await db.updateCarro(existing.id, {
+        ...basePayload,
+        firstSeenAt,
+        lastSeenAt: now,
+        initialPrice,
+        lowestPrice,
+        highestPrice,
+        priceChangesCount,
+        lastPriceChangeAt,
+        listingStatus: "active",
+      });
+
+      try {
+        if (structured.price > 0) {
+          const latestSnap = await db.getLatestCarroHistorySnapshot(ref);
+          const elapsedSinceSnap = latestSnap
+            ? now.getTime() - latestSnap.recordedAt.getTime()
+            : Number.POSITIVE_INFINITY;
+
+          let eventType: CarroHistoryEventType | null = null;
+          if (!latestSnap) {
+            eventType = "first_seen";
+          } else if (priceChanged) {
+            eventType = "price_change";
+          } else if (mileageChanged) {
+            eventType = "mileage_change";
+          } else if (elapsedSinceSnap >= PERIODIC_SNAPSHOT_MS) {
+            eventType = "snapshot";
+          }
+
+          if (eventType) {
+            await db.insertCarroHistory({
+              carroId: existing.id,
+              ref,
+              idListing: idListingStr,
+              portal,
+              textDescription: text_description ?? null,
+              brand: structured.brand,
+              model: structured.model,
+              version: structured.version,
+              year: structured.year,
+              manufactureYear: structured.manufactureYear,
+              price: structured.price,
+              previousPrice: prevPrice > 0 ? prevPrice : undefined,
+              priceDelta:
+                priceChanged && prevPrice > 0
+                  ? structured.price - prevPrice
+                  : 0,
+              mileageKm: structured.mileageKm,
+              previousMileageKm: prevKm > 0 ? prevKm : undefined,
+              transmission: structured.transmission,
+              fuel: structured.fuel,
+              engineSize: structured.engineSize,
+              isTurbo: structured.isTurbo,
+              sellerType: structured.sellerType,
+              neighborhood: structured.neighborhood,
+              city: structured.city,
+              state: structured.state,
+              fipePrice: structured.fipePrice,
+              fipeCode: structured.fipeCode,
+              fipeBrand: structured.fipeBrand,
+              fipeModel: structured.fipeModel,
+              fipeYear: structured.fipeYear,
+              fipeRefPeriod: structured.fipeRefPeriod,
+              fipeDiffPct: structured.fipeDiffPct,
+              eventType,
+              recordedAt: now,
+            });
+          }
+        }
+      } catch (err) {
+        Logger.warn(
+          { err: err instanceof Error ? err.message : String(err), ref },
+          "Failed to record carro history snapshot",
+        );
+      }
+
+      try {
+        await evaluateAlertsForCar({
+          car: {
+            id: existing.id,
+            ref,
+            title:
+              text_description ??
+              ([structured.brand, structured.model, structured.version]
+                .filter(Boolean)
+                .join(" ") ||
+                ref),
+            brand: structured.brand,
+            model: structured.model,
+            version: structured.version,
+            year: structured.year,
+            price: structured.price,
+            mileageKm: structured.mileageKm,
+            transmission: structured.transmission,
+            fuel: structured.fuel,
+            isTurbo: structured.isTurbo,
+            city: structured.city,
+            neighborhood: structured.neighborhood,
+            fipeCode: structured.fipeCode,
+            fipeBrand: structured.fipeBrand,
+            fipeModel: structured.fipeModel,
+            fipePrice: structured.fipePrice,
+            fipeDiffPct: structured.fipeDiffPct,
+          },
+          isNew: false,
+          priceDropped,
+          previousPrice: prevPrice,
+          now,
+        });
+      } catch (err) {
+        Logger.warn(
+          { err: err instanceof Error ? err.message : String(err), ref },
+          "Failed to evaluate car alerts on update",
+        );
+      }
+
       return { id: existing.id, ...carroData, ref };
     }
 
@@ -170,9 +429,106 @@ export class CarrosRepository {
       id,
       ref,
       created: now,
-      ...payload,
+      firstSeenAt: now,
+      lastSeenAt: now,
+      initialPrice: structured.price,
+      lowestPrice: structured.price,
+      highestPrice: structured.price,
+      priceChangesCount: 0,
+      lastPriceChangeAt: null,
+      listingStatus: "active",
+      ...basePayload,
     });
+
+    try {
+      if (structured.price > 0) {
+        await db.insertCarroHistory({
+          carroId: id,
+          ref,
+          idListing: idListingStr,
+          portal,
+          textDescription: text_description ?? null,
+          brand: structured.brand,
+          model: structured.model,
+          version: structured.version,
+          year: structured.year,
+          manufactureYear: structured.manufactureYear,
+          price: structured.price,
+          mileageKm: structured.mileageKm,
+          transmission: structured.transmission,
+          fuel: structured.fuel,
+          engineSize: structured.engineSize,
+          isTurbo: structured.isTurbo,
+          sellerType: structured.sellerType,
+          neighborhood: structured.neighborhood,
+          city: structured.city,
+          state: structured.state,
+          fipePrice: structured.fipePrice,
+          fipeCode: structured.fipeCode,
+          fipeBrand: structured.fipeBrand,
+          fipeModel: structured.fipeModel,
+          fipeYear: structured.fipeYear,
+          fipeRefPeriod: structured.fipeRefPeriod,
+          fipeDiffPct: structured.fipeDiffPct,
+          eventType: "first_seen",
+          recordedAt: now,
+        });
+      }
+    } catch (err) {
+      Logger.warn(
+        { err: err instanceof Error ? err.message : String(err), ref },
+        "Failed to insert initial carro history snapshot",
+      );
+    }
+
+    try {
+      await evaluateAlertsForCar({
+        car: {
+          id,
+          ref,
+          title:
+            text_description ??
+            ([structured.brand, structured.model, structured.version]
+              .filter(Boolean)
+              .join(" ") ||
+              ref),
+          brand: structured.brand,
+          model: structured.model,
+          version: structured.version,
+          year: structured.year,
+          price: structured.price,
+          mileageKm: structured.mileageKm,
+          transmission: structured.transmission,
+          fuel: structured.fuel,
+          isTurbo: structured.isTurbo,
+          city: structured.city,
+          neighborhood: structured.neighborhood,
+          fipeCode: structured.fipeCode,
+          fipeBrand: structured.fipeBrand,
+          fipeModel: structured.fipeModel,
+          fipePrice: structured.fipePrice,
+          fipeDiffPct: structured.fipeDiffPct,
+        },
+        isNew: true,
+        priceDropped: false,
+        now,
+      });
+    } catch (err) {
+      Logger.warn(
+        { err: err instanceof Error ? err.message : String(err), ref },
+        "Failed to evaluate car alerts on insert",
+      );
+    }
+
     return { id, ...carroData, ref };
+  }
+
+  static async getHistoryByRef(ref: string, limit = 100) {
+    return getAdapter().getCarroHistoryByRef(ref, limit);
+  }
+
+  static async backfillHistory(limit = 300) {
+    return getAdapter().backfillMissingCarroHistory(limit);
   }
 
   static async getListingById(id: string): Promise<ListingRow> {
@@ -237,6 +593,10 @@ export class CarrosRepository {
           : undefined,
       notes:
         typeof updateData.notes === "string" ? updateData.notes : undefined,
+      listingStatus:
+        typeof updateData.listing_status === "string"
+          ? updateData.listing_status
+          : undefined,
       updated: new Date(),
     });
     return { id, ...updateData };

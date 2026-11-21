@@ -1,14 +1,17 @@
 import React, { useEffect, useId, useState } from 'react';
 import {
+  BellPlus,
   Calendar,
   Car,
   ChevronLeft,
   ChevronRight,
+  Clock,
   ExternalLink,
   EyeOff,
   Fuel,
   Gauge,
   Heart,
+  History,
   MapPin,
   Save,
   Settings2,
@@ -17,7 +20,23 @@ import {
   UserCheck,
   X,
 } from 'lucide-react';
-import { applyCarImageFallback, type CarListingItem } from '../../services/pocketbase';
+import {
+  applyCarImageFallback,
+  type CarListingItem,
+} from '../../services/pocketbase';
+import {
+  fetchSingleCarSnapshots,
+  type ModelHistorySnapshot,
+} from '../../services/modelHistory';
+import { useAuth } from '../../contexts/AuthContext';
+import type { CarAlertInput } from '../../services/alerts';
+import {
+  formatBRL,
+  formatDateShortBR,
+  formatDateTimeBR,
+  formatMileageKm,
+  formatPct,
+} from '../../lib/formatters';
 
 interface CarListingModalProps {
   car: CarListingItem | null;
@@ -25,20 +44,8 @@ interface CarListingModalProps {
   onToggleFavorite: (car: CarListingItem) => Promise<void>;
   onToggleHidden: (car: CarListingItem) => Promise<void>;
   onSaveNotes: (car: CarListingItem, notes: string) => Promise<void>;
-}
-
-function formatBRL(value: number | null | undefined): string {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return 'Sob consulta';
-  return value.toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    maximumFractionDigits: 0,
-  });
-}
-
-function formatPct(pct: number): string {
-  const sign = pct > 0 ? '+' : '';
-  return `${sign}${pct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+  onInspectModelHistory?: (query: string) => void;
+  onCreateAlert?: (prefill: Partial<CarAlertInput>) => void;
 }
 
 export function CarListingModal({
@@ -47,17 +54,34 @@ export function CarListingModal({
   onToggleFavorite,
   onToggleHidden,
   onSaveNotes,
+  onInspectModelHistory,
+  onCreateAlert,
 }: CarListingModalProps) {
+  const { pb, isAuthenticated } = useAuth();
   const titleId = useId();
   const notesId = useId();
   const [photoIdx, setPhotoIdx] = useState(0);
   const [notesDraft, setNotesDraft] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [snapshots, setSnapshots] = useState<ModelHistorySnapshot[]>([]);
 
   useEffect(() => {
     setPhotoIdx(0);
     setNotesDraft(car?.notes ?? '');
-  }, [car]);
+    setSnapshots([]);
+    if (!car?.ref || !isAuthenticated) return;
+
+    let active = true;
+    fetchSingleCarSnapshots(pb, car.ref)
+      .then((list) => {
+        if (active) setSnapshots(list);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, [car, isAuthenticated, pb]);
 
   useEffect(() => {
     if (!car) return;
@@ -321,6 +345,102 @@ export function CarListingModal({
                     <span className="block text-[10px] text-[#707070] dark:text-[#a1a1aa]">Anunciante</span>
                     <span className="font-medium">{car.sellerType || '—'}</span>
                   </div>
+                </div>
+              </div>
+
+              {/* Ad price/km history */}
+              <div className="rounded-lg border border-[#ededed] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="inline-flex items-center gap-1 font-semibold uppercase tracking-wider text-[#707070] dark:text-[#a1a1aa]">
+                    <Clock className="w-3 h-3 text-[#3ecf8e]" aria-hidden="true" />
+                    Histórico do anúncio
+                  </span>
+                  <span className="text-[#707070] dark:text-[#a1a1aa] tabular-nums">
+                    Visto: {formatDateShortBR(car.firstSeenAt)} – {formatDateShortBR(car.lastSeenAt)}
+                  </span>
+                </div>
+
+                {!isAuthenticated ? (
+                  <p className="text-[11px] text-[#707070] dark:text-[#a1a1aa]">
+                    Faça login para consultar os registros de preços praticados e a evolução deste modelo.
+                  </p>
+                ) : (
+                  <>
+                    {car.initialPrice && car.initialPrice !== car.price && (
+                      <p className="text-[11px] tabular-nums text-[#707070] dark:text-[#a1a1aa]">
+                        Preço inicial: <strong>{formatBRL(car.initialPrice)}</strong> • Menor visto:{' '}
+                        <strong>{formatBRL(car.lowestPrice ?? car.price)}</strong>
+                      </p>
+                    )}
+
+                    {snapshots.length > 0 ? (
+                      <ul className="space-y-1 max-h-28 overflow-y-auto text-[11px] tabular-nums">
+                        {snapshots.slice(0, 6).map((snap) => (
+                          <li
+                            key={snap.id}
+                            className="flex items-center justify-between gap-2 border-t border-[#ededed] dark:border-[#27272a] pt-1"
+                          >
+                            <span className="text-[#707070] dark:text-[#a1a1aa]">
+                              {formatDateTimeBR(snap.recordedAt)}
+                            </span>
+                            <span className="text-[#707070] dark:text-[#a1a1aa]">
+                              {formatMileageKm(snap.mileageKm)}
+                            </span>
+                            <span className="font-semibold text-[#171717] dark:text-[#ededed]">
+                              {formatBRL(snap.price)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-[11px] text-[#707070] dark:text-[#a1a1aa]">
+                        Acompanhando alterações futuras de preço e quilometragem para este anúncio.
+                      </p>
+                    )}
+                  </>
+                )}
+
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {onInspectModelHistory && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const q = [car.brand, car.model, car.year ? String(car.year) : '']
+                          .filter(Boolean)
+                          .join(' ') || car.title;
+                        onClose();
+                        onInspectModelHistory(q);
+                      }}
+                      className="h-7 inline-flex items-center gap-1 px-2.5 rounded-[5px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] hover:border-[#3ecf8e]/50 text-[11px] font-medium cursor-pointer"
+                    >
+                      <History className="w-3 h-3 text-[#3ecf8e]" aria-hidden="true" />
+                      <span>Histórico deste modelo</span>
+                    </button>
+                  )}
+                  {onCreateAlert && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const q = [car.brand, car.model, car.year ? String(car.year) : '']
+                          .filter(Boolean)
+                          .join(' ');
+                        onClose();
+                        onCreateAlert({
+                          name: `Alerta ${q || car.title}`.slice(0, 80),
+                          searchQuery: q,
+                          brand: car.brand,
+                          minYear: car.year ?? 0,
+                          maxYear: car.year ?? 0,
+                          maxPrice: car.price > 0 ? car.price : 0,
+                          onlyBelowFipe: true,
+                        });
+                      }}
+                      className="h-7 inline-flex items-center gap-1 px-2.5 rounded-[5px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] hover:border-[#3ecf8e]/50 text-[11px] font-medium cursor-pointer"
+                    >
+                      <BellPlus className="w-3 h-3 text-[#3ecf8e]" aria-hidden="true" />
+                      <span>Criar alerta similar</span>
+                    </button>
+                  )}
                 </div>
               </div>
 

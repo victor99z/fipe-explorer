@@ -6,7 +6,11 @@ import {
   DEFAULT_OLX_CARS_URL,
   DEFAULT_SEED_LISTINGS,
   LEGACY_OLX_CARS_URL,
+  type CarAlertNotificationInsert,
+  type CarAlertRow,
   type CarroFipePatch,
+  type CarroHistoryInsert,
+  type CarroHistoryRow,
   type CarroInsert,
   type CarroPatch,
   type CarroRow,
@@ -78,8 +82,98 @@ function mapCarroRow(row: Record<string, unknown>): CarroRow {
     isFavorite: Boolean(row.is_favorite),
     isHidden: Boolean(row.is_hidden),
     notes: typeof row.notes === "string" ? row.notes : null,
+    firstSeenAt: toDateOrNull(row.first_seen_at),
+    lastSeenAt: toDateOrNull(row.last_seen_at),
+    initialPrice: typeof row.initial_price === "number" ? row.initial_price : null,
+    lowestPrice: typeof row.lowest_price === "number" ? row.lowest_price : null,
+    highestPrice: typeof row.highest_price === "number" ? row.highest_price : null,
+    priceChangesCount:
+      typeof row.price_changes_count === "number" ? row.price_changes_count : 0,
+    lastPriceChangeAt: toDateOrNull(row.last_price_change_at),
+    listingStatus:
+      typeof row.listing_status === "string" ? row.listing_status : "active",
     created: toDateOrNull(row.created),
     updated: toDateOrNull(row.updated),
+  };
+}
+
+function mapCarroHistoryRow(row: Record<string, unknown>): CarroHistoryRow {
+  return {
+    id: String(row.id),
+    carroId: String(row.carro_id ?? ""),
+    ref: String(row.ref),
+    idListing: typeof row.id_listing === "string" ? row.id_listing : null,
+    portal: String(row.portal ?? ""),
+    textDescription:
+      typeof row.text_description === "string" ? row.text_description : null,
+    brand: typeof row.brand === "string" ? row.brand : null,
+    model: typeof row.model === "string" ? row.model : null,
+    version: typeof row.version === "string" ? row.version : null,
+    year: typeof row.year === "number" ? row.year : null,
+    manufactureYear:
+      typeof row.manufacture_year === "number" ? row.manufacture_year : null,
+    price: typeof row.price === "number" ? row.price : null,
+    previousPrice:
+      typeof row.previous_price === "number" ? row.previous_price : null,
+    priceDelta: typeof row.price_delta === "number" ? row.price_delta : null,
+    mileageKm: typeof row.mileage_km === "number" ? row.mileage_km : null,
+    previousMileageKm:
+      typeof row.previous_mileage_km === "number" ? row.previous_mileage_km : null,
+    transmission:
+      typeof row.transmission === "string" ? row.transmission : null,
+    fuel: typeof row.fuel === "string" ? row.fuel : null,
+    engineSize: typeof row.engine_size === "string" ? row.engine_size : null,
+    isTurbo: Boolean(row.is_turbo),
+    sellerType: typeof row.seller_type === "string" ? row.seller_type : null,
+    neighborhood:
+      typeof row.neighborhood === "string" ? row.neighborhood : null,
+    city: typeof row.city === "string" ? row.city : null,
+    state: typeof row.state === "string" ? row.state : null,
+    fipePrice: typeof row.fipe_price === "number" ? row.fipe_price : null,
+    fipeCode: typeof row.fipe_code === "string" ? row.fipe_code : null,
+    fipeBrand: typeof row.fipe_brand === "string" ? row.fipe_brand : null,
+    fipeModel: typeof row.fipe_model === "string" ? row.fipe_model : null,
+    fipeYear: typeof row.fipe_year === "number" ? row.fipe_year : null,
+    fipeRefPeriod:
+      typeof row.fipe_ref_period === "string" ? row.fipe_ref_period : null,
+    fipeDiffPct:
+      typeof row.fipe_diff_pct === "number" ? row.fipe_diff_pct : null,
+    eventType: String(row.event_type ?? "snapshot"),
+    recordedAt: toDateOrNull(row.recorded_at) ?? new Date(),
+  };
+}
+
+function mapCarAlertRow(row: Record<string, unknown>): CarAlertRow {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id ?? ""),
+    name: String(row.name ?? ""),
+    active: Boolean(row.active),
+    searchQuery: String(row.search_query ?? ""),
+    brand: String(row.brand ?? ""),
+    model: String(row.model ?? ""),
+    version: String(row.version ?? ""),
+    fipeCode: String(row.fipe_code ?? ""),
+    city: String(row.city ?? ""),
+    portal: String(row.portal ?? ""),
+    motorizacao: String(row.motorizacao ?? ""),
+    transmission: String(row.transmission ?? ""),
+    fuel: String(row.fuel ?? ""),
+    minYear: typeof row.min_year === "number" ? row.min_year : 0,
+    maxYear: typeof row.max_year === "number" ? row.max_year : 0,
+    minPrice: typeof row.min_price === "number" ? row.min_price : 0,
+    maxPrice: typeof row.max_price === "number" ? row.max_price : 0,
+    maxKm: typeof row.max_km === "number" ? row.max_km : 0,
+    onlyBelowFipe: Boolean(row.only_below_fipe),
+    minFipeDiscountPct:
+      typeof row.min_fipe_discount_pct === "number"
+        ? row.min_fipe_discount_pct
+        : 0,
+    notifyOnNew: Boolean(row.notify_on_new),
+    notifyOnPriceDrop: Boolean(row.notify_on_price_drop),
+    lastCheckedAt: toDateOrNull(row.last_checked_at),
+    lastMatchedAt: toDateOrNull(row.last_matched_at),
+    matchesCount: typeof row.matches_count === "number" ? row.matches_count : 0,
   };
 }
 
@@ -187,8 +281,113 @@ export class SqliteAdapter implements DbAdapter {
         is_favorite INTEGER NOT NULL DEFAULT 0,
         is_hidden INTEGER NOT NULL DEFAULT 0,
         notes TEXT DEFAULT '',
+        first_seen_at TEXT,
+        last_seen_at TEXT,
+        initial_price REAL DEFAULT 0,
+        lowest_price REAL DEFAULT 0,
+        highest_price REAL DEFAULT 0,
+        price_changes_count INTEGER NOT NULL DEFAULT 0,
+        last_price_change_at TEXT,
+        listing_status TEXT NOT NULL DEFAULT 'active',
         created TEXT,
         updated TEXT
+      );
+    `);
+
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS carros_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        carro_id TEXT,
+        ref TEXT NOT NULL,
+        id_listing TEXT,
+        portal TEXT,
+        text_description TEXT,
+        brand TEXT DEFAULT '',
+        model TEXT DEFAULT '',
+        version TEXT DEFAULT '',
+        year INTEGER DEFAULT 0,
+        manufacture_year INTEGER DEFAULT 0,
+        price REAL DEFAULT 0,
+        previous_price REAL DEFAULT 0,
+        price_delta REAL DEFAULT 0,
+        mileage_km INTEGER DEFAULT 0,
+        previous_mileage_km INTEGER DEFAULT 0,
+        transmission TEXT DEFAULT '',
+        fuel TEXT DEFAULT '',
+        engine_size TEXT DEFAULT '',
+        is_turbo INTEGER NOT NULL DEFAULT 0,
+        seller_type TEXT DEFAULT '',
+        neighborhood TEXT DEFAULT '',
+        city TEXT DEFAULT '',
+        state TEXT DEFAULT '',
+        fipe_price REAL DEFAULT 0,
+        fipe_code TEXT DEFAULT '',
+        fipe_brand TEXT DEFAULT '',
+        fipe_model TEXT DEFAULT '',
+        fipe_year INTEGER DEFAULT 0,
+        fipe_ref_period TEXT DEFAULT '',
+        fipe_diff_pct REAL DEFAULT 0,
+        event_type TEXT NOT NULL DEFAULT 'snapshot',
+        recorded_at TEXT NOT NULL
+      );
+    `);
+
+    this.db.run("CREATE INDEX IF NOT EXISTS idx_history_ref_date ON carros_history (ref, recorded_at DESC);");
+
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS car_alerts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1,
+        search_query TEXT DEFAULT '',
+        brand TEXT DEFAULT '',
+        model TEXT DEFAULT '',
+        version TEXT DEFAULT '',
+        fipe_code TEXT DEFAULT '',
+        city TEXT DEFAULT '',
+        portal TEXT DEFAULT '',
+        motorizacao TEXT DEFAULT '',
+        transmission TEXT DEFAULT '',
+        fuel TEXT DEFAULT '',
+        min_year INTEGER DEFAULT 0,
+        max_year INTEGER DEFAULT 0,
+        min_price REAL DEFAULT 0,
+        max_price REAL DEFAULT 0,
+        max_km INTEGER DEFAULT 0,
+        only_below_fipe INTEGER NOT NULL DEFAULT 0,
+        min_fipe_discount_pct REAL DEFAULT 0,
+        notify_on_new INTEGER NOT NULL DEFAULT 1,
+        notify_on_price_drop INTEGER NOT NULL DEFAULT 1,
+        last_checked_at TEXT,
+        last_matched_at TEXT,
+        matches_count INTEGER NOT NULL DEFAULT 0
+      );
+    `);
+
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS car_alert_notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        alert_id TEXT NOT NULL,
+        carro_id TEXT,
+        car_ref TEXT NOT NULL,
+        car_title TEXT,
+        brand TEXT DEFAULT '',
+        model TEXT DEFAULT '',
+        year INTEGER DEFAULT 0,
+        mileage_km INTEGER DEFAULT 0,
+        price REAL DEFAULT 0,
+        previous_price REAL DEFAULT 0,
+        fipe_price REAL DEFAULT 0,
+        fipe_diff_pct REAL DEFAULT 0,
+        portal TEXT DEFAULT '',
+        city TEXT DEFAULT '',
+        trigger_type TEXT NOT NULL,
+        dedup_key TEXT NOT NULL UNIQUE,
+        is_read INTEGER NOT NULL DEFAULT 0,
+        read_at TEXT,
+        triggered_at TEXT NOT NULL
       );
     `);
 
@@ -276,8 +475,11 @@ export class SqliteAdapter implements DbAdapter {
           price, year, mileage_km, brand, model, version, transmission, fuel,
           color, body_type, engine_size, is_turbo, seller_type, neighborhood, city, state,
           fipe_price, fipe_code, fipe_brand, fipe_model, fipe_year, fipe_ref_period, fipe_diff_pct,
-          is_favorite, is_hidden, notes, created, updated
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, '', ?, ?)`,
+          is_favorite, is_hidden, notes,
+          first_seen_at, last_seen_at, initial_price, lowest_price, highest_price,
+          price_changes_count, last_price_change_at, listing_status,
+          created, updated
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         data.id,
@@ -310,6 +512,14 @@ export class SqliteAdapter implements DbAdapter {
         data.fipeYear ?? 0,
         data.fipeRefPeriod ?? "",
         data.fipeDiffPct ?? 0,
+        (data.firstSeenAt ?? data.created).toISOString(),
+        (data.lastSeenAt ?? data.updated).toISOString(),
+        data.initialPrice ?? data.price,
+        data.lowestPrice ?? data.price,
+        data.highestPrice ?? data.price,
+        data.priceChangesCount ?? 0,
+        data.lastPriceChangeAt ? data.lastPriceChangeAt.toISOString() : null,
+        data.listingStatus ?? "active",
         data.created.toISOString(),
         data.updated.toISOString(),
       );
@@ -324,7 +534,16 @@ export class SqliteAdapter implements DbAdapter {
           transmission = ?, fuel = ?, color = ?, body_type = ?, engine_size = ?, is_turbo = ?,
           seller_type = ?, neighborhood = ?, city = ?, state = ?,
           fipe_price = ?, fipe_code = ?, fipe_brand = ?, fipe_model = ?, fipe_year = ?,
-          fipe_ref_period = ?, fipe_diff_pct = ?, updated = ?
+          fipe_ref_period = ?, fipe_diff_pct = ?,
+          first_seen_at = COALESCE(?, first_seen_at),
+          last_seen_at = COALESCE(?, last_seen_at),
+          initial_price = COALESCE(?, initial_price),
+          lowest_price = COALESCE(?, lowest_price),
+          highest_price = COALESCE(?, highest_price),
+          price_changes_count = COALESCE(?, price_changes_count),
+          last_price_change_at = COALESCE(?, last_price_change_at),
+          listing_status = COALESCE(?, listing_status),
+          updated = ?
         WHERE id = ?`,
       )
       .run(
@@ -356,6 +575,14 @@ export class SqliteAdapter implements DbAdapter {
         data.fipeYear ?? 0,
         data.fipeRefPeriod ?? "",
         data.fipeDiffPct ?? 0,
+        data.firstSeenAt ? data.firstSeenAt.toISOString() : null,
+        data.lastSeenAt ? data.lastSeenAt.toISOString() : null,
+        data.initialPrice ?? null,
+        data.lowestPrice ?? null,
+        data.highestPrice ?? null,
+        data.priceChangesCount ?? null,
+        data.lastPriceChangeAt ? data.lastPriceChangeAt.toISOString() : null,
+        data.listingStatus ?? "active",
         data.updated.toISOString(),
         id,
       );
@@ -429,10 +656,195 @@ export class SqliteAdapter implements DbAdapter {
       sets.push("notes = ?");
       params.push(data.notes);
     }
+    if (data.listingStatus !== undefined) {
+      sets.push("listing_status = ?");
+      params.push(data.listingStatus);
+    }
     params.push(id);
     this.db
       .prepare(`UPDATE carros_temp SET ${sets.join(", ")} WHERE id = ?`)
       .run(...params);
+  }
+
+  async insertCarroHistory(data: CarroHistoryInsert): Promise<void> {
+    this.db
+      .prepare(
+        `INSERT INTO carros_history (
+          carro_id, ref, id_listing, portal, text_description,
+          brand, model, version, year, manufacture_year,
+          price, previous_price, price_delta, mileage_km, previous_mileage_km,
+          transmission, fuel, engine_size, is_turbo, seller_type,
+          neighborhood, city, state, fipe_price, fipe_code, fipe_brand,
+          fipe_model, fipe_year, fipe_ref_period, fipe_diff_pct,
+          event_type, recorded_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        data.carroId,
+        data.ref,
+        data.idListing ?? "",
+        data.portal,
+        data.textDescription ?? "",
+        data.brand ?? "",
+        data.model ?? "",
+        data.version ?? "",
+        data.year,
+        data.manufactureYear ?? 0,
+        data.price,
+        data.previousPrice ?? 0,
+        data.priceDelta ?? 0,
+        data.mileageKm,
+        data.previousMileageKm ?? 0,
+        data.transmission ?? "",
+        data.fuel ?? "",
+        data.engineSize ?? "",
+        data.isTurbo ? 1 : 0,
+        data.sellerType ?? "",
+        data.neighborhood ?? "",
+        data.city ?? "",
+        data.state ?? "",
+        data.fipePrice ?? 0,
+        data.fipeCode ?? "",
+        data.fipeBrand ?? "",
+        data.fipeModel ?? "",
+        data.fipeYear ?? 0,
+        data.fipeRefPeriod ?? "",
+        data.fipeDiffPct ?? 0,
+        data.eventType,
+        data.recordedAt.toISOString(),
+      );
+  }
+
+  async getLatestCarroHistorySnapshot(ref: string): Promise<CarroHistoryRow | null> {
+    const row = this.db
+      .prepare("SELECT * FROM carros_history WHERE ref = ? ORDER BY recorded_at DESC, id DESC LIMIT 1")
+      .get(ref) as Record<string, unknown> | null;
+    return row ? mapCarroHistoryRow(row) : null;
+  }
+
+  async getCarroHistoryByRef(ref: string, limit = 100): Promise<CarroHistoryRow[]> {
+    const rows = this.db
+      .prepare("SELECT * FROM carros_history WHERE ref = ? ORDER BY recorded_at DESC, id DESC LIMIT ?")
+      .all(ref, limit) as Record<string, unknown>[];
+    return rows.map(mapCarroHistoryRow);
+  }
+
+  async backfillMissingCarroHistory(limit = 300): Promise<number> {
+    const rows = this.db
+      .prepare(
+        `SELECT c.* FROM carros_temp c
+         LEFT JOIN carros_history h ON h.ref = c.ref
+         WHERE h.id IS NULL AND c.price > 0
+         LIMIT ?`,
+      )
+      .all(limit) as Record<string, unknown>[];
+
+    let count = 0;
+    for (const raw of rows) {
+      const car = mapCarroRow(raw);
+      const lowerRef = car.ref.toLowerCase();
+      const portal = lowerRef.includes("olx.com.br")
+        ? "OLX Carros"
+        : lowerRef.includes("webmotors.com.br")
+          ? "Webmotors"
+          : "Outro portal";
+      await this.insertCarroHistory({
+        carroId: car.id,
+        ref: car.ref,
+        idListing: car.idListing,
+        portal,
+        textDescription: car.textDescription,
+        brand: car.brand ?? undefined,
+        model: car.model ?? undefined,
+        version: car.version ?? undefined,
+        year: car.year ?? 0,
+        price: car.price ?? 0,
+        mileageKm: car.mileageKm ?? 0,
+        transmission: car.transmission ?? undefined,
+        fuel: car.fuel ?? undefined,
+        engineSize: car.engineSize ?? undefined,
+        isTurbo: car.isTurbo,
+        sellerType: car.sellerType ?? undefined,
+        neighborhood: car.neighborhood ?? undefined,
+        city: car.city ?? undefined,
+        state: car.state ?? undefined,
+        fipePrice: car.fipePrice ?? 0,
+        fipeCode: car.fipeCode ?? undefined,
+        fipeBrand: car.fipeBrand ?? undefined,
+        fipeModel: car.fipeModel ?? undefined,
+        fipeYear: car.fipeYear ?? 0,
+        fipeRefPeriod: car.fipeRefPeriod ?? undefined,
+        fipeDiffPct: car.fipeDiffPct ?? 0,
+        eventType: "first_seen",
+        recordedAt: car.firstSeenAt ?? car.created ?? car.updated ?? new Date(),
+      });
+      count++;
+    }
+    return count;
+  }
+
+  async getActiveCarAlerts(): Promise<CarAlertRow[]> {
+    const rows = this.db
+      .prepare("SELECT * FROM car_alerts WHERE active = 1")
+      .all() as Record<string, unknown>[];
+    return rows.map(mapCarAlertRow);
+  }
+
+  async insertAlertNotification(data: CarAlertNotificationInsert): Promise<boolean> {
+    const res = this.db
+      .prepare(
+        `INSERT OR IGNORE INTO car_alert_notifications (
+          user_id, alert_id, carro_id, car_ref, car_title,
+          brand, model, year, mileage_km, price, previous_price,
+          fipe_price, fipe_diff_pct, portal, city, trigger_type,
+          dedup_key, is_read, read_at, triggered_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)`,
+      )
+      .run(
+        data.userId,
+        data.alertId,
+        data.carroId,
+        data.carRef,
+        data.carTitle,
+        data.brand ?? "",
+        data.model ?? "",
+        data.year ?? 0,
+        data.mileageKm ?? 0,
+        data.price,
+        data.previousPrice ?? 0,
+        data.fipePrice ?? 0,
+        data.fipeDiffPct ?? 0,
+        data.portal,
+        data.city ?? "",
+        data.triggerType,
+        data.dedupKey,
+        data.triggeredAt.toISOString(),
+      );
+    return res.changes > 0;
+  }
+
+  async updateCarAlertStats(
+    alertId: string,
+    patch: {
+      lastCheckedAt: Date;
+      lastMatchedAt?: Date;
+      matchesIncrement?: number;
+    },
+  ): Promise<void> {
+    this.db
+      .prepare(
+        `UPDATE car_alerts
+         SET last_checked_at = ?,
+             last_matched_at = COALESCE(?, last_matched_at),
+             matches_count = matches_count + ?
+         WHERE id = ?`,
+      )
+      .run(
+        patch.lastCheckedAt.toISOString(),
+        patch.lastMatchedAt ? patch.lastMatchedAt.toISOString() : null,
+        patch.matchesIncrement ?? 0,
+        alertId,
+      );
   }
 
   async deleteCarro(id: string): Promise<void> {

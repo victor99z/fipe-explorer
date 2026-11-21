@@ -12,6 +12,7 @@ interface CliOptions {
   cleanOlx: boolean;
   seedOnly: boolean;
   backfillFipe: boolean;
+  backfillHistory: boolean;
   sampleLimit: number | null;
   allSites: boolean;
   siteFilter: string | null;
@@ -36,6 +37,7 @@ function parseCliArgs(argv: string[]): CliOptions {
   const cleanOlx = argv.includes("--clean-olx");
   const seedOnly = argv.includes("--seed-only");
   const backfillFipe = argv.includes("--backfill-fipe");
+  const backfillHistory = argv.includes("--backfill-history");
   const allSites = argv.includes("--all-sites");
   const daemon = argv.includes("--daemon");
   const siteArg = argv.find((arg) => arg.startsWith("--site="));
@@ -47,6 +49,7 @@ function parseCliArgs(argv: string[]): CliOptions {
     cleanOlx,
     seedOnly,
     backfillFipe,
+    backfillHistory,
     sampleLimit,
     allSites,
     siteFilter,
@@ -77,6 +80,7 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
     cleanOlx,
     seedOnly,
     backfillFipe,
+    backfillHistory,
     sampleLimit,
     allSites,
     siteFilter,
@@ -130,6 +134,13 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
     return;
   }
 
+  if (backfillHistory) {
+    const created = await CarrosRepository.backfillHistory(2000);
+    Logger.info({ created }, "Completed carros_history baseline backfill");
+    await CrawlerRunsRepository.flushLogs();
+    return;
+  }
+
   try {
     const cleaned = await CarrosRepository.deleteInvalidOlxInBatch();
     if (cleaned.deleted > 0) {
@@ -149,6 +160,18 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
       Logger.warn(
         { err: err instanceof Error ? err.message : String(err) },
         "Failed to backfill FIPE matches before crawl",
+      );
+    }
+
+    try {
+      const historySeeded = await CarrosRepository.backfillHistory(300);
+      if (historySeeded > 0) {
+        Logger.info({ historySeeded }, "Backfilled baseline carros_history snapshots");
+      }
+    } catch (err) {
+      Logger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        "Failed to backfill carros_history snapshots before crawl",
       );
     }
   }

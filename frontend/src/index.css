@@ -97,9 +97,20 @@ p, li {
 }
 
 @layer base {
-  :where(a, button, [role="button"]):focus-visible {
+  :where(a, button, [role="button"], [role="tab"]):focus-visible {
     outline: 2px solid var(--primary);
     outline-offset: 2px;
+  }
+
+  dialog:modal {
+    overscroll-behavior: contain;
+  }
+
+  dialog::backdrop {
+    overflow: hidden;
+    overscroll-behavior: contain;
+    background-color: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(2px);
   }
 
   input[type="number"]::-webkit-outer-spin-button,
@@ -112,6 +123,30 @@ p, li {
     -moz-appearance: textfield;
     appearance: textfield;
   }
+}
+
+.field-input:user-invalid {
+  border-color: #e11d48;
+}
+
+.field-input:user-invalid + .field-error {
+  display: block;
+}
+
+.field-error {
+  display: none;
+}
+
+.visually-hidden:where(:not(:focus-within, :active)) {
+  position: absolute !important;
+  clip-path: inset(50%) !important;
+  overflow: hidden !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  white-space: nowrap !important;
 }
 
 /* Subtle scrollbar */

@@ -61,6 +61,14 @@ export interface CarroInsert {
   fipeYear?: number;
   fipeRefPeriod?: string;
   fipeDiffPct?: number;
+  firstSeenAt?: Date;
+  lastSeenAt?: Date;
+  initialPrice?: number;
+  lowestPrice?: number;
+  highestPrice?: number;
+  priceChangesCount?: number;
+  lastPriceChangeAt?: Date | null;
+  listingStatus?: string;
 }
 
 export interface CarroUpdate {
@@ -92,6 +100,14 @@ export interface CarroUpdate {
   fipeYear?: number;
   fipeRefPeriod?: string;
   fipeDiffPct?: number;
+  firstSeenAt?: Date;
+  lastSeenAt?: Date;
+  initialPrice?: number;
+  lowestPrice?: number;
+  highestPrice?: number;
+  priceChangesCount?: number;
+  lastPriceChangeAt?: Date | null;
+  listingStatus?: string;
 }
 
 export interface CarroFipePatch {
@@ -114,6 +130,7 @@ export interface CarroPatch {
   isFavorite?: boolean;
   isHidden?: boolean;
   notes?: string;
+  listingStatus?: string;
   updated: Date;
 }
 
@@ -151,8 +168,144 @@ export interface CarroRow {
   isFavorite: boolean;
   isHidden: boolean;
   notes: string | null;
+  firstSeenAt: Date | null;
+  lastSeenAt: Date | null;
+  initialPrice: number | null;
+  lowestPrice: number | null;
+  highestPrice: number | null;
+  priceChangesCount: number;
+  lastPriceChangeAt: Date | null;
+  listingStatus: string | null;
   created: Date | null;
   updated: Date | null;
+}
+
+export type CarroHistoryEventType =
+  | "first_seen"
+  | "price_change"
+  | "mileage_change"
+  | "snapshot"
+  | "status_change";
+
+export interface CarroHistoryInsert {
+  carroId: string;
+  ref: string;
+  idListing: string | null;
+  portal: string;
+  textDescription: string | null;
+  brand?: string;
+  model?: string;
+  version?: string;
+  year: number;
+  manufactureYear?: number;
+  price: number;
+  previousPrice?: number;
+  priceDelta?: number;
+  mileageKm: number;
+  previousMileageKm?: number;
+  transmission?: string;
+  fuel?: string;
+  engineSize?: string;
+  isTurbo?: boolean;
+  sellerType?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  fipePrice?: number;
+  fipeCode?: string;
+  fipeBrand?: string;
+  fipeModel?: string;
+  fipeYear?: number;
+  fipeRefPeriod?: string;
+  fipeDiffPct?: number;
+  eventType: CarroHistoryEventType;
+  recordedAt: Date;
+}
+
+export interface CarroHistoryRow {
+  id: string;
+  carroId: string;
+  ref: string;
+  idListing: string | null;
+  portal: string;
+  textDescription: string | null;
+  brand: string | null;
+  model: string | null;
+  version: string | null;
+  year: number | null;
+  manufactureYear: number | null;
+  price: number | null;
+  previousPrice: number | null;
+  priceDelta: number | null;
+  mileageKm: number | null;
+  previousMileageKm: number | null;
+  transmission: string | null;
+  fuel: string | null;
+  engineSize: string | null;
+  isTurbo: boolean;
+  sellerType: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
+  fipePrice: number | null;
+  fipeCode: string | null;
+  fipeBrand: string | null;
+  fipeModel: string | null;
+  fipeYear: number | null;
+  fipeRefPeriod: string | null;
+  fipeDiffPct: number | null;
+  eventType: string;
+  recordedAt: Date;
+}
+
+export interface CarAlertRow {
+  id: string;
+  userId: string;
+  name: string;
+  active: boolean;
+  searchQuery: string;
+  brand: string;
+  model: string;
+  version: string;
+  fipeCode: string;
+  city: string;
+  portal: string;
+  motorizacao: string;
+  transmission: string;
+  fuel: string;
+  minYear: number;
+  maxYear: number;
+  minPrice: number;
+  maxPrice: number;
+  maxKm: number;
+  onlyBelowFipe: boolean;
+  minFipeDiscountPct: number;
+  notifyOnNew: boolean;
+  notifyOnPriceDrop: boolean;
+  lastCheckedAt: Date | null;
+  lastMatchedAt: Date | null;
+  matchesCount: number;
+}
+
+export interface CarAlertNotificationInsert {
+  userId: string;
+  alertId: string;
+  carroId: string;
+  carRef: string;
+  carTitle: string;
+  brand?: string;
+  model?: string;
+  year?: number;
+  mileageKm?: number;
+  price: number;
+  previousPrice?: number;
+  fipePrice?: number;
+  fipeDiffPct?: number;
+  portal: string;
+  city?: string;
+  triggerType: "new_listing" | "price_drop" | "below_fipe" | "manual_scan";
+  dedupKey: string;
+  triggeredAt: Date;
 }
 
 export interface ListingRow {
@@ -229,6 +382,24 @@ export interface DbAdapter {
   deleteInvalidOlxCarros(): Promise<number>;
   countCarros(): Promise<number>;
   getCarrosPrices(): Promise<number[]>;
+
+  // carros_history
+  insertCarroHistory(data: CarroHistoryInsert): Promise<void>;
+  getLatestCarroHistorySnapshot(ref: string): Promise<CarroHistoryRow | null>;
+  getCarroHistoryByRef(ref: string, limit?: number): Promise<CarroHistoryRow[]>;
+  backfillMissingCarroHistory(limit?: number): Promise<number>;
+
+  // car_alerts & notifications
+  getActiveCarAlerts(): Promise<CarAlertRow[]>;
+  insertAlertNotification(data: CarAlertNotificationInsert): Promise<boolean>;
+  updateCarAlertStats(
+    alertId: string,
+    patch: {
+      lastCheckedAt: Date;
+      lastMatchedAt?: Date;
+      matchesIncrement?: number;
+    },
+  ): Promise<void>;
 
   // car_listings
   getAllListings(): Promise<ListingRow[]>;

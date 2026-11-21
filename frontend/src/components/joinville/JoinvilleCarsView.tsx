@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
+  BellPlus,
   Car,
   ChevronLeft,
   ChevronRight,
@@ -8,6 +9,7 @@ import {
   Fuel,
   Gauge,
   Heart,
+  History,
   MapPin,
   RefreshCw,
   RotateCcw,
@@ -19,16 +21,17 @@ import {
 } from 'lucide-react';
 import {
   applyCarImageFallback,
-  createPocketBaseClient,
   fetchCarFacetsAndStats,
   fetchPagedCarListings,
-  loadLocalCarPrefs,
   updateCarCuration,
   type CarFacetsAndStats,
   type CarListingItem,
   type SortMode,
   type VisibilityMode,
 } from '../../services/pocketbase';
+import { useAuth } from '../../contexts/AuthContext';
+import type { CarAlertInput } from '../../services/alerts';
+import { formatBRL, formatPct } from '../../lib/formatters';
 import CustomDropdown from '../ui/custom-dropdown';
 import { CarListingModal } from './CarListingModal';
 
@@ -73,30 +76,6 @@ const LITRAGEM_OPTIONS = [
   { value: '2.0+', label: '2.0+' },
 ];
 
-function formatBRL(value: number | null | undefined): string {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-    return 'Sob consulta';
-  }
-  return value.toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    maximumFractionDigits: 0,
-  });
-}
-
-function formatPct(pct: number): string {
-  const sign = pct > 0 ? '+' : '';
-  return `${sign}${pct.toLocaleString('pt-BR', {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  })}%`;
-}
-
-function countLocalFavorites(): number {
-  const prefs = loadLocalCarPrefs();
-  return Object.values(prefs).filter((p) => p.favorite && !p.hidden).length;
-}
-
 function mapIntentCambio(transmission?: string): string {
   if (!transmission) return 'todos';
   const low = transmission.toLowerCase();
@@ -108,9 +87,18 @@ function mapIntentCambio(transmission?: string): string {
 
 export interface JoinvilleCarsViewProps {
   initialSearch?: FipeListingSearchIntent | null;
+  onCreateAlert?: (prefill: Partial<CarAlertInput>) => void;
+  onInspectModelHistory?: (query: string) => void;
 }
 
-export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewProps) {
+export default function JoinvilleCarsView({
+  initialSearch,
+  onCreateAlert,
+  onInspectModelHistory,
+}: JoinvilleCarsViewProps) {
+  const { pb, user, curationMap, setCurationMap } = useAuth();
+  const userId = user?.profileUserId ?? '';
+
   const searchInputId = useId();
   const minPriceId = useId();
   const maxPriceId = useId();
@@ -119,7 +107,6 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
   const maxKmId = useId();
   const neighborhoodId = useId();
 
-  const pb = useMemo(() => createPocketBaseClient(), []);
   const resultsTopRef = useRef<HTMLDivElement>(null);
   const requestSeqRef = useRef(0);
 
@@ -132,7 +119,11 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedCar, setSelectedCar] = useState<CarListingItem | null>(null);
-  const [favCount, setFavCount] = useState<number>(() => countLocalFavorites());
+
+  const favCount = useMemo(
+    () => Object.values(curationMap).filter((p) => p.favorite && !p.hidden).length,
+    [curationMap],
+  );
 
   // Facets & aggregate stats
   const [facets, setFacets] = useState<CarFacetsAndStats>({
@@ -175,7 +166,9 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
   const [onlyBelowFipe, setOnlyBelowFipe] = useState(false);
   const [visibilityMode, setVisibilityMode] = useState<VisibilityMode>('active');
   const [sortBy, setSortBy] = useState<SortMode>(() => (initialSearch ? 'relevance' : 'newest'));
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
+  );
   const [fipeContext, setFipeContext] = useState<FipeListingSearchIntent | null>(() => initialSearch ?? null);
   const [exactYearOnly, setExactYearOnly] = useState(false);
   const [exactFipeOnly, setExactFipeOnly] = useState(false);
@@ -280,6 +273,8 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
       exactFipeCode: exactFipeOnly ? fipeContext?.codigoFipe : undefined,
       visibilityMode,
       sortBy,
+      userId: userId || undefined,
+      curationMap,
     })
       .then((res) => {
         if (requestSeqRef.current !== seq) return;
@@ -324,6 +319,8 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
     visibilityMode,
     sortBy,
     refreshTick,
+    userId,
+    curationMap,
   ]);
 
   const hasActiveFilters = Boolean(
@@ -392,8 +389,8 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
 
   async function handleToggleFavorite(car: CarListingItem) {
     const nextFav = !car.favorite;
-    await updateCarCuration(pb, car, { favorite: nextFav });
-    setFavCount(countLocalFavorites());
+    const nextPref = await updateCarCuration(pb, car, { favorite: nextFav }, userId || undefined);
+    setCurationMap((prev) => ({ ...prev, [car.id]: nextPref }));
     setCarros((prev) =>
       prev.map((c) => (c.id === car.id ? { ...c, favorite: nextFav } : c)),
     );
@@ -408,8 +405,8 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
 
   async function handleToggleHidden(car: CarListingItem) {
     const nextHidden = !car.hidden;
-    await updateCarCuration(pb, car, { hidden: nextHidden });
-    setFavCount(countLocalFavorites());
+    const nextPref = await updateCarCuration(pb, car, { hidden: nextHidden }, userId || undefined);
+    setCurationMap((prev) => ({ ...prev, [car.id]: nextPref }));
     setCarros((prev) =>
       prev.map((c) => (c.id === car.id ? { ...c, hidden: nextHidden } : c)),
     );
@@ -423,7 +420,8 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
   }
 
   async function handleSaveNotes(car: CarListingItem, notes: string) {
-    await updateCarCuration(pb, car, { notes });
+    const nextPref = await updateCarCuration(pb, car, { notes }, userId || undefined);
+    setCurationMap((prev) => ({ ...prev, [car.id]: nextPref }));
     setCarros((prev) =>
       prev.map((c) => (c.id === car.id ? { ...c, notes } : c)),
     );
@@ -483,35 +481,80 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
   const fipeIntentCambio = mapIntentCambio(fipeContext?.transmission);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3.5 sm:space-y-6">
       {/* Compact public header */}
-      <section className="rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#171717] p-4 sm:p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 text-xs font-medium text-[#15803d] dark:text-[#3ecf8e]">
+      <section className="rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#171717] p-3 sm:p-5 space-y-2.5 sm:space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4">
+          <div className="space-y-0.5 sm:space-y-1">
+            <div className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-medium text-[#15803d] dark:text-[#3ecf8e]">
               <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
               <span>{cityLocationLabel}</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#171717] dark:text-[#ededed]">
+            <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-[#171717] dark:text-[#ededed]">
               Anúncios Reais vs. Tabela FIPE
             </h1>
-            <p className="text-xs sm:text-sm text-[#707070] dark:text-[#a1a1aa] max-w-2xl">
+            <p className="hidden sm:block text-xs sm:text-sm text-[#707070] dark:text-[#a1a1aa] max-w-2xl">
               Compare preços de carros anunciados com a referência atualizada da Tabela FIPE.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setRefreshTick((t) => t + 1)}
-            disabled={loading}
-            className="h-8 self-start sm:self-center inline-flex items-center gap-1.5 px-3 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#121212] text-xs font-medium text-[#171717] dark:text-[#ededed] hover:border-[#3ecf8e]/50 cursor-pointer disabled:opacity-60"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-[#3ecf8e] ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-            <span>Atualizar</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 sm:shrink-0">
+            {onInspectModelHistory && (
+              <button
+                type="button"
+                onClick={() =>
+                  onInspectModelHistory(
+                    search.trim() || brandFilter || 'hb20 2021 diamond plus',
+                  )
+                }
+                className="h-8 inline-flex items-center gap-1.5 px-2.5 sm:px-3 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#121212] text-[11px] sm:text-xs font-medium text-[#171717] dark:text-[#ededed] hover:border-[#3ecf8e]/50 cursor-pointer"
+              >
+                <History className="w-3.5 h-3.5 text-[#3ecf8e]" aria-hidden="true" />
+                <span>Histórico do modelo</span>
+              </button>
+            )}
+
+            {onCreateAlert && (
+              <button
+                type="button"
+                onClick={() =>
+                  onCreateAlert({
+                    name: [brandFilter, search.trim()].filter(Boolean).join(' ') || 'Alerta de anúncio',
+                    searchQuery: search.trim(),
+                    brand: brandFilter,
+                    city: cityFilter !== 'todas' ? cityFilter : '',
+                    portal: portalFilter,
+                    motorizacao: motorizacaoFilter !== 'todos' ? motorizacaoFilter : '',
+                    transmission: cambioFilter !== 'todos' ? cambioFilter : '',
+                    fuel: combustivelFilter !== 'todos' ? combustivelFilter : '',
+                    minPrice: Number(minPrice) || 0,
+                    maxPrice: Number(maxPrice) || 0,
+                    minYear: Number(minYear) || 0,
+                    maxYear: Number(maxYear) || 0,
+                    maxKm: Number(maxKm) || 0,
+                    onlyBelowFipe,
+                  })
+                }
+                className="h-8 inline-flex items-center gap-1.5 px-2.5 sm:px-3 rounded-[6px] bg-[#3ecf8e] hover:bg-[#24b47e] text-[11px] sm:text-xs font-semibold text-[#171717] cursor-pointer"
+              >
+                <BellPlus className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Criar alerta</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setRefreshTick((t) => t + 1)}
+              disabled={loading}
+              className="h-8 inline-flex items-center gap-1.5 px-2.5 sm:px-3 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#121212] text-[11px] sm:text-xs font-medium text-[#171717] dark:text-[#ededed] hover:border-[#3ecf8e]/50 cursor-pointer disabled:opacity-60"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#3ecf8e] ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+              <span>Atualizar</span>
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-3 border-t border-[#ededed] dark:border-[#27272a] text-xs text-[#707070] dark:text-[#a1a1aa] tabular-nums">
+        <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1 pt-2 sm:pt-3 border-t border-[#ededed] dark:border-[#27272a] text-[11px] sm:text-xs text-[#707070] dark:text-[#a1a1aa] tabular-nums">
           <span>
             Anúncios:{' '}
             <strong className="text-[#171717] dark:text-[#ededed]">
@@ -561,12 +604,12 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
       )}
 
       <div className="space-y-4">
-        {/* Filter controls: unified h-8 toolbar + symmetrical 4x3 grid */}
+        {/* Filter controls: unified h-8 toolbar + compact 2-col mobile / 4-col desktop grid */}
         <section
           aria-label="Filtros de busca"
-          className="rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] p-4 space-y-3.5"
+          className="rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] p-3 sm:p-4 space-y-2.5 sm:space-y-3.5"
         >
-          <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-2 sm:gap-2.5">
             <div className="relative flex-1 min-w-0">
               <Search className="w-3.5 h-3.5 text-[#707070] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
               <label htmlFor={searchInputId} className="sr-only">
@@ -582,7 +625,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 sm:shrink-0">
               {/* Segmented visibility tabs */}
               <div
                 role="group"
@@ -606,7 +649,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                         setVisibilityMode(mode);
                         setPage(1);
                       }}
-                      className={`h-[26px] inline-flex items-center justify-center px-2.5 rounded-[4px] text-xs font-medium transition-colors cursor-pointer ${
+                      className={`h-[26px] inline-flex items-center justify-center px-2 sm:px-2.5 rounded-[4px] text-[11px] sm:text-xs font-medium transition-colors cursor-pointer ${
                         pressed
                           ? 'bg-[#3ecf8e]/15 text-[#15803d] dark:text-[#3ecf8e]'
                           : 'text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed]'
@@ -625,7 +668,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                   setOnlyBelowFipe((v) => !v);
                   setPage(1);
                 }}
-                className={`h-8 inline-flex items-center justify-center gap-1.5 px-2.5 rounded-[6px] text-xs font-medium border transition-colors cursor-pointer ${
+                className={`h-8 inline-flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-[6px] text-[11px] sm:text-xs font-medium border transition-colors cursor-pointer ${
                   onlyBelowFipe
                     ? 'bg-[#3ecf8e]/15 text-[#15803d] dark:text-[#3ecf8e] border-[#3ecf8e]/50'
                     : 'bg-[#fafafa] dark:bg-[#121212] text-[#707070] dark:text-[#a1a1aa] border-[#dfdfdf] dark:border-[#27272a] hover:text-[#171717] dark:hover:text-[#ededed]'
@@ -639,8 +682,8 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                 type="button"
                 aria-expanded={showFilters}
                 onClick={() => setShowFilters((v) => !v)}
-                className={`h-8 inline-flex items-center justify-center gap-1.5 px-2.5 rounded-[6px] border text-xs font-medium transition-colors cursor-pointer ${
-                  showFilters
+                className={`h-8 inline-flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-[6px] border text-[11px] sm:text-xs font-medium transition-colors cursor-pointer ${
+                  showFilters || activeFilterCount > 0
                     ? 'border-[#3ecf8e]/50 bg-[#3ecf8e]/10 text-[#15803d] dark:text-[#3ecf8e]'
                     : 'border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-[#707070] dark:text-[#a1a1aa]'
                 }`}
@@ -659,7 +702,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                   type="button"
                   onClick={resetFilters}
                   title="Limpar todos os filtros"
-                  className="h-8 inline-flex items-center justify-center gap-1.5 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs font-medium text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed] transition-colors cursor-pointer"
+                  className="h-8 inline-flex items-center justify-center gap-1 px-2 sm:px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-[11px] sm:text-xs font-medium text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed] transition-colors cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>Limpar</span>
@@ -669,9 +712,9 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3.5 border-t border-[#ededed] dark:border-[#27272a]">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 pt-2.5 sm:pt-3.5 border-t border-[#ededed] dark:border-[#27272a]">
               {/* Row 1: Cidade, Marca, Faixa de preço, Ano */}
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <span className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
                   Cidade
                 </span>
@@ -691,7 +734,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <span className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
                   Marca
                 </span>
@@ -714,7 +757,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="col-span-2 sm:col-span-1 space-y-1">
                 <span className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
                   Faixa de preço (R$)
                 </span>
@@ -750,7 +793,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                 </div>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="col-span-2 sm:col-span-1 space-y-1">
                 <span className="block text-[11px] font-medium text-[#707070] dark:text-[#a1a1aa] uppercase tracking-wider">
                   Ano
                 </span>
@@ -1123,7 +1166,7 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                 <article
                   key={car.id}
                   onClick={() => setSelectedCar(car)}
-                  className="group rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] hover:border-[#3ecf8e]/60 transition-colors overflow-hidden flex flex-col cursor-pointer"
+                  className="group min-w-0 rounded-xl border border-[#ededed] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#18181b] hover:border-[#3ecf8e]/60 transition-colors overflow-hidden flex flex-col cursor-pointer"
                 >
                   <div className="relative aspect-[16/10] bg-[#f5f5f5] dark:bg-[#121212] overflow-hidden flex items-center justify-center">
                     {thumb ? (
@@ -1151,8 +1194,8 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                     </div>
                   </div>
 
-                  <div className="p-4 flex-1 flex flex-col justify-between gap-3">
-                    <div className="space-y-2">
+                  <div className="p-4 flex-1 flex flex-col justify-between gap-3 min-w-0">
+                    <div className="space-y-2 min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         {car.year && (
                           <span className="inline-flex items-center h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-medium tabular-nums bg-[#fafafa] dark:bg-[#121212] text-[#171717] dark:text-[#ededed] border border-[#ededed] dark:border-[#27272a]">
@@ -1223,9 +1266,9 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
                         )}
                       </div>
 
-                      <p className="inline-flex items-center gap-1 text-[11px] text-[#9a9a9a] dark:text-[#71717a] truncate">
+                      <p className="flex items-center gap-1 text-[11px] text-[#9a9a9a] dark:text-[#71717a] min-w-0">
                         <MapPin className="w-3 h-3 shrink-0" aria-hidden="true" />
-                        <span>
+                        <span className="truncate">
                           {[car.neighborhood, car.city, car.state].filter(Boolean).join(', ') || 'Joinville, SC'}
                         </span>
                       </p>
@@ -1322,6 +1365,8 @@ export default function JoinvilleCarsView({ initialSearch }: JoinvilleCarsViewPr
         onToggleFavorite={handleToggleFavorite}
         onToggleHidden={handleToggleHidden}
         onSaveNotes={handleSaveNotes}
+        onInspectModelHistory={onInspectModelHistory}
+        onCreateAlert={onCreateAlert}
       />
     </div>
   );

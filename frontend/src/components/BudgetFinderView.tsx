@@ -113,16 +113,19 @@ const POPULAR_ENGINES: EngineItem[] = [
 export interface BudgetFinderViewProps {
   onSwitchTab?: (tab: string) => void;
   onSearchListings?: (vehicle: Vehicle) => void;
+  onInspectModelHistory?: (vehicle: Vehicle) => void;
 }
 
 export default function BudgetFinderView({
   onSwitchTab: _onSwitchTab,
   onSearchListings,
+  onInspectModelHistory,
 }: BudgetFinderViewProps) {
   // Budget inputs
   const [budgetValue, setBudgetValue] = useState<string>('80000');
   const [useSmartRange, setUseSmartRange] = useState<boolean>(true); // 80% to 100% of budget
   const [showAdvancedPricing, setShowAdvancedPricing] = useState<boolean>(false);
+  const [showMobileSpecFilters, setShowMobileSpecFilters] = useState<boolean>(false);
   const [minPrice, setMinPrice] = useState<string>('64000');
   const [maxPrice, setMaxPrice] = useState<string>('80000');
 
@@ -335,16 +338,25 @@ export default function BudgetFinderView({
     return `R$ ${num.toLocaleString('pt-BR')}`;
   };
 
+  const activeSpecFilterCount = [
+    litragem !== 'todos',
+    motorizacao !== 'todos',
+    cambio !== 'todos',
+    selectedBrands.length > 0,
+    Boolean(searchModel.trim()),
+    minYear !== '2018',
+  ].filter(Boolean).length;
+
   return (
-    <div className="w-full space-y-8 sm:space-y-12">
+    <div className="w-full space-y-4 sm:space-y-12">
       
       {/* 1. HERO SECTION */}
-      <section className="pt-4 sm:pt-12 pb-2 sm:pb-4">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+      <section className="pt-1 sm:pt-12 pb-1 sm:pb-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-8 items-start">
           
           {/* Left Column: Big Headline with Emerald Accent + CTAs */}
-          <div className="lg:col-span-7 space-y-4 sm:space-y-6">
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-medium tracking-tight text-[#171717] dark:text-[#ededed] leading-[1.1] sm:leading-[1.08]" style={{ letterSpacing: '-0.04em' }}>
+          <div className="lg:col-span-7 space-y-2 sm:space-y-6">
+            <h1 className="text-2xl sm:text-5xl lg:text-6xl font-medium tracking-tight text-[#171717] dark:text-[#ededed] leading-[1.1] sm:leading-[1.08]" style={{ letterSpacing: '-0.04em' }}>
               Consulte no seu orçamento
               <span className="block text-[#3ecf8e]">
                 Filtre carros na FIPE
@@ -352,7 +364,7 @@ export default function BudgetFinderView({
             </h1>
 
             {/* Action buttons below headline */}
-            <div className="flex flex-wrap items-center gap-3 pt-1 sm:pt-2">
+            <div className="hidden sm:flex flex-wrap items-center gap-3 pt-1 sm:pt-2">
               <a
                 href="#filtro-console"
                 className="inline-flex items-center justify-center bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] font-medium text-sm px-4 py-2 sm:py-2.5 rounded-[6px] transition-colors shadow-xs"
@@ -363,12 +375,12 @@ export default function BudgetFinderView({
           </div>
 
           {/* Right Column: Technical Explanatory Lead Text */}
-          <div className="lg:col-span-5 pt-1 lg:pt-3">
-            <p className="text-sm sm:text-lg text-[#707070] dark:text-[#a1a1aa] leading-relaxed">
+          <div className="lg:col-span-5 pt-0.5 lg:pt-3">
+            <p className="hidden sm:block text-sm sm:text-lg text-[#707070] dark:text-[#a1a1aa] leading-relaxed">
               Descubra quais carros você pode comprar hoje com o seu valor disponível. Filtre instantaneamente mais de 9.4 milhões de registros FIPE por cilindrada do motor (1.0, 1.4, 2.0+), alimentação turbo e transmissão automática.
             </p>
 
-            <div className="mt-4 sm:mt-6 flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-2 text-xs text-[#707070] dark:text-[#a1a1aa] font-mono border-t border-[#ededed] dark:border-[#27272a] pt-3 sm:pt-4">
+            <div className="mt-1 sm:mt-6 flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-1.5 text-[11px] sm:text-xs text-[#707070] dark:text-[#a1a1aa] font-mono border-t border-[#ededed] dark:border-[#27272a] pt-2 sm:pt-4">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-[#3ecf8e]" />
                 <span>Base FIPEX 2026</span>
@@ -477,8 +489,8 @@ export default function BudgetFinderView({
                 )}
               </div>
 
-              {/* Quick shortcut pills */}
-              <div className="flex flex-wrap items-center gap-1.5">
+              {/* Quick shortcut pills (single scrollable row on mobile) */}
+              <div className="flex items-center gap-1.5 overflow-x-auto sm:flex-wrap no-scrollbar pb-0.5">
                 {[30000, 50000, 70000, 80000, 100000, 120000, 150000, 200000, 300000].map((val) => {
                   const isActive = Number(budgetValue) === val;
                   return (
@@ -487,7 +499,7 @@ export default function BudgetFinderView({
                       type="button"
                       aria-pressed={isActive}
                       onClick={() => applyBudget(val.toString())}
-                      className={`h-8 px-2.5 text-xs tabular-nums rounded-[4px] border transition-colors focus:outline-none cursor-pointer inline-flex items-center justify-center ${
+                      className={`shrink-0 h-8 px-2.5 text-xs tabular-nums rounded-[4px] border transition-colors focus:outline-none cursor-pointer inline-flex items-center justify-center ${
                         isActive 
                           ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] border-[#171717] dark:border-[#3ecf8e] font-medium' 
                           : 'bg-[#ffffff] dark:bg-[#121212] hover:bg-[#fafafa] dark:hover:bg-[#27272a] text-[#707070] dark:text-[#a1a1aa] border-[#dfdfdf] dark:border-[#27272a]'
@@ -685,6 +697,43 @@ export default function BudgetFinderView({
             </div>
           </div>
 
+          {/* Mobile Disclosure Toggle for Secondary Spec Filters */}
+          <div className="md:hidden pt-1">
+            <button
+              type="button"
+              aria-expanded={showMobileSpecFilters}
+              onClick={() => setShowMobileSpecFilters((v) => !v)}
+              className={`w-full h-8 inline-flex items-center justify-between px-3 rounded-[6px] border text-xs font-medium transition-colors cursor-pointer ${
+                showMobileSpecFilters || activeSpecFilterCount > 0
+                  ? 'border-[#3ecf8e]/50 bg-[#3ecf8e]/10 text-[#15803d] dark:text-[#3ecf8e]'
+                  : 'border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-[#707070] dark:text-[#a1a1aa]'
+              }`}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                <span>Filtros avançados (Motor, Câmbio, Marca, Ano)</span>
+                {activeSpecFilterCount > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-[#3ecf8e] text-[#171717] text-[10px] font-semibold tabular-nums">
+                    {activeSpecFilterCount}
+                  </span>
+                )}
+              </span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 shrink-0 transition-transform ${
+                  showMobileSpecFilters ? 'rotate-180 text-[#3ecf8e]' : ''
+                }`}
+                aria-hidden="true"
+              />
+            </button>
+          </div>
+
+          <div
+            className={
+              showMobileSpecFilters
+                ? 'space-y-4 sm:space-y-6'
+                : 'hidden md:block space-y-4 sm:space-y-6'
+            }
+          >
           {combustivel !== 'eletrico' && (
             <>
               <div className="border-t border-[#ededed] dark:border-[#27272a]" />
@@ -1054,6 +1103,8 @@ export default function BudgetFinderView({
                 ]}
               />
             </div>
+
+          </div>
 
           </div>
 
@@ -1516,6 +1567,7 @@ export default function BudgetFinderView({
           vehicle={selectedVehicleForHistory}
           onClose={() => setSelectedVehicleForHistory(null)}
           onSearchListings={onSearchListings}
+          onInspectModelHistory={onInspectModelHistory}
         />
       )}
 

@@ -6,7 +6,11 @@ import {
   DEFAULT_OLX_CARS_URL,
   DEFAULT_SEED_LISTINGS,
   LEGACY_OLX_CARS_URL,
+  type CarAlertNotificationInsert,
+  type CarAlertRow,
   type CarroFipePatch,
+  type CarroHistoryInsert,
+  type CarroHistoryRow,
   type CarroInsert,
   type CarroPatch,
   type CarroRow,
@@ -22,18 +26,30 @@ import {
 
 export const PB_CAR_COLLECTIONS = {
   CARROS: "carros_temp",
+  CARROS_HISTORY: "carros_history",
   LISTINGS: "car_listings",
   CRAWLER_RUNS: "car_crawler_runs",
   CRAWLER_LOGS: "car_crawler_logs",
+  USER_CURATION: "user_car_curation",
+  ALERTS: "car_alerts",
+  ALERT_NOTIFICATIONS: "car_alert_notifications",
 } as const;
+
+const ADMIN_API_RULE = '@request.auth.role = "admin"';
+const AUTH_API_RULE = '@request.auth.id != ""';
+const USER_OR_ADMIN_API_RULE = 'user = @request.auth.id || @request.auth.role = "admin"';
+const USER_CREATE_API_RULE = '@request.auth.id != "" && @request.body.user = @request.auth.id';
 
 interface CollectionFieldSpec {
   name: string;
-  type: "text" | "number" | "date" | "json" | "bool" | "file" | "autodate";
+  type: "text" | "number" | "date" | "json" | "bool" | "file" | "autodate" | "relation";
   required?: boolean;
+  max?: number;
   maxSelect?: number;
   maxSize?: number;
   mimeTypes?: string[];
+  collectionId?: string;
+  cascadeDelete?: boolean;
   onCreate?: boolean;
   onUpdate?: boolean;
 }
@@ -98,6 +114,14 @@ const CARROS_TEMP_FIELDS: CollectionFieldSpec[] = [
   { name: "is_favorite", type: "bool" },
   { name: "is_hidden", type: "bool" },
   { name: "notes", type: "text" },
+  { name: "first_seen_at", type: "date" },
+  { name: "last_seen_at", type: "date" },
+  { name: "initial_price", type: "number" },
+  { name: "lowest_price", type: "number" },
+  { name: "highest_price", type: "number" },
+  { name: "price_changes_count", type: "number" },
+  { name: "last_price_change_at", type: "date" },
+  { name: "listing_status", type: "text" },
   ...AUTODATE_FIELDS,
 ];
 
@@ -106,10 +130,70 @@ const CARROS_TEMP_INDEXES: string[] = [
   "CREATE INDEX idx_carros_updated ON carros_temp (updated DESC)",
   "CREATE INDEX idx_carros_city_price ON carros_temp (city, price)",
   "CREATE INDEX idx_carros_brand_year ON carros_temp (brand, year)",
+  "CREATE INDEX idx_carros_model_year ON carros_temp (brand, model, year)",
   "CREATE INDEX idx_carros_filters ON carros_temp (city, brand, transmission, fuel, is_turbo, engine_size, year, price)",
   "CREATE INDEX idx_carros_fipe ON carros_temp (fipe_price, fipe_diff_pct)",
   "CREATE INDEX idx_carros_fipe_code ON carros_temp (fipe_code)",
   "CREATE INDEX idx_carros_mileage ON carros_temp (mileage_km)",
+  "CREATE INDEX idx_carros_status_seen ON carros_temp (listing_status, last_seen_at DESC)",
+];
+
+const CARROS_HISTORY_FIELDS: CollectionFieldSpec[] = [
+  { name: "carro_id", type: "text" },
+  { name: "ref", type: "text", required: true },
+  { name: "id_listing", type: "text" },
+  { name: "portal", type: "text" },
+  { name: "text_description", type: "text" },
+  { name: "brand", type: "text" },
+  { name: "model", type: "text" },
+  { name: "version", type: "text" },
+  { name: "year", type: "number" },
+  { name: "manufacture_year", type: "number" },
+  { name: "price", type: "number" },
+  { name: "previous_price", type: "number" },
+  { name: "price_delta", type: "number" },
+  { name: "mileage_km", type: "number" },
+  { name: "previous_mileage_km", type: "number" },
+  { name: "transmission", type: "text" },
+  { name: "fuel", type: "text" },
+  { name: "engine_size", type: "text" },
+  { name: "is_turbo", type: "bool" },
+  { name: "seller_type", type: "text" },
+  { name: "neighborhood", type: "text" },
+  { name: "city", type: "text" },
+  { name: "state", type: "text" },
+  { name: "fipe_price", type: "number" },
+  { name: "fipe_code", type: "text" },
+  { name: "fipe_brand", type: "text" },
+  { name: "fipe_model", type: "text" },
+  { name: "fipe_year", type: "number" },
+  { name: "fipe_ref_period", type: "text" },
+  { name: "fipe_diff_pct", type: "number" },
+  { name: "event_type", type: "text" },
+  { name: "recorded_at", type: "date" },
+  ...AUTODATE_FIELDS,
+];
+
+const CARROS_HISTORY_INDEXES: string[] = [
+  "CREATE INDEX idx_history_ref_date ON carros_history (ref, recorded_at DESC)",
+  "CREATE INDEX idx_history_carro_date ON carros_history (carro_id, recorded_at DESC)",
+  "CREATE INDEX idx_history_brand_model_year ON carros_history (brand, model, year)",
+  "CREATE INDEX idx_history_fipe_year ON carros_history (fipe_code, year)",
+  "CREATE INDEX idx_history_recorded_at ON carros_history (recorded_at DESC)",
+];
+
+const USER_CAR_CURATION_INDEXES: string[] = [
+  "CREATE UNIQUE INDEX idx_user_curation_unique ON user_car_curation (user, carro_id)",
+  "CREATE INDEX idx_user_curation_user ON user_car_curation (user, is_favorite, is_hidden)",
+];
+
+const CAR_ALERTS_INDEXES: string[] = [
+  "CREATE INDEX idx_car_alerts_user_active ON car_alerts (user, active)",
+];
+
+const CAR_ALERT_NOTIF_INDEXES: string[] = [
+  "CREATE INDEX idx_alert_notif_user_read ON car_alert_notifications (user, is_read, triggered_at DESC)",
+  "CREATE UNIQUE INDEX idx_alert_notif_dedup ON car_alert_notifications (dedup_key)",
 ];
 
 const CRAWLER_RUNS_FIELDS: CollectionFieldSpec[] = [
@@ -254,8 +338,97 @@ function toCarroRow(record: Record<string, unknown>): CarroRow {
     isFavorite: Boolean(record.is_favorite),
     isHidden: Boolean(record.is_hidden),
     notes: toStringOrNull(record.notes),
+    firstSeenAt: toDate(record.first_seen_at),
+    lastSeenAt: toDate(record.last_seen_at),
+    initialPrice: toNumberOrNull(record.initial_price),
+    lowestPrice: toNumberOrNull(record.lowest_price),
+    highestPrice: toNumberOrNull(record.highest_price),
+    priceChangesCount:
+      typeof record.price_changes_count === "number" &&
+      Number.isFinite(record.price_changes_count)
+        ? record.price_changes_count
+        : 0,
+    lastPriceChangeAt: toDate(record.last_price_change_at),
+    listingStatus: toStringOrNull(record.listing_status) ?? "active",
     created: toDate(record.created),
     updated: toDate(record.updated),
+  };
+}
+
+function toCarroHistoryRow(record: Record<string, unknown>): CarroHistoryRow {
+  return {
+    id: String(record.id),
+    carroId: String(record.carro_id ?? ""),
+    ref: String(record.ref ?? ""),
+    idListing: toStringOrNull(record.id_listing),
+    portal: String(record.portal ?? ""),
+    textDescription: toStringOrNull(record.text_description),
+    brand: toStringOrNull(record.brand),
+    model: toStringOrNull(record.model),
+    version: toStringOrNull(record.version),
+    year: toNumberOrNull(record.year),
+    manufactureYear: toNumberOrNull(record.manufacture_year),
+    price: toNumberOrNull(record.price),
+    previousPrice: toNumberOrNull(record.previous_price),
+    priceDelta: toNumberOrNull(record.price_delta),
+    mileageKm: toNumberOrNull(record.mileage_km),
+    previousMileageKm: toNumberOrNull(record.previous_mileage_km),
+    transmission: toStringOrNull(record.transmission),
+    fuel: toStringOrNull(record.fuel),
+    engineSize: toStringOrNull(record.engine_size),
+    isTurbo: Boolean(record.is_turbo),
+    sellerType: toStringOrNull(record.seller_type),
+    neighborhood: toStringOrNull(record.neighborhood),
+    city: toStringOrNull(record.city),
+    state: toStringOrNull(record.state),
+    fipePrice: toNumberOrNull(record.fipe_price),
+    fipeCode: toStringOrNull(record.fipe_code),
+    fipeBrand: toStringOrNull(record.fipe_brand),
+    fipeModel: toStringOrNull(record.fipe_model),
+    fipeYear: toNumberOrNull(record.fipe_year),
+    fipeRefPeriod: toStringOrNull(record.fipe_ref_period),
+    fipeDiffPct: toNumberOrNull(record.fipe_diff_pct),
+    eventType: String(record.event_type ?? "snapshot"),
+    recordedAt: toDate(record.recorded_at) ?? toDate(record.created) ?? new Date(),
+  };
+}
+
+function toCarAlertRow(record: Record<string, unknown>): CarAlertRow {
+  const userRaw = record.user;
+  const userId = Array.isArray(userRaw)
+    ? String(userRaw[0] ?? "")
+    : String(userRaw ?? "");
+
+  return {
+    id: String(record.id),
+    userId,
+    name: String(record.name ?? ""),
+    active: Boolean(record.active),
+    searchQuery: String(record.search_query ?? ""),
+    brand: String(record.brand ?? ""),
+    model: String(record.model ?? ""),
+    version: String(record.version ?? ""),
+    fipeCode: String(record.fipe_code ?? ""),
+    city: String(record.city ?? ""),
+    portal: String(record.portal ?? ""),
+    motorizacao: String(record.motorizacao ?? ""),
+    transmission: String(record.transmission ?? ""),
+    fuel: String(record.fuel ?? ""),
+    minYear: typeof record.min_year === "number" ? record.min_year : 0,
+    maxYear: typeof record.max_year === "number" ? record.max_year : 0,
+    minPrice: typeof record.min_price === "number" ? record.min_price : 0,
+    maxPrice: typeof record.max_price === "number" ? record.max_price : 0,
+    maxKm: typeof record.max_km === "number" ? record.max_km : 0,
+    onlyBelowFipe: Boolean(record.only_below_fipe),
+    minFipeDiscountPct:
+      typeof record.min_fipe_discount_pct === "number"
+        ? record.min_fipe_discount_pct
+        : 0,
+    notifyOnNew: record.notify_on_new !== false,
+    notifyOnPriceDrop: record.notify_on_price_drop !== false,
+    lastCheckedAt: toDate(record.last_checked_at),
+    lastMatchedAt: toDate(record.last_matched_at),
+    matchesCount: typeof record.matches_count === "number" ? record.matches_count : 0,
   };
 }
 
@@ -444,6 +617,63 @@ export class PocketBaseAdapter implements DbAdapter {
     }
   }
 
+  private async ensureUsersSchema(): Promise<string> {
+    if (typeof this.pb.collections?.getOne !== "function") return "users";
+    try {
+      const col = (await this.pb.collections.getOne("users")) as {
+        id?: string;
+        fields?: Array<Record<string, unknown>>;
+        listRule?: string | null;
+        viewRule?: string | null;
+        createRule?: string | null;
+        updateRule?: string | null;
+        deleteRule?: string | null;
+      };
+      const usersId = col?.id || "users";
+      if (!col || !Array.isArray(col.fields) || typeof this.pb.collections?.update !== "function") {
+        return usersId;
+      }
+
+      const existingNames = new Set(
+        col.fields.map((f) => String(f.name ?? "")).filter(Boolean),
+      );
+      const desiredFields: CollectionFieldSpec[] = [
+        { name: "role", type: "text", max: 32 },
+        { name: "alerts_enabled", type: "bool" },
+      ];
+      const missingFields = desiredFields.filter((f) => !existingNames.has(f.name));
+
+      const desiredListRule = 'id = @request.auth.id || @request.auth.role = "admin"';
+      const desiredViewRule = 'id = @request.auth.id || @request.auth.role = "admin"';
+      const desiredCreateRule = ADMIN_API_RULE;
+      const desiredUpdateRule =
+        '(id = @request.auth.id && (@request.body.role:isset = false || @request.body.role = role)) || @request.auth.role = "admin"';
+      const desiredDeleteRule = ADMIN_API_RULE;
+
+      const rulesChanged =
+        col.listRule !== desiredListRule ||
+        col.viewRule !== desiredViewRule ||
+        col.createRule !== desiredCreateRule ||
+        col.updateRule !== desiredUpdateRule ||
+        col.deleteRule !== desiredDeleteRule;
+
+      if (missingFields.length > 0 || rulesChanged) {
+        await this.pb.collections.update(usersId, {
+          ...(missingFields.length > 0 ? { fields: [...col.fields, ...missingFields] } : {}),
+          listRule: desiredListRule,
+          viewRule: desiredViewRule,
+          createRule: desiredCreateRule,
+          updateRule: desiredUpdateRule,
+          deleteRule: desiredDeleteRule,
+        } as never);
+      }
+
+      return usersId;
+    } catch {
+      return "users";
+    }
+  }
+
   private async ensureCollectionExists(
     name: string,
     fields: CollectionFieldSpec[],
@@ -455,50 +685,58 @@ export class PocketBaseAdapter implements DbAdapter {
       deleteRule?: string | null;
       indexes?: string[];
     } = {},
-  ): Promise<boolean> {
+  ): Promise<string | null> {
     try {
       await this.pb.collection(name).getList(1, 1, { fields: "id" });
       await this.ensureMissingFields(name, fields, rules.indexes ?? []);
-      return true;
+      if (typeof this.pb.collections?.getOne === "function") {
+        try {
+          const col = (await this.pb.collections.getOne(name)) as { id?: string };
+          return col?.id ?? name;
+        } catch {
+          return name;
+        }
+      }
+      return name;
     } catch (err) {
       if (!isNotFoundError(err)) {
-        return true;
+        return name;
       }
     }
 
     const basePayload = {
       name,
       type: "base",
-      listRule: rules.listRule ?? "",
-      viewRule: rules.viewRule ?? "",
-      createRule: rules.createRule ?? "@request.auth.id != ''",
-      updateRule: rules.updateRule ?? "@request.auth.id != ''",
-      deleteRule: rules.deleteRule ?? "@request.auth.id != ''",
+      listRule: rules.listRule !== undefined ? rules.listRule : "",
+      viewRule: rules.viewRule !== undefined ? rules.viewRule : "",
+      createRule: rules.createRule !== undefined ? rules.createRule : ADMIN_API_RULE,
+      updateRule: rules.updateRule !== undefined ? rules.updateRule : ADMIN_API_RULE,
+      deleteRule: rules.deleteRule !== undefined ? rules.deleteRule : ADMIN_API_RULE,
       ...(rules.indexes && rules.indexes.length > 0
         ? { indexes: rules.indexes }
         : {}),
     };
 
     try {
-      await this.pb.collections.create({
+      const created = (await this.pb.collections.create({
         ...basePayload,
         fields,
-      } as never);
+      } as never)) as { id?: string } | undefined;
       Logger.info({ collection: name }, `Created PocketBase collection ${name}`);
-      return true;
+      return created?.id ?? name;
     } catch (err) {
       if (getHttpStatus(err) === 400) {
         try {
           const legacySchema = fields.filter((f) => f.type !== "autodate");
-          await this.pb.collections.create({
+          const created = (await this.pb.collections.create({
             ...basePayload,
             schema: legacySchema,
-          } as never);
+          } as never)) as { id?: string } | undefined;
           Logger.info(
             { collection: name },
             `Created PocketBase collection ${name} (legacy schema)`,
           );
-          return true;
+          return created?.id ?? name;
         } catch (fallbackErr) {
           Logger.warn(
             {
@@ -510,7 +748,7 @@ export class PocketBaseAdapter implements DbAdapter {
             },
             `Could not auto-create PocketBase collection ${name}`,
           );
-          return false;
+          return null;
         }
       }
       Logger.warn(
@@ -520,35 +758,203 @@ export class PocketBaseAdapter implements DbAdapter {
         },
         `Could not auto-create PocketBase collection ${name}`,
       );
-      return false;
+      return null;
     }
   }
 
   async ensureSchema(): Promise<void> {
     await this.ensureAuth();
 
+    const usersCollectionId = await this.ensureUsersSchema();
+
     await this.ensureCollectionExists(
       PB_CAR_COLLECTIONS.LISTINGS,
       CAR_LISTINGS_FIELDS,
+      {
+        listRule: ADMIN_API_RULE,
+        viewRule: ADMIN_API_RULE,
+        createRule: ADMIN_API_RULE,
+        updateRule: ADMIN_API_RULE,
+        deleteRule: ADMIN_API_RULE,
+      },
     );
 
     await this.ensureCollectionExists(
       PB_CAR_COLLECTIONS.CARROS,
       CARROS_TEMP_FIELDS,
-      { indexes: CARROS_TEMP_INDEXES },
+      {
+        listRule: "",
+        viewRule: "",
+        createRule: ADMIN_API_RULE,
+        updateRule: ADMIN_API_RULE,
+        deleteRule: ADMIN_API_RULE,
+        indexes: CARROS_TEMP_INDEXES,
+      },
     );
+
+    await this.ensureCollectionExists(
+      PB_CAR_COLLECTIONS.CARROS_HISTORY,
+      CARROS_HISTORY_FIELDS,
+      {
+        listRule: AUTH_API_RULE,
+        viewRule: AUTH_API_RULE,
+        createRule: ADMIN_API_RULE,
+        updateRule: ADMIN_API_RULE,
+        deleteRule: ADMIN_API_RULE,
+        indexes: CARROS_HISTORY_INDEXES,
+      },
+    );
+
+    await this.ensureCollectionExists(
+      PB_CAR_COLLECTIONS.USER_CURATION,
+      [
+        {
+          name: "user",
+          type: "relation",
+          required: true,
+          maxSelect: 1,
+          collectionId: usersCollectionId,
+          cascadeDelete: true,
+        },
+        { name: "carro_id", type: "text", required: true },
+        { name: "car_ref", type: "text" },
+        { name: "is_favorite", type: "bool" },
+        { name: "is_hidden", type: "bool" },
+        { name: "notes", type: "text" },
+        ...AUTODATE_FIELDS,
+      ],
+      {
+        listRule: USER_OR_ADMIN_API_RULE,
+        viewRule: USER_OR_ADMIN_API_RULE,
+        createRule: USER_CREATE_API_RULE,
+        updateRule: USER_OR_ADMIN_API_RULE,
+        deleteRule: USER_OR_ADMIN_API_RULE,
+        indexes: USER_CAR_CURATION_INDEXES,
+      },
+    );
+
+    const alertsCollectionId = await this.ensureCollectionExists(
+      PB_CAR_COLLECTIONS.ALERTS,
+      [
+        {
+          name: "user",
+          type: "relation",
+          required: true,
+          maxSelect: 1,
+          collectionId: usersCollectionId,
+          cascadeDelete: true,
+        },
+        { name: "name", type: "text", required: true },
+        { name: "active", type: "bool" },
+        { name: "search_query", type: "text" },
+        { name: "brand", type: "text" },
+        { name: "model", type: "text" },
+        { name: "version", type: "text" },
+        { name: "fipe_code", type: "text" },
+        { name: "city", type: "text" },
+        { name: "portal", type: "text" },
+        { name: "motorizacao", type: "text" },
+        { name: "transmission", type: "text" },
+        { name: "fuel", type: "text" },
+        { name: "min_year", type: "number" },
+        { name: "max_year", type: "number" },
+        { name: "min_price", type: "number" },
+        { name: "max_price", type: "number" },
+        { name: "max_km", type: "number" },
+        { name: "only_below_fipe", type: "bool" },
+        { name: "min_fipe_discount_pct", type: "number" },
+        { name: "notify_on_new", type: "bool" },
+        { name: "notify_on_price_drop", type: "bool" },
+        { name: "last_checked_at", type: "date" },
+        { name: "last_matched_at", type: "date" },
+        { name: "matches_count", type: "number" },
+        ...AUTODATE_FIELDS,
+      ],
+      {
+        listRule: USER_OR_ADMIN_API_RULE,
+        viewRule: USER_OR_ADMIN_API_RULE,
+        createRule: USER_CREATE_API_RULE,
+        updateRule: USER_OR_ADMIN_API_RULE,
+        deleteRule: USER_OR_ADMIN_API_RULE,
+        indexes: CAR_ALERTS_INDEXES,
+      },
+    );
+
+    if (alertsCollectionId) {
+      await this.ensureCollectionExists(
+        PB_CAR_COLLECTIONS.ALERT_NOTIFICATIONS,
+        [
+          {
+            name: "user",
+            type: "relation",
+            required: true,
+            maxSelect: 1,
+            collectionId: usersCollectionId,
+            cascadeDelete: true,
+          },
+          {
+            name: "alert",
+            type: "relation",
+            required: true,
+            maxSelect: 1,
+            collectionId: alertsCollectionId,
+            cascadeDelete: true,
+          },
+          { name: "carro_id", type: "text" },
+          { name: "car_ref", type: "text", required: true },
+          { name: "car_title", type: "text" },
+          { name: "brand", type: "text" },
+          { name: "model", type: "text" },
+          { name: "year", type: "number" },
+          { name: "mileage_km", type: "number" },
+          { name: "price", type: "number" },
+          { name: "previous_price", type: "number" },
+          { name: "fipe_price", type: "number" },
+          { name: "fipe_diff_pct", type: "number" },
+          { name: "portal", type: "text" },
+          { name: "city", type: "text" },
+          { name: "trigger_type", type: "text" },
+          { name: "dedup_key", type: "text", required: true },
+          { name: "is_read", type: "bool" },
+          { name: "read_at", type: "date" },
+          { name: "triggered_at", type: "date" },
+          ...AUTODATE_FIELDS,
+        ],
+        {
+          listRule: USER_OR_ADMIN_API_RULE,
+          viewRule: USER_OR_ADMIN_API_RULE,
+          createRule:
+            '@request.auth.id != "" && (@request.body.user = @request.auth.id || @request.auth.role = "admin")',
+          updateRule: USER_OR_ADMIN_API_RULE,
+          deleteRule: USER_OR_ADMIN_API_RULE,
+          indexes: CAR_ALERT_NOTIF_INDEXES,
+        },
+      );
+    }
 
     const runsReady = await this.ensureCollectionExists(
       PB_CAR_COLLECTIONS.CRAWLER_RUNS,
       CRAWLER_RUNS_FIELDS,
-      { deleteRule: null },
+      {
+        listRule: ADMIN_API_RULE,
+        viewRule: ADMIN_API_RULE,
+        createRule: ADMIN_API_RULE,
+        updateRule: ADMIN_API_RULE,
+        deleteRule: ADMIN_API_RULE,
+      },
     );
     if (!runsReady) this.useFallbackRuns = true;
 
     const logsReady = await this.ensureCollectionExists(
       PB_CAR_COLLECTIONS.CRAWLER_LOGS,
       CRAWLER_LOGS_FIELDS,
-      { deleteRule: null },
+      {
+        listRule: ADMIN_API_RULE,
+        viewRule: ADMIN_API_RULE,
+        createRule: ADMIN_API_RULE,
+        updateRule: ADMIN_API_RULE,
+        deleteRule: ADMIN_API_RULE,
+      },
     );
     if (!logsReady) this.useFallbackLogs = true;
 
@@ -623,6 +1029,22 @@ export class PocketBaseAdapter implements DbAdapter {
       fipe_year: data.fipeYear ?? 0,
       fipe_ref_period: data.fipeRefPeriod ?? "",
       fipe_diff_pct: data.fipeDiffPct ?? 0,
+      ...(data.firstSeenAt ? { first_seen_at: data.firstSeenAt.toISOString() } : {}),
+      ...(data.lastSeenAt ? { last_seen_at: data.lastSeenAt.toISOString() } : {}),
+      ...(data.initialPrice !== undefined ? { initial_price: data.initialPrice } : {}),
+      ...(data.lowestPrice !== undefined ? { lowest_price: data.lowestPrice } : {}),
+      ...(data.highestPrice !== undefined ? { highest_price: data.highestPrice } : {}),
+      ...(data.priceChangesCount !== undefined
+        ? { price_changes_count: data.priceChangesCount }
+        : {}),
+      ...(data.lastPriceChangeAt !== undefined
+        ? {
+            last_price_change_at: data.lastPriceChangeAt
+              ? data.lastPriceChangeAt.toISOString()
+              : "",
+          }
+        : {}),
+      listing_status: data.listingStatus ?? "active",
     };
 
     if ("ref" in data) {
@@ -630,6 +1052,12 @@ export class PocketBaseAdapter implements DbAdapter {
       payload.is_favorite = false;
       payload.is_hidden = false;
       payload.notes = "";
+      if (!data.firstSeenAt) {
+        payload.first_seen_at = data.created.toISOString();
+      }
+      if (!data.lastSeenAt) {
+        payload.last_seen_at = data.updated.toISOString();
+      }
     }
 
     if (this.uploadImages && urls.length > 0) {
@@ -709,7 +1137,225 @@ export class PocketBaseAdapter implements DbAdapter {
     if (data.isFavorite !== undefined) body.is_favorite = data.isFavorite;
     if (data.isHidden !== undefined) body.is_hidden = data.isHidden;
     if (data.notes !== undefined) body.notes = data.notes;
+    if (data.listingStatus !== undefined) body.listing_status = data.listingStatus;
     await this.pb.collection(PB_CAR_COLLECTIONS.CARROS).update(id, body);
+  }
+
+  async insertCarroHistory(data: CarroHistoryInsert): Promise<void> {
+    await this.ensureAuth();
+    await this.pb.collection(PB_CAR_COLLECTIONS.CARROS_HISTORY).create({
+      carro_id: data.carroId,
+      ref: data.ref,
+      id_listing: data.idListing ?? "",
+      portal: data.portal,
+      text_description: data.textDescription ?? "",
+      brand: data.brand ?? "",
+      model: data.model ?? "",
+      version: data.version ?? "",
+      year: data.year,
+      manufacture_year: data.manufactureYear ?? 0,
+      price: data.price,
+      previous_price: data.previousPrice ?? 0,
+      price_delta: data.priceDelta ?? 0,
+      mileage_km: data.mileageKm,
+      previous_mileage_km: data.previousMileageKm ?? 0,
+      transmission: data.transmission ?? "",
+      fuel: data.fuel ?? "",
+      engine_size: data.engineSize ?? "",
+      is_turbo: Boolean(data.isTurbo),
+      seller_type: data.sellerType ?? "",
+      neighborhood: data.neighborhood ?? "",
+      city: data.city ?? "",
+      state: data.state ?? "",
+      fipe_price: data.fipePrice ?? 0,
+      fipe_code: data.fipeCode ?? "",
+      fipe_brand: data.fipeBrand ?? "",
+      fipe_model: data.fipeModel ?? "",
+      fipe_year: data.fipeYear ?? 0,
+      fipe_ref_period: data.fipeRefPeriod ?? "",
+      fipe_diff_pct: data.fipeDiffPct ?? 0,
+      event_type: data.eventType,
+      recorded_at: data.recordedAt.toISOString(),
+    });
+  }
+
+  async getLatestCarroHistorySnapshot(ref: string): Promise<CarroHistoryRow | null> {
+    await this.ensureAuth();
+    try {
+      const res = await this.pb
+        .collection(PB_CAR_COLLECTIONS.CARROS_HISTORY)
+        .getList<Record<string, unknown>>(1, 1, {
+          filter: this.pb.filter("ref = {:ref}", { ref }),
+          sort: "-recorded_at,-created",
+        });
+      const first = res.items[0];
+      return first ? toCarroHistoryRow(first) : null;
+    } catch (err) {
+      if (isMissingCollectionError(err)) return null;
+      throw err;
+    }
+  }
+
+  async getCarroHistoryByRef(ref: string, limit = 100): Promise<CarroHistoryRow[]> {
+    await this.ensureAuth();
+    try {
+      const res = await this.pb
+        .collection(PB_CAR_COLLECTIONS.CARROS_HISTORY)
+        .getList<Record<string, unknown>>(1, limit, {
+          filter: this.pb.filter("ref = {:ref}", { ref }),
+          sort: "-recorded_at,-created",
+        });
+      return res.items.map(toCarroHistoryRow);
+    } catch (err) {
+      if (isMissingCollectionError(err)) return [];
+      throw err;
+    }
+  }
+
+  async backfillMissingCarroHistory(limit = 300): Promise<number> {
+    await this.ensureAuth();
+    let createdCount = 0;
+    let page = 1;
+
+    while (createdCount < limit) {
+      const batch = await this.pb
+        .collection(PB_CAR_COLLECTIONS.CARROS)
+        .getList<Record<string, unknown>>(page, 100, {
+          sort: "-updated",
+        });
+
+      if (batch.items.length === 0) break;
+
+      for (const raw of batch.items) {
+        if (createdCount >= limit) break;
+        const row = toCarroRow(raw);
+        if (!row.ref || !row.price || row.price <= 0) continue;
+
+        const latest = await this.getLatestCarroHistorySnapshot(row.ref);
+        if (latest) continue;
+
+        const lowerRef = row.ref.toLowerCase();
+        const portal = lowerRef.includes("olx.com.br")
+          ? "OLX Carros"
+          : lowerRef.includes("webmotors.com.br")
+            ? "Webmotors"
+            : "Outro portal";
+
+        await this.insertCarroHistory({
+          carroId: row.id,
+          ref: row.ref,
+          idListing: row.idListing,
+          portal,
+          textDescription: row.textDescription,
+          brand: row.brand ?? undefined,
+          model: row.model ?? undefined,
+          version: row.version ?? undefined,
+          year: row.year ?? 0,
+          price: row.price,
+          mileageKm: row.mileageKm ?? 0,
+          transmission: row.transmission ?? undefined,
+          fuel: row.fuel ?? undefined,
+          engineSize: row.engineSize ?? undefined,
+          isTurbo: row.isTurbo,
+          sellerType: row.sellerType ?? undefined,
+          neighborhood: row.neighborhood ?? undefined,
+          city: row.city ?? undefined,
+          state: row.state ?? undefined,
+          fipePrice: row.fipePrice ?? 0,
+          fipeCode: row.fipeCode ?? undefined,
+          fipeBrand: row.fipeBrand ?? undefined,
+          fipeModel: row.fipeModel ?? undefined,
+          fipeYear: row.fipeYear ?? 0,
+          fipeRefPeriod: row.fipeRefPeriod ?? undefined,
+          fipeDiffPct: row.fipeDiffPct ?? 0,
+          eventType: "first_seen",
+          recordedAt: row.firstSeenAt ?? row.created ?? row.updated ?? new Date(),
+        });
+        createdCount++;
+      }
+
+      if (page >= batch.totalPages) break;
+      page++;
+    }
+
+    return createdCount;
+  }
+
+  async getActiveCarAlerts(): Promise<CarAlertRow[]> {
+    await this.ensureAuth();
+    try {
+      const items = await this.pb
+        .collection(PB_CAR_COLLECTIONS.ALERTS)
+        .getFullList<Record<string, unknown>>({
+          filter: "active = true",
+        });
+      return items.map(toCarAlertRow);
+    } catch (err) {
+      if (isMissingCollectionError(err)) return [];
+      throw err;
+    }
+  }
+
+  async insertAlertNotification(data: CarAlertNotificationInsert): Promise<boolean> {
+    await this.ensureAuth();
+    try {
+      await this.pb.collection(PB_CAR_COLLECTIONS.ALERT_NOTIFICATIONS).create({
+        user: data.userId,
+        alert: data.alertId,
+        carro_id: data.carroId,
+        car_ref: data.carRef,
+        car_title: data.carTitle,
+        brand: data.brand ?? "",
+        model: data.model ?? "",
+        year: data.year ?? 0,
+        mileage_km: data.mileageKm ?? 0,
+        price: data.price,
+        previous_price: data.previousPrice ?? 0,
+        fipe_price: data.fipePrice ?? 0,
+        fipe_diff_pct: data.fipeDiffPct ?? 0,
+        portal: data.portal,
+        city: data.city ?? "",
+        trigger_type: data.triggerType,
+        dedup_key: data.dedupKey,
+        is_read: false,
+        read_at: "",
+        triggered_at: data.triggeredAt.toISOString(),
+      });
+      return true;
+    } catch (err) {
+      // Unique dedup_key constraint prevents duplicates gracefully
+      if (getHttpStatus(err) === 400) return false;
+      throw err;
+    }
+  }
+
+  async updateCarAlertStats(
+    alertId: string,
+    patch: {
+      lastCheckedAt: Date;
+      lastMatchedAt?: Date;
+      matchesIncrement?: number;
+    },
+  ): Promise<void> {
+    await this.ensureAuth();
+    try {
+      const current = await this.pb
+        .collection(PB_CAR_COLLECTIONS.ALERTS)
+        .getOne<{ matches_count?: number }>(alertId, { fields: "id,matches_count" });
+      const prevCount =
+        typeof current?.matches_count === "number" ? current.matches_count : 0;
+      await this.pb.collection(PB_CAR_COLLECTIONS.ALERTS).update(alertId, {
+        last_checked_at: patch.lastCheckedAt.toISOString(),
+        ...(patch.lastMatchedAt
+          ? { last_matched_at: patch.lastMatchedAt.toISOString() }
+          : {}),
+        ...(patch.matchesIncrement && patch.matchesIncrement > 0
+          ? { matches_count: prevCount + patch.matchesIncrement }
+          : {}),
+      });
+    } catch {
+      // Non-critical stat update
+    }
   }
 
   async updateCarroFipe(id: string, data: CarroFipePatch): Promise<void> {

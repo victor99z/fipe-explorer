@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, TrendingUp, TrendingDown, Loader2, Zap, Leaf, BatteryCharging, Fuel, Info, Search } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Loader2, Zap, Leaf, BatteryCharging, Fuel, Info, Search, History } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -34,12 +34,14 @@ export interface VehicleHistoryModalProps {
   vehicle: Vehicle | null;
   onClose: () => void;
   onSearchListings?: (vehicle: Vehicle) => void;
+  onInspectModelHistory?: (vehicle: Vehicle) => void;
 }
 
 export default function VehicleHistoryModal({
   vehicle,
   onClose,
   onSearchListings,
+  onInspectModelHistory,
 }: VehicleHistoryModalProps) {
   const [monthlyData, setMonthlyData] = useState<HistoryResponse | null>(null);
   const [yearlyData, setYearlyData] = useState<HistoryResponse | null>(null);
@@ -608,6 +610,22 @@ export default function VehicleHistoryModal({
             <span className="hidden sm:inline text-[11px] ml-1.5 tabular-nums">({vehicle.nome_marca} • {vehicle.ano_modelo})</span>
           </div>
           <div className="flex items-center gap-2">
+            {onInspectModelHistory && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  onInspectModelHistory(vehicle);
+                }}
+                className="h-8 px-3 text-xs font-medium gap-1.5 border-[#dfdfdf] dark:border-[#27272a] hover:border-[#3ecf8e]/50 cursor-pointer"
+              >
+                <History className="w-3.5 h-3.5 text-[#3ecf8e]" aria-hidden="true" />
+                <span className="hidden sm:inline">Histórico de anúncios</span>
+                <span className="sm:hidden">Histórico</span>
+              </Button>
+            )}
             {onSearchListings && (
               <Button
                 type="button"
