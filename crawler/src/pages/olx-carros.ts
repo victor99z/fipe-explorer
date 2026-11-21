@@ -75,7 +75,10 @@ export function parseOlxAddress(address: string): {
   };
 }
 
-export function isValidOlxCarUrl(rawUrl: string): boolean {
+export function isValidOlxCarUrl(
+  rawUrl: string,
+  expectedState?: string,
+): boolean {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -86,6 +89,17 @@ export function isValidOlxCarUrl(rawUrl: string): boolean {
   const host = url.hostname.toLowerCase();
   if (host !== "olx.com.br" && !host.endsWith(".olx.com.br")) {
     return false;
+  }
+
+  // Reject out-of-state OLX fallback results (e.g. sp.olx.com.br returned on an SC search)
+  if (expectedState) {
+    const stateMatch = host.match(/^([a-z]{2})\.olx\.com\.br$/);
+    if (
+      stateMatch?.[1] &&
+      stateMatch[1].toUpperCase() !== expectedState.toUpperCase()
+    ) {
+      return false;
+    }
   }
 
   if (url.pathname.startsWith("/vi/") || url.searchParams.has("rec")) {
@@ -132,15 +146,15 @@ export function mapOlxCarCard(
   raw: RawDomCarCard,
   baseUrl = DEFAULT_URL,
 ): ExtractedCarListing | null {
+  const urlLoc = inferLocationFromUrl(baseUrl);
   const resolved = resolveListingUrl(raw.href, baseUrl);
-  if (!resolved || !isValidOlxCarUrl(resolved)) return null;
+  if (!resolved || !isValidOlxCarUrl(resolved, urlLoc.state)) return null;
 
   const ref = canonicalizeRefUrl(resolved);
   const price = parseCurrencyToNumber(raw.price);
   const parsed = parseCarText(raw.title, `${raw.details} ${raw.seller}`);
   if (isNonCarListing(raw.title, ref, parsed.brand)) return null;
   const loc = parseOlxAddress(raw.address);
-  const urlLoc = inferLocationFromUrl(baseUrl);
   const imageCandidates = raw.images?.length ? raw.images : raw.image ? [raw.image] : [];
   const images = filterOlxCarImages(imageCandidates, baseUrl);
 
@@ -189,7 +203,7 @@ export function parseOlxNextData(
   for (const ad of rawAds) {
     const rawUrl = typeof ad.url === "string" ? ad.url : "";
     const resolved = resolveListingUrl(rawUrl, baseUrl);
-    if (!resolved || !isValidOlxCarUrl(resolved)) continue;
+    if (!resolved || !isValidOlxCarUrl(resolved, urlLoc.state)) continue;
 
     const ref = canonicalizeRefUrl(resolved);
     const title = String(ad.subject ?? ad.title ?? "").trim();
@@ -319,10 +333,11 @@ export const getOlxCarros = (
       buildPageUrl: buildQueryPageUrl("o"),
       extract: async (page) => {
         const nextData = await extractNextDataScript(page);
+        const targetState = inferLocationFromUrl(siteUrl).state;
         const fromNextData = parseOlxNextData(nextData, siteUrl);
         const fromJsonLd = (await extractJsonLdCarListings(page, 600)).filter(
           (item) =>
-            isValidOlxCarUrl(item.ref) &&
+            isValidOlxCarUrl(item.ref, targetState) &&
             !isNonCarListing(
               item.text_description,
               item.ref,

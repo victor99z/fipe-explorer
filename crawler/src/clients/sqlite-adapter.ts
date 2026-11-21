@@ -3,8 +3,10 @@ import { mkdirSync } from "fs";
 import { dirname } from "path";
 import { isNonCarListing } from "../utils/car-parser";
 import {
+  DEFAULT_OLX_BLUMENAU_URL,
   DEFAULT_OLX_CARS_URL,
   DEFAULT_SEED_LISTINGS,
+  LEGACY_OLX_BLUMENAU_URL,
   LEGACY_OLX_CARS_URL,
   LEGACY_OLX_JOINVILLE_URL,
   type CarAlertNotificationInsert,
@@ -450,6 +452,12 @@ export class SqliteAdapter implements DbAdapter {
         LEGACY_OLX_CARS_URL,
         LEGACY_OLX_JOINVILLE_URL,
       );
+
+    this.db
+      .prepare(
+        "UPDATE car_listings SET url = ?, updated = ? WHERE name = 'olx-blumenau' AND url = ?",
+      )
+      .run(DEFAULT_OLX_BLUMENAU_URL, now, LEGACY_OLX_BLUMENAU_URL);
 
     this.initialized = true;
   }

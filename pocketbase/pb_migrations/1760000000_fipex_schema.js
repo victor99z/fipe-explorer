@@ -139,7 +139,7 @@ migrate((app) => {
         name: "olx-blumenau",
         active: true,
         last_page: 1,
-        url: "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-sc/regiao-de-blumenau",
+        url: "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-sc/blumenau",
         max_pages: 25,
         delay_ms: 2500,
       },
@@ -149,6 +149,14 @@ migrate((app) => {
         last_page: 1,
         url: "https://www.webmotors.com.br/carros/sc-blumenau",
         max_pages: 25,
+        delay_ms: 2500,
+      },
+      {
+        name: "olx-jaragua-do-sul",
+        active: true,
+        last_page: 1,
+        url: "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-sc/jaragua-do-sul",
+        max_pages: 20,
         delay_ms: 2500,
       },
       {

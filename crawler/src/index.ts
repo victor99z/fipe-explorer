@@ -9,6 +9,7 @@ import { checkListingUrlAvailability } from "./services/listing-availability";
 
 interface CliOptions {
   pageStartOverride: number | null;
+  maxPagesOverride: number | null;
   shouldDelete: boolean;
   cleanOlx: boolean;
   seedOnly: boolean;
@@ -30,6 +31,7 @@ function parsePositiveIntArg(argv: string[], prefix: string): number | null {
 
 function parseCliArgs(argv: string[]): CliOptions {
   const pageStartOverride = parsePositiveIntArg(argv, "--page-start=");
+  const maxPagesOverride = parsePositiveIntArg(argv, "--max-pages=");
   const sampleLimit =
     parsePositiveIntArg(argv, "--sample=") ??
     parsePositiveIntArg(argv, "--limit=");
@@ -48,6 +50,7 @@ function parseCliArgs(argv: string[]): CliOptions {
 
   return {
     pageStartOverride,
+    maxPagesOverride,
     shouldDelete,
     cleanOlx,
     seedOnly,
@@ -126,6 +129,7 @@ function hasPocketBaseCredentials(): boolean {
 async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
   const {
     pageStartOverride,
+    maxPagesOverride,
     shouldDelete,
     cleanOlx,
     seedOnly,
@@ -143,6 +147,7 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
   Logger.info(
     {
       pageStartOverride,
+      maxPagesOverride,
       shouldDelete,
       cleanOlx,
       seedOnly,
@@ -254,10 +259,13 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
       continue;
     }
 
-    const maxPages = item.maxPages ?? 50;
+    const configuredMaxPages = item.maxPages ?? 50;
     const resumedPage =
-      item.lastPage >= 1 && item.lastPage < maxPages ? item.lastPage : 1;
+      item.lastPage >= 1 && item.lastPage < configuredMaxPages ? item.lastPage : 1;
     const startPage = pageStartOverride ?? resumedPage;
+    const effectiveMaxPages = maxPagesOverride
+      ? Math.min(startPage + maxPagesOverride - 1, configuredMaxPages)
+      : configuredMaxPages;
     const cycleStartedAt = new Date();
     let runId: { id: number } | null = null;
 
@@ -269,7 +277,7 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
       );
 
       const stats = await runner(item.id, runId.id, startPage, {
-        maxPages: sampleLimit ? startPage : maxPages,
+        maxPages: sampleLimit ? startPage : effectiveMaxPages,
         maxListings: sampleLimit ?? undefined,
         delayMs: item.delayMs,
         siteUrl: item.url ?? undefined,
@@ -282,6 +290,7 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
 
       if (
         sampleLimit === null &&
+        maxPagesOverride === null &&
         startPage === 1 &&
         stats.reachedNaturalEnd &&
         stats.errors === 0

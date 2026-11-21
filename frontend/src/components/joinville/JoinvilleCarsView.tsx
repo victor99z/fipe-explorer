@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import {
   applyCarImageFallback,
+  DEFAULT_REGIONAL_CITIES,
   fetchCarFacetsAndStats,
   fetchPagedCarListings,
   updateCarCuration,
@@ -130,7 +131,7 @@ export default function JoinvilleCarsView({
     totalActive: 0,
     belowFipeCount: 0,
     avgPrice: 0,
-    cities: ['Joinville'],
+    cities: [...DEFAULT_REGIONAL_CITIES],
     brands: [],
     fuels: [],
   });

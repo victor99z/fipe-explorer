@@ -176,6 +176,32 @@ export interface CarFacetsAndStats {
   fuels: string[];
 }
 
+export const DEFAULT_REGIONAL_CITIES = [
+  'Joinville',
+  'Curitiba',
+  'Blumenau',
+  'Jaraguá do Sul',
+  'Florianópolis',
+] as const;
+
+export function mergeAndSortRegionalCities(
+  observedCities: Iterable<string>,
+): string[] {
+  const cities = new Set<string>(DEFAULT_REGIONAL_CITIES);
+  for (const city of observedCities) {
+    const trimmed = city.trim();
+    if (trimmed) cities.add(trimmed);
+  }
+  return [...cities].sort((a, b) => {
+    const ia = (DEFAULT_REGIONAL_CITIES as readonly string[]).indexOf(a);
+    const ib = (DEFAULT_REGIONAL_CITIES as readonly string[]).indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a.localeCompare(b, 'pt-BR');
+  });
+}
+
 function safeStorageGet(key: string): string | null {
   try {
     return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
@@ -875,29 +901,24 @@ export async function fetchCarFacetsAndStats(
       .catch(() => ({ items: [] as Record<string, unknown>[] })),
     pb
       .collection(PB_CAR_COLLECTIONS.CARROS)
-      .getList<Record<string, unknown>>(1, 500, {
+      .getFullList<Record<string, unknown>>({
         filter: `${ACTIVE_LISTING_FILTER} && city != ""`,
+        sort: '-updated',
         fields: 'city',
+        batch: 1000,
       })
-      .catch(() => ({ items: [] as Record<string, unknown>[] })),
+      .catch(() => [] as Record<string, unknown>[]),
   ]);
 
-  const PRIORITY_CITIES = [
-    'Joinville',
-    'Curitiba',
-    'Blumenau',
-    'Jaraguá do Sul',
-    'Florianópolis',
-  ];
-  const cities = new Set<string>(['Joinville']);
+  const observedCities: string[] = [];
   const brands = new Set<string>();
   const fuels = new Set<string>();
   let priceSum = 0;
   let priceCount = 0;
 
-  for (const r of citiesRes.items) {
+  for (const r of citiesRes) {
     const c = toStringVal(r.city);
-    if (c) cities.add(c);
+    if (c) observedCities.push(c);
   }
 
   for (const r of sampleRes.items) {
@@ -916,14 +937,7 @@ export async function fetchCarFacetsAndStats(
     totalActive: totalRes.totalItems,
     belowFipeCount: belowRes.totalItems,
     avgPrice: priceCount > 0 ? priceSum / priceCount : 0,
-    cities: [...cities].sort((a, b) => {
-      const ia = PRIORITY_CITIES.indexOf(a);
-      const ib = PRIORITY_CITIES.indexOf(b);
-      if (ia !== -1 && ib !== -1) return ia - ib;
-      if (ia !== -1) return -1;
-      if (ib !== -1) return 1;
-      return a.localeCompare(b);
-    }),
+    cities: mergeAndSortRegionalCities(observedCities),
     brands: [...brands].sort(),
     fuels: [...fuels].sort(),
   };

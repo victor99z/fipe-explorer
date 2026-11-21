@@ -19,6 +19,18 @@ describe("OLX carros scraper", () => {
     expect(
       isValidOlxCarUrl(
         "https://sc.olx.com.br/norte-de-santa-catarina/autos-e-pecas/carros-vans-e-utilitarios/honda-civic-2020-1234567890",
+        "SC",
+      ),
+    ).toBe(true);
+    expect(
+      isValidOlxCarUrl(
+        "https://sp.olx.com.br/sao-paulo-e-regiao/autos-e-pecas/carros-vans-e-utilitarios/honda-civic-2020-1234567890",
+        "SC",
+      ),
+    ).toBe(false);
+    expect(
+      isValidOlxCarUrl(
+        "https://sc.olx.com.br/norte-de-santa-catarina/autos-e-pecas/carros-vans-e-utilitarios/honda-civic-2020-1234567890",
       ),
     ).toBe(true);
     expect(

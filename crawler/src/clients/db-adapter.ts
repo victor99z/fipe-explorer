@@ -8,6 +8,12 @@ export const LEGACY_OLX_CARS_URL =
 export const LEGACY_OLX_JOINVILLE_URL =
   "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-sc/norte-de-santa-catarina/joinville";
 
+export const LEGACY_OLX_BLUMENAU_URL =
+  "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-sc/regiao-de-blumenau";
+
+export const DEFAULT_OLX_BLUMENAU_URL =
+  "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-sc/blumenau";
+
 export const DEFAULT_OLX_CARS_URL =
   "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-sc/norte-de-santa-catarina";
 
@@ -53,7 +59,7 @@ export const DEFAULT_SEED_LISTINGS: readonly SeedListing[] = [
     name: "olx-blumenau",
     active: true,
     lastPage: 1,
-    url: "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-sc/regiao-de-blumenau",
+    url: DEFAULT_OLX_BLUMENAU_URL,
     maxPages: 25,
     delayMs: 2500,
   },
@@ -64,6 +70,15 @@ export const DEFAULT_SEED_LISTINGS: readonly SeedListing[] = [
     lastPage: 1,
     url: "https://www.webmotors.com.br/carros/sc-blumenau",
     maxPages: 25,
+    delayMs: 2500,
+  },
+  {
+    id: "listing-olx-jaragua",
+    name: "olx-jaragua-do-sul",
+    active: true,
+    lastPage: 1,
+    url: "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-sc/jaragua-do-sul",
+    maxPages: 20,
     delayMs: 2500,
   },
   {

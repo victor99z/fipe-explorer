@@ -43,6 +43,7 @@ import {
   type ModelHistoryResult,
 } from '../../services/modelHistory';
 import {
+  DEFAULT_REGIONAL_CITIES,
   mapCarRecord,
   PB_CAR_COLLECTIONS,
   updateCarCuration,
@@ -175,7 +176,7 @@ export default function ModelHistoryView({
   const [error, setError] = useState<string | null>(null);
   const [facets, setFacets] = useState<ModelHistoryFacets>({
     brands: [],
-    cities: [],
+    cities: [...DEFAULT_REGIONAL_CITIES],
     modelChips: [],
   });
   const [activeTab, setActiveTab] = useState<HistoryTab>('ads');

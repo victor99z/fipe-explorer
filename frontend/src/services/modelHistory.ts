@@ -1,6 +1,8 @@
 import PocketBase, { ClientResponseError } from 'pocketbase';
 import {
   buildTokenizedSearchClauses,
+  DEFAULT_REGIONAL_CITIES,
+  mergeAndSortRegionalCities,
   PB_CAR_COLLECTIONS,
 } from './pocketbase';
 import { inferPortalName, normalizeSearchText } from '../lib/formatters';
@@ -383,7 +385,7 @@ export async function fetchHistoryFacets(
       });
 
     const brands = new Set<string>();
-    const cities = new Set<string>();
+    const observedCities: string[] = [];
     const modelCounts = new Map<string, { query: string; label: string; count: number }>();
 
     for (const r of res.items) {
@@ -391,7 +393,7 @@ export async function fetchHistoryFacets(
       const m = toStr(r.model);
       const c = toStr(r.city);
       if (b) brands.add(b);
-      if (c) cities.add(c);
+      if (c) observedCities.push(c);
       if (b && m) {
         const key = `${b.toLowerCase()}::${m.toLowerCase()}`;
         const existing = modelCounts.get(key);
@@ -413,13 +415,11 @@ export async function fetchHistoryFacets(
 
     return {
       brands: [...brands].sort((a, b) => a.localeCompare(b)),
-      cities: [...cities].sort((a, b) =>
-        a === 'Joinville' ? -1 : b === 'Joinville' ? 1 : a.localeCompare(b),
-      ),
+      cities: mergeAndSortRegionalCities(observedCities),
       modelChips,
     };
   } catch {
-    return { brands: [], cities: [], modelChips: [] };
+    return { brands: [], cities: [...DEFAULT_REGIONAL_CITIES], modelChips: [] };
   }
 }
 

@@ -3,8 +3,10 @@ import { Logger } from "../config/logger";
 import { isNonCarListing } from "../utils/car-parser";
 import { DownloadImageAndCreateFile } from "../utils/download-image";
 import {
+  DEFAULT_OLX_BLUMENAU_URL,
   DEFAULT_OLX_CARS_URL,
   DEFAULT_SEED_LISTINGS,
+  LEGACY_OLX_BLUMENAU_URL,
   LEGACY_OLX_CARS_URL,
   LEGACY_OLX_JOINVILLE_URL,
   type CarAlertNotificationInsert,
@@ -979,6 +981,14 @@ export class PocketBaseAdapter implements DbAdapter {
             url: DEFAULT_OLX_CARS_URL,
           });
           Logger.info("Migrated olx-carros URL to regional Norte de SC cars target");
+        } else if (
+          rec.name === "olx-blumenau" &&
+          rec.url === LEGACY_OLX_BLUMENAU_URL
+        ) {
+          await this.pb.collection(PB_CAR_COLLECTIONS.LISTINGS).update(rec.id, {
+            url: DEFAULT_OLX_BLUMENAU_URL,
+          });
+          Logger.info("Migrated olx-blumenau URL to valid estado-sc/blumenau target");
         }
       }
 
