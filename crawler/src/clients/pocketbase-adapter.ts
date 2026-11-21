@@ -6,6 +6,7 @@ import {
   DEFAULT_OLX_CARS_URL,
   DEFAULT_SEED_LISTINGS,
   LEGACY_OLX_CARS_URL,
+  LEGACY_OLX_JOINVILLE_URL,
   type CarAlertNotificationInsert,
   type CarAlertRow,
   type CarroFipePatch,
@@ -970,11 +971,14 @@ export class PocketBaseAdapter implements DbAdapter {
       );
 
       for (const rec of existing) {
-        if (rec.name === "olx-carros" && rec.url === LEGACY_OLX_CARS_URL) {
+        if (
+          rec.name === "olx-carros" &&
+          (rec.url === LEGACY_OLX_CARS_URL || rec.url === LEGACY_OLX_JOINVILLE_URL)
+        ) {
           await this.pb.collection(PB_CAR_COLLECTIONS.LISTINGS).update(rec.id, {
             url: DEFAULT_OLX_CARS_URL,
           });
-          Logger.info("Migrated olx-carros URL to cars-only category");
+          Logger.info("Migrated olx-carros URL to regional Norte de SC cars target");
         }
       }
 
@@ -1138,6 +1142,9 @@ export class PocketBaseAdapter implements DbAdapter {
     if (data.isHidden !== undefined) body.is_hidden = data.isHidden;
     if (data.notes !== undefined) body.notes = data.notes;
     if (data.listingStatus !== undefined) body.listing_status = data.listingStatus;
+    if (data.lastSeenAt !== undefined) {
+      body.last_seen_at = data.lastSeenAt.toISOString();
+    }
     await this.pb.collection(PB_CAR_COLLECTIONS.CARROS).update(id, body);
   }
 
@@ -1386,6 +1393,37 @@ export class PocketBaseAdapter implements DbAdapter {
           "id,ref,text_description,price,year,brand,model,version,transmission,fuel,engine_size,is_turbo,fipe_price",
       });
     return res.items.map(toCarroRow);
+  }
+
+  async getActiveCarrosStaleSince(
+    seenBefore: Date,
+    limit: number,
+    idListing?: string,
+  ): Promise<CarroRow[]> {
+    await this.ensureAuth();
+    const baseFilter = idListing
+      ? this.pb.filter(
+          '(listing_status = "" || listing_status = "active") && id_listing = {:lid}',
+          { lid: idListing },
+        )
+      : '(listing_status = "" || listing_status = "active")';
+
+    const perPage = Math.min(Math.max(limit * 2, 100), 500);
+    const res = await this.pb
+      .collection(PB_CAR_COLLECTIONS.CARROS)
+      .getList<Record<string, unknown>>(1, perPage, {
+        filter: baseFilter,
+        sort: "last_seen_at,updated",
+      });
+
+    const cutoffMs = seenBefore.getTime();
+    return res.items
+      .map(toCarroRow)
+      .filter((row) => {
+        const seenAt = row.lastSeenAt ?? row.updated ?? row.created;
+        return seenAt ? seenAt.getTime() < cutoffMs : true;
+      })
+      .slice(0, limit);
   }
 
   async deleteCarro(id: string): Promise<void> {

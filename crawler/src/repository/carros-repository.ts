@@ -531,6 +531,97 @@ export class CarrosRepository {
     return getAdapter().backfillMissingCarroHistory(limit);
   }
 
+  static async getActiveStaleSince(
+    seenBefore: Date,
+    limit = 100,
+    idListing?: string,
+  ): Promise<CarroRow[]> {
+    return getAdapter().getActiveCarrosStaleSince(seenBefore, limit, idListing);
+  }
+
+  static async touchLastSeen(id: string, now = new Date()): Promise<void> {
+    await getAdapter().patchCarro(id, {
+      lastSeenAt: now,
+      updated: now,
+    });
+  }
+
+  static async markListingInactive(
+    carro: CarroRow,
+    reason: string,
+    now = new Date(),
+  ): Promise<void> {
+    const db = getAdapter();
+    await db.patchCarro(carro.id, {
+      listingStatus: "inactive",
+      updated: now,
+    });
+
+    try {
+      const price = carro.price ?? 0;
+      if (price > 0) {
+        await db.insertCarroHistory({
+          carroId: carro.id,
+          ref: carro.ref,
+          idListing: carro.idListing,
+          portal: inferPortalName(carro.ref),
+          textDescription: carro.textDescription,
+          brand: carro.brand ?? undefined,
+          model: carro.model ?? undefined,
+          version: carro.version ?? undefined,
+          year: carro.year ?? 0,
+          price,
+          mileageKm: carro.mileageKm ?? 0,
+          transmission: carro.transmission ?? undefined,
+          fuel: carro.fuel ?? undefined,
+          engineSize: carro.engineSize ?? undefined,
+          isTurbo: carro.isTurbo,
+          sellerType: carro.sellerType ?? undefined,
+          neighborhood: carro.neighborhood ?? undefined,
+          city: carro.city ?? undefined,
+          state: carro.state ?? undefined,
+          fipePrice: carro.fipePrice ?? undefined,
+          fipeCode: carro.fipeCode ?? undefined,
+          fipeBrand: carro.fipeBrand ?? undefined,
+          fipeModel: carro.fipeModel ?? undefined,
+          fipeYear: carro.fipeYear ?? undefined,
+          fipeRefPeriod: carro.fipeRefPeriod ?? undefined,
+          fipeDiffPct: carro.fipeDiffPct ?? undefined,
+          eventType: "status_change",
+          recordedAt: now,
+        });
+      }
+    } catch (err) {
+      Logger.warn(
+        { err: err instanceof Error ? err.message : String(err), ref: carro.ref, reason },
+        "Failed to record status_change history snapshot",
+      );
+    }
+  }
+
+  static async deactivateUnseenForListing(
+    idListing: string,
+    seenBefore: Date,
+    limit = 500,
+    now = new Date(),
+  ): Promise<number> {
+    const staleRows = await getAdapter().getActiveCarrosStaleSince(
+      seenBefore,
+      limit,
+      idListing,
+    );
+    let count = 0;
+    for (const row of staleRows) {
+      await CarrosRepository.markListingInactive(
+        row,
+        "missing_from_complete_crawl",
+        now,
+      );
+      count++;
+    }
+    return count;
+  }
+
   static async getListingById(id: string): Promise<ListingRow> {
     const row = await getAdapter().getListingById(id);
     if (!row) throw new Error(`Listing not found: ${id}`);

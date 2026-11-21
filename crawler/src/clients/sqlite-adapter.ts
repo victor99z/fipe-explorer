@@ -6,6 +6,7 @@ import {
   DEFAULT_OLX_CARS_URL,
   DEFAULT_SEED_LISTINGS,
   LEGACY_OLX_CARS_URL,
+  LEGACY_OLX_JOINVILLE_URL,
   type CarAlertNotificationInsert,
   type CarAlertRow,
   type CarroFipePatch,
@@ -440,8 +441,15 @@ export class SqliteAdapter implements DbAdapter {
     }
 
     this.db
-      .prepare("UPDATE car_listings SET url = ?, updated = ? WHERE name = 'olx-carros' AND url = ?")
-      .run(DEFAULT_OLX_CARS_URL, now, LEGACY_OLX_CARS_URL);
+      .prepare(
+        "UPDATE car_listings SET url = ?, updated = ? WHERE name = 'olx-carros' AND (url = ? OR url = ?)",
+      )
+      .run(
+        DEFAULT_OLX_CARS_URL,
+        now,
+        LEGACY_OLX_CARS_URL,
+        LEGACY_OLX_JOINVILLE_URL,
+      );
 
     this.initialized = true;
   }
@@ -632,6 +640,32 @@ export class SqliteAdapter implements DbAdapter {
     return rows.map(mapCarroRow);
   }
 
+  async getActiveCarrosStaleSince(
+    seenBefore: Date,
+    limit: number,
+    idListing?: string,
+  ): Promise<CarroRow[]> {
+    const cutoff = seenBefore.toISOString();
+    const sql = idListing
+      ? `SELECT * FROM carros_temp
+         WHERE (listing_status = '' OR listing_status = 'active')
+           AND id_listing = ?
+           AND COALESCE(last_seen_at, updated, created) < ?
+         ORDER BY COALESCE(last_seen_at, updated, created) ASC
+         LIMIT ?`
+      : `SELECT * FROM carros_temp
+         WHERE (listing_status = '' OR listing_status = 'active')
+           AND COALESCE(last_seen_at, updated, created) < ?
+         ORDER BY COALESCE(last_seen_at, updated, created) ASC
+         LIMIT ?`;
+    const rows = (
+      idListing
+        ? this.db.prepare(sql).all(idListing, cutoff, limit)
+        : this.db.prepare(sql).all(cutoff, limit)
+    ) as Record<string, unknown>[];
+    return rows.map(mapCarroRow);
+  }
+
   async patchCarro(id: string, data: CarroPatch): Promise<void> {
     const sets: string[] = ["updated = ?"];
     const params: SQLQueryBindings[] = [data.updated.toISOString()];
@@ -659,6 +693,10 @@ export class SqliteAdapter implements DbAdapter {
     if (data.listingStatus !== undefined) {
       sets.push("listing_status = ?");
       params.push(data.listingStatus);
+    }
+    if (data.lastSeenAt !== undefined) {
+      sets.push("last_seen_at = ?");
+      params.push(data.lastSeenAt.toISOString());
     }
     params.push(id);
     this.db

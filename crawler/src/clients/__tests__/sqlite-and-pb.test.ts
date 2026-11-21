@@ -22,13 +22,50 @@ describe("SqliteAdapter & Repositories integration", () => {
     adapter.close();
   });
 
-  test("seeds olx-carros and webmotors-carros listings", async () => {
+  test("seeds regional olx and webmotors listings including Joinville and Curitiba", async () => {
     const listings = await CarrosRepository.getAllListings();
     expect(listings.map((l) => l.name)).toEqual([
+      "olx-blumenau",
       "olx-carros",
+      "olx-curitiba",
+      "olx-florianopolis",
+      "webmotors-blumenau",
       "webmotors-carros",
+      "webmotors-curitiba",
+      "webmotors-florianopolis",
+      "webmotors-jaragua-do-sul",
     ]);
     expect(listings.every((l) => l.active)).toBe(true);
+  });
+
+  test("deactivates unseen active listings and records status_change snapshot", async () => {
+    const oldCar = await CarrosRepository.create({
+      ref: "https://pr.olx.com.br/regiao-de-curitiba/autos-e-pecas/carros-vans-e-utilitarios/onix-123",
+      text_description: "Chevrolet Onix LT 2021",
+      id_listing: "listing-olx-curitiba",
+      features: {
+        price: 68900,
+        year: 2021,
+        mileage_km: 41000,
+        brand: "Chevrolet",
+        model: "Onix",
+        city: "Curitiba",
+        state: "PR",
+      },
+    });
+
+    const staleCutoff = new Date(Date.now() + 60_000);
+    const deactivated = await CarrosRepository.deactivateUnseenForListing(
+      "listing-olx-curitiba",
+      staleCutoff,
+    );
+    expect(deactivated).toBe(1);
+
+    const updatedRow = await CarrosRepository.getById(oldCar.id);
+    expect(updatedRow?.listingStatus).toBe("inactive");
+
+    const history = await CarrosRepository.getHistoryByRef(oldCar.ref);
+    expect(history.some((h) => h.eventType === "status_change")).toBe(true);
   });
 
   test("upserts car by ref, preserves curation flags, and tracks price/km history", async () => {
@@ -321,6 +358,13 @@ describe("PocketBaseAdapter unit tests (mocked client)", () => {
     expect(createdListings.map((l) => l.name)).toEqual([
       "olx-carros",
       "webmotors-carros",
+      "olx-curitiba",
+      "webmotors-curitiba",
+      "olx-blumenau",
+      "webmotors-blumenau",
+      "webmotors-jaragua-do-sul",
+      "olx-florianopolis",
+      "webmotors-florianopolis",
     ]);
   });
 });

@@ -1,10 +1,11 @@
 import { getAdapter } from "./clients/db";
 import { Logger } from "./config/logger";
-import { SCRAPER_REGISTRY } from "./pages";
+import { resolveScraperForListing } from "./pages";
 import type { ExtractedCarListing } from "./pages/base-scraper";
 import { CarrosRepository } from "./repository/carros-repository";
 import { CrawlerRunsRepository } from "./repository/crawler-runs-repository";
 import { backfillUnmatchedCarros } from "./services/fipe-enricher";
+import { checkListingUrlAvailability } from "./services/listing-availability";
 
 interface CliOptions {
   pageStartOverride: number | null;
@@ -13,6 +14,7 @@ interface CliOptions {
   seedOnly: boolean;
   backfillFipe: boolean;
   backfillHistory: boolean;
+  verifyStale: boolean;
   sampleLimit: number | null;
   allSites: boolean;
   siteFilter: string | null;
@@ -38,6 +40,7 @@ function parseCliArgs(argv: string[]): CliOptions {
   const seedOnly = argv.includes("--seed-only");
   const backfillFipe = argv.includes("--backfill-fipe");
   const backfillHistory = argv.includes("--backfill-history");
+  const verifyStale = argv.includes("--verify-stale");
   const allSites = argv.includes("--all-sites");
   const daemon = argv.includes("--daemon");
   const siteArg = argv.find((arg) => arg.startsWith("--site="));
@@ -50,11 +53,58 @@ function parseCliArgs(argv: string[]): CliOptions {
     seedOnly,
     backfillFipe,
     backfillHistory,
+    verifyStale,
     sampleLimit,
     allSites,
     siteFilter,
     daemon,
   };
+}
+
+async function runVerifyStalePass(params: {
+  limit: number;
+  minAgeHours: number;
+  ttlExpireHours: number;
+}): Promise<{ checked: number; deactivated: number; renewed: number }> {
+  const now = new Date();
+  const staleCutoff = new Date(now.getTime() - params.minAgeHours * 3_600_000);
+  const ttlCutoff = new Date(now.getTime() - params.ttlExpireHours * 3_600_000);
+  const candidates = await CarrosRepository.getActiveStaleSince(
+    staleCutoff,
+    params.limit,
+  );
+
+  let checked = 0;
+  let deactivated = 0;
+  let renewed = 0;
+
+  for (const row of candidates) {
+    checked++;
+    const status = await checkListingUrlAvailability(row.ref);
+    if (status === "inactive") {
+      await CarrosRepository.markListingInactive(row, "unavailable_url", now);
+      deactivated++;
+    } else if (status === "active") {
+      await CarrosRepository.touchLastSeen(row.id, now);
+      renewed++;
+    } else {
+      const lastSeen = row.lastSeenAt ?? row.updated ?? row.created;
+      if (lastSeen && lastSeen.getTime() < ttlCutoff.getTime()) {
+        await CarrosRepository.markListingInactive(row, "ttl_expired", now);
+        deactivated++;
+      }
+    }
+    if (checked < candidates.length) {
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  }
+
+  return { checked, deactivated, renewed };
+}
+
+function resolveTtlExpireHours(): number {
+  const raw = parseFloat(process.env.STALE_AD_TTL_HOURS ?? "168");
+  return Number.isFinite(raw) && raw >= 24 ? raw : 168;
 }
 
 function resolveIntervalMs(): number {
@@ -81,6 +131,7 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
     seedOnly,
     backfillFipe,
     backfillHistory,
+    verifyStale,
     sampleLimit,
     allSites,
     siteFilter,
@@ -141,6 +192,17 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
     return;
   }
 
+  if (verifyStale) {
+    const res = await runVerifyStalePass({
+      limit: sampleLimit ?? 100,
+      minAgeHours: 12,
+      ttlExpireHours: resolveTtlExpireHours(),
+    });
+    Logger.info(res, "Completed stale ad availability verification");
+    await CrawlerRunsRepository.flushLogs();
+    return;
+  }
+
   try {
     const cleaned = await CarrosRepository.deleteInvalidOlxInBatch();
     if (cleaned.deleted > 0) {
@@ -183,9 +245,12 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
     if (siteFilter && item.name !== siteFilter) continue;
     if (!siteFilter && !allSites && !item.active) continue;
 
-    const runner = SCRAPER_REGISTRY[item.name];
+    const runner = resolveScraperForListing(item.name, item.url);
     if (!runner) {
-      Logger.warn({ site: item.name }, `No scraper registered for ${item.name}`);
+      Logger.warn(
+        { site: item.name, url: item.url },
+        `No scraper registered for ${item.name}`,
+      );
       continue;
     }
 
@@ -193,12 +258,13 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
     const resumedPage =
       item.lastPage >= 1 && item.lastPage < maxPages ? item.lastPage : 1;
     const startPage = pageStartOverride ?? resumedPage;
+    const cycleStartedAt = new Date();
     let runId: { id: number } | null = null;
 
     try {
       runId = await CrawlerRunsRepository.create(item.name);
       Logger.info(
-        { site: item.name, runId: runId.id, startPage },
+        { site: item.name, runId: runId.id, startPage, url: item.url },
         `[${item.name}] Starting car crawler (run #${runId.id})...`,
       );
 
@@ -207,10 +273,29 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
         maxListings: sampleLimit ?? undefined,
         delayMs: item.delayMs,
         siteUrl: item.url ?? undefined,
+        siteLabel: item.name,
       });
 
       if (sampleLimit !== null && stats.samples) {
         sampleResults[item.name] = stats.samples;
+      }
+
+      if (
+        sampleLimit === null &&
+        startPage === 1 &&
+        stats.reachedNaturalEnd &&
+        stats.errors === 0
+      ) {
+        const deactivated = await CarrosRepository.deactivateUnseenForListing(
+          item.id,
+          cycleStartedAt,
+        );
+        if (deactivated > 0) {
+          Logger.info(
+            { site: item.name, deactivated },
+            `[${item.name}] Marked ${deactivated} missing ad(s) as inactive after complete crawl`,
+          );
+        }
       }
 
       await CrawlerRunsRepository.finish(runId.id, {
@@ -239,6 +324,22 @@ async function runSingleCrawlCycle(options: CliOptions): Promise<void> {
     console.log(JSON.stringify(sampleResults, null, 2));
     await CrawlerRunsRepository.flushLogs();
     process.exit(0);
+  }
+
+  try {
+    const staleCheck = await runVerifyStalePass({
+      limit: 25,
+      minAgeHours: 24,
+      ttlExpireHours: resolveTtlExpireHours(),
+    });
+    if (staleCheck.checked > 0) {
+      Logger.info(staleCheck, "Post-crawl stale availability pass finished");
+    }
+  } catch (err) {
+    Logger.warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      "Post-crawl stale availability pass skipped",
+    );
   }
 
   Logger.info("Car crawl complete.");

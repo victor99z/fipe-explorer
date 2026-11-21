@@ -5,8 +5,11 @@ export type { SeedListing } from "../models/listing";
 export const LEGACY_OLX_CARS_URL =
   "https://www.olx.com.br/autos-e-pecas/estado-sc/norte-de-santa-catarina/joinville";
 
-export const DEFAULT_OLX_CARS_URL =
+export const LEGACY_OLX_JOINVILLE_URL =
   "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-sc/norte-de-santa-catarina/joinville";
+
+export const DEFAULT_OLX_CARS_URL =
+  "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-sc/norte-de-santa-catarina";
 
 export const DEFAULT_SEED_LISTINGS: readonly SeedListing[] = [
   {
@@ -25,6 +28,69 @@ export const DEFAULT_SEED_LISTINGS: readonly SeedListing[] = [
     lastPage: 1,
     url: "https://www.webmotors.com.br/carros/sc-joinville=1?tipoveiculo=carros&estadocidade=Santa%20Catarina-joinville%3D1&page=1",
     maxPages: 50,
+    delayMs: 2500,
+  },
+  {
+    id: "listing-olx-curitiba",
+    name: "olx-curitiba",
+    active: true,
+    lastPage: 1,
+    url: "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-pr/curitiba",
+    maxPages: 30,
+    delayMs: 2500,
+  },
+  {
+    id: "listing-webmotors-curitiba",
+    name: "webmotors-curitiba",
+    active: true,
+    lastPage: 1,
+    url: "https://www.webmotors.com.br/carros/pr-curitiba",
+    maxPages: 30,
+    delayMs: 2500,
+  },
+  {
+    id: "listing-olx-blumenau",
+    name: "olx-blumenau",
+    active: true,
+    lastPage: 1,
+    url: "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-sc/regiao-de-blumenau",
+    maxPages: 25,
+    delayMs: 2500,
+  },
+  {
+    id: "listing-webmotors-blumenau",
+    name: "webmotors-blumenau",
+    active: true,
+    lastPage: 1,
+    url: "https://www.webmotors.com.br/carros/sc-blumenau",
+    maxPages: 25,
+    delayMs: 2500,
+  },
+  {
+    id: "listing-webmotors-jaragua",
+    name: "webmotors-jaragua-do-sul",
+    active: true,
+    lastPage: 1,
+    url: "https://www.webmotors.com.br/carros/sc-jaragua-do-sul",
+    maxPages: 20,
+    delayMs: 2500,
+  },
+  {
+    id: "listing-olx-florianopolis",
+    name: "olx-florianopolis",
+    active: true,
+    lastPage: 1,
+    url: "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-sc/florianopolis-e-regiao",
+    maxPages: 25,
+    delayMs: 2500,
+  },
+  {
+    id: "listing-webmotors-floripa",
+    name: "webmotors-florianopolis",
+    active: true,
+    lastPage: 1,
+    url: "https://www.webmotors.com.br/carros/sc-florianopolis",
+    maxPages: 25,
     delayMs: 2500,
   },
 ];
@@ -131,6 +197,7 @@ export interface CarroPatch {
   isHidden?: boolean;
   notes?: string;
   listingStatus?: string;
+  lastSeenAt?: Date;
   updated: Date;
 }
 
@@ -377,6 +444,11 @@ export interface DbAdapter {
   patchCarro(id: string, data: CarroPatch): Promise<void>;
   updateCarroFipe(id: string, data: CarroFipePatch): Promise<void>;
   getCarrosMissingFipe(limit: number): Promise<CarroRow[]>;
+  getActiveCarrosStaleSince(
+    seenBefore: Date,
+    limit: number,
+    idListing?: string,
+  ): Promise<CarroRow[]>;
   deleteCarro(id: string): Promise<void>;
   deleteAllCarros(): Promise<number>;
   deleteInvalidOlxCarros(): Promise<number>;

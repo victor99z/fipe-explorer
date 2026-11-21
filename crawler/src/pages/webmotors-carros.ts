@@ -11,6 +11,7 @@ import {
   normalizeBrand,
   parseCarText,
 } from "../utils/car-parser";
+import { inferLocationFromUrl } from "../utils/location";
 import {
   runScraper,
   type ExtractedCarListing,
@@ -86,6 +87,7 @@ export function mapWebmotorsCarCard(
   const price = parseCurrencyToNumber(raw.price);
   const parsed = parseCarText(raw.title, `${raw.details} ${raw.seller}`);
   const loc = parseWebmotorsLocation(raw.address);
+  const urlLoc = inferLocationFromUrl(baseUrl);
 
   return {
     ref,
@@ -104,8 +106,8 @@ export function mapWebmotorsCarCard(
       is_turbo: parsed.is_turbo,
       body_type: parsed.body_type,
       seller_type: parsed.seller_type ?? inferSellerType(raw.seller),
-      city: loc.city ?? "Joinville",
-      state: loc.state ?? "SC",
+      city: loc.city ?? urlLoc.city ?? "Joinville",
+      state: loc.state ?? urlLoc.state ?? "SC",
       address: raw.address || undefined,
       title: raw.title,
     },
@@ -204,6 +206,7 @@ export function parseWebmotorsNextData(
   if (!nextData) return [];
 
   const vehicles = findWebmotorsSearchResults(nextData);
+  const urlLoc = inferLocationFromUrl(baseUrl);
   const results: ExtractedCarListing[] = [];
 
   for (const v of vehicles) {
@@ -292,10 +295,16 @@ export function parseWebmotorsNextData(
       : undefined;
 
     const city =
-      (typeof seller?.City === "string" ? seller.City.trim() : undefined) ??
+      (typeof seller?.City === "string" && seller.City.trim()
+        ? seller.City.trim()
+        : undefined) ??
+      urlLoc.city ??
       "Joinville";
     const state =
-      (typeof seller?.State === "string" ? seller.State.trim() : undefined) ??
+      (typeof seller?.State === "string" && seller.State.trim()
+        ? seller.State.trim()
+        : undefined) ??
+      urlLoc.state ??
       "SC";
     const neighborhood =
       typeof seller?.Neighborhood === "string"
@@ -359,7 +368,7 @@ export const getWebmotorsCarros = (
   const siteUrl = opts?.siteUrl ?? DEFAULT_URL;
   return runScraper(
     {
-      siteName: "Webmotors Carros",
+      siteName: opts?.siteLabel ?? "Webmotors Carros",
       siteUrl,
       delayMs: opts?.delayMs,
       buildPageUrl: buildQueryPageUrl("page"),

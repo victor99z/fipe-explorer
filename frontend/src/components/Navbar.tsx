@@ -64,7 +64,7 @@ export default function Navbar({
     badge?: number;
   }> = [
     { id: 'fipe', label: 'Tabela FIPE', shortLabel: 'FIPE', icon: BarChart3 },
-    { id: 'joinville', label: 'Anúncios Joinville', shortLabel: 'Anúncios', icon: Car },
+    { id: 'joinville', label: 'Anúncios Região', shortLabel: 'Anúncios', icon: Car },
     ...(isAuthenticated
       ? [
           {

@@ -572,6 +572,8 @@ export function buildTokenizedSearchClauses(
   return clauses;
 }
 
+const ACTIVE_LISTING_FILTER = '(listing_status = "" || listing_status = "active")';
+
 function buildFilterExpression(
   pb: PocketBase,
   params: CarListQueryParams,
@@ -579,7 +581,7 @@ function buildFilterExpression(
 ): { filter: string; shortCircuitEmpty: boolean } {
   const clauses: string[] = [];
 
-  // Visibility filter from local preferences
+  // Visibility filter + hide unavailable/expired listings in public 'active' tab
   const favIds = Object.entries(localPrefs)
     .filter(([, p]) => p.favorite && !p.hidden)
     .map(([id]) => id);
@@ -595,7 +597,8 @@ function buildFilterExpression(
     if (hiddenIds.length === 0) return { filter: '', shortCircuitEmpty: true };
     const ors = hiddenIds.slice(0, 60).map((id, idx) => pb.filter(`id = {:hid${idx}}`, { [`hid${idx}`]: id }));
     clauses.push(`(${ors.join(' || ')})`);
-  } else if (params.visibilityMode === 'active' && hiddenIds.length > 0) {
+  } else if (params.visibilityMode === 'active') {
+    clauses.push(ACTIVE_LISTING_FILTER);
     for (const [idx, id] of hiddenIds.slice(0, 40).entries()) {
       clauses.push(pb.filter(`id != {:ex${idx}}`, { [`ex${idx}`]: id }));
     }
@@ -844,20 +847,18 @@ export async function fetchCarFacetsAndStats(
   pb: PocketBase,
   cityFilter?: string,
 ): Promise<CarFacetsAndStats> {
-  const cityClause =
-    cityFilter && cityFilter !== 'todas'
-      ? pb.filter('city ~ {:city}', { city: cityFilter })
-      : '';
-
-  const belowFilter = cityClause
-    ? `${cityClause} && fipe_price > 0 && fipe_diff_pct <= 0`
-    : 'fipe_price > 0 && fipe_diff_pct <= 0';
+  const baseClauses = [ACTIVE_LISTING_FILTER];
+  if (cityFilter && cityFilter !== 'todas') {
+    baseClauses.push(pb.filter('city ~ {:city}', { city: cityFilter }));
+  }
+  const baseFilter = baseClauses.join(' && ');
+  const belowFilter = `${baseFilter} && fipe_price > 0 && fipe_diff_pct <= 0`;
 
   const [totalRes, belowRes, sampleRes, citiesRes] = await Promise.all([
     pb
       .collection(PB_CAR_COLLECTIONS.CARROS)
       .getList(1, 1, {
-        ...(cityClause ? { filter: cityClause } : {}),
+        filter: baseFilter,
         fields: 'id',
       })
       .catch(() => ({ totalItems: 0 })),
@@ -868,19 +869,26 @@ export async function fetchCarFacetsAndStats(
     pb
       .collection(PB_CAR_COLLECTIONS.CARROS)
       .getList<Record<string, unknown>>(1, 400, {
-        ...(cityClause ? { filter: cityClause } : {}),
+        filter: baseFilter,
         fields: 'brand,fuel,price',
       })
       .catch(() => ({ items: [] as Record<string, unknown>[] })),
     pb
       .collection(PB_CAR_COLLECTIONS.CARROS)
       .getList<Record<string, unknown>>(1, 500, {
-        filter: 'city != ""',
+        filter: `${ACTIVE_LISTING_FILTER} && city != ""`,
         fields: 'city',
       })
       .catch(() => ({ items: [] as Record<string, unknown>[] })),
   ]);
 
+  const PRIORITY_CITIES = [
+    'Joinville',
+    'Curitiba',
+    'Blumenau',
+    'Jaraguá do Sul',
+    'Florianópolis',
+  ];
   const cities = new Set<string>(['Joinville']);
   const brands = new Set<string>();
   const fuels = new Set<string>();
@@ -908,9 +916,14 @@ export async function fetchCarFacetsAndStats(
     totalActive: totalRes.totalItems,
     belowFipeCount: belowRes.totalItems,
     avgPrice: priceCount > 0 ? priceSum / priceCount : 0,
-    cities: [...cities].sort((a, b) =>
-      a === 'Joinville' ? -1 : b === 'Joinville' ? 1 : a.localeCompare(b),
-    ),
+    cities: [...cities].sort((a, b) => {
+      const ia = PRIORITY_CITIES.indexOf(a);
+      const ib = PRIORITY_CITIES.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      return a.localeCompare(b);
+    }),
     brands: [...brands].sort(),
     fuels: [...fuels].sort(),
   };

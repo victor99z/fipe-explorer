@@ -28,6 +28,7 @@ export interface ScraperOptions {
   maxListings?: number;
   delayMs?: number;
   siteUrl?: string;
+  siteLabel?: string;
 }
 
 export type ScraperRunner = (
@@ -49,6 +50,7 @@ export interface ScraperStats {
   pagesCrawled: number;
   listingsScraped: number;
   errors: number;
+  reachedNaturalEnd: boolean;
   samples?: ExtractedCarListing[];
 }
 
@@ -87,6 +89,7 @@ export async function runScraper(
   let errorCounter = 0;
   let consecutiveEmpty = 0;
   let completedCycle = false;
+  let reachedNaturalEnd = false;
   const savedSamples: ExtractedCarListing[] = [];
 
   async function persistProgress() {
@@ -160,6 +163,7 @@ export async function runScraper(
               `Stopping: ${consecutiveEmpty}+ consecutive empty pages`,
             );
             completedCycle = true;
+            reachedNaturalEnd = true;
             break;
           }
         } else {
@@ -242,6 +246,7 @@ export async function runScraper(
     pagesCrawled: pageCounter,
     listingsScraped: scrapedCounter,
     errors: errorCounter,
+    reachedNaturalEnd,
     ...(maxListings !== undefined ? { samples: savedSamples } : {}),
   };
 }

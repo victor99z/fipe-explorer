@@ -12,6 +12,7 @@ import {
   normalizeBrand,
   parseCarText,
 } from "../utils/car-parser";
+import { inferLocationFromUrl } from "../utils/location";
 import { DEFAULT_OLX_CARS_URL } from "../clients/db-adapter";
 import {
   runScraper,
@@ -139,6 +140,7 @@ export function mapOlxCarCard(
   const parsed = parseCarText(raw.title, `${raw.details} ${raw.seller}`);
   if (isNonCarListing(raw.title, ref, parsed.brand)) return null;
   const loc = parseOlxAddress(raw.address);
+  const urlLoc = inferLocationFromUrl(baseUrl);
   const imageCandidates = raw.images?.length ? raw.images : raw.image ? [raw.image] : [];
   const images = filterOlxCarImages(imageCandidates, baseUrl);
 
@@ -160,8 +162,8 @@ export function mapOlxCarCard(
       body_type: parsed.body_type,
       seller_type: parsed.seller_type ?? inferSellerType(raw.seller),
       neighborhood: loc.neighborhood,
-      city: loc.city ?? "Joinville",
-      state: loc.state ?? "SC",
+      city: loc.city ?? urlLoc.city ?? "Joinville",
+      state: loc.state ?? urlLoc.state ?? "SC",
       address: raw.address || undefined,
       title: raw.title,
     },
@@ -181,6 +183,7 @@ export function parseOlxNextData(
     ? (pageProps.ads as Array<Record<string, unknown>>)
     : [];
 
+  const urlLoc = inferLocationFromUrl(baseUrl);
   const results: ExtractedCarListing[] = [];
 
   for (const ad of rawAds) {
@@ -282,10 +285,12 @@ export function parseOlxNextData(
             ? locObj.municipality
             : undefined) ??
           locParsed.city ??
+          urlLoc.city ??
           "Joinville",
         state:
           (typeof locObj?.uf === "string" ? locObj.uf : undefined) ??
           locParsed.state ??
+          urlLoc.state ??
           "SC",
         address: locationStr || undefined,
         title,
@@ -308,7 +313,7 @@ export const getOlxCarros = (
   const siteUrl = opts?.siteUrl ?? DEFAULT_URL;
   return runScraper(
     {
-      siteName: "OLX Carros",
+      siteName: opts?.siteLabel ?? "OLX Carros",
       siteUrl,
       delayMs: opts?.delayMs,
       buildPageUrl: buildQueryPageUrl("o"),

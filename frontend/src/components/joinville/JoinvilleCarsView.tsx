@@ -137,7 +137,7 @@ export default function JoinvilleCarsView({
 
   // Filters (aligned with Tabela FIPE + location/ad facets)
   const [search, setSearch] = useState(() => initialSearch?.term ?? '');
-  const [cityFilter, setCityFilter] = useState('Joinville');
+  const [cityFilter, setCityFilter] = useState('todas');
   const [neighborhoodFilter, setNeighborhoodFilter] = useState('');
   const [brandFilter, setBrandFilter] = useState('');
   const [minPrice, setMinPrice] = useState('');
@@ -325,7 +325,7 @@ export default function JoinvilleCarsView({
 
   const hasActiveFilters = Boolean(
     search.trim() ||
-      cityFilter !== 'Joinville' ||
+      cityFilter !== 'todas' ||
       neighborhoodFilter.trim() ||
       portalFilter ||
       brandFilter ||
@@ -347,7 +347,7 @@ export default function JoinvilleCarsView({
   );
 
   const activeFilterCount = [
-    cityFilter !== 'Joinville' ? cityFilter : '',
+    cityFilter !== 'todas' ? cityFilter : '',
     brandFilter,
     minPrice || maxPrice,
     minYear || maxYear,
@@ -431,7 +431,7 @@ export default function JoinvilleCarsView({
 
   function resetFilters() {
     setSearch('');
-    setCityFilter('Joinville');
+    setCityFilter('todas');
     setNeighborhoodFilter('');
     setPortalFilter('');
     setBrandFilter('');
@@ -471,10 +471,12 @@ export default function JoinvilleCarsView({
 
   const cityLocationLabel =
     cityFilter === 'todas'
-      ? 'Todas as cidades (SC)'
+      ? 'Joinville, Região & Curitiba'
       : cityFilter === 'Joinville'
-        ? 'Joinville & Região'
-        : `${cityFilter}, SC`;
+        ? 'Joinville & Norte de SC'
+        : cityFilter === 'Curitiba'
+          ? 'Curitiba & Região, PR'
+          : cityFilter;
 
   const rangeStart = totalItems === 0 ? 0 : (page - 1) * ITEMS_PER_PAGE + 1;
   const rangeEnd = totalItems === 0 ? 0 : Math.min(page * ITEMS_PER_PAGE, totalItems);
@@ -494,7 +496,7 @@ export default function JoinvilleCarsView({
               Anúncios Reais vs. Tabela FIPE
             </h1>
             <p className="hidden sm:block text-xs sm:text-sm text-[#707070] dark:text-[#a1a1aa] max-w-2xl">
-              Compare preços de carros anunciados com a referência atualizada da Tabela FIPE.
+              Compare preços de carros anunciados em SC e Curitiba/PR com a referência atualizada da Tabela FIPE.
             </p>
           </div>
 
@@ -724,12 +726,12 @@ export default function JoinvilleCarsView({
                     setCityFilter(String(val));
                     setPage(1);
                   }}
-                  placeholder="Joinville"
+                  placeholder="Todas as cidades"
                   searchable
                   searchPlaceholder="Filtrar cidade..."
                   className="w-full"
                   menuClassName="w-full min-w-[180px]"
-                  isActive={cityFilter !== 'Joinville'}
+                  isActive={cityFilter !== 'todas'}
                   options={cityOptions}
                 />
               </div>
@@ -1149,7 +1151,7 @@ export default function JoinvilleCarsView({
               Nenhum veículo encontrado para os filtros atuais
             </p>
             <p className="text-xs text-[#707070] dark:text-[#a1a1aa]">
-              {cityFilter === 'Joinville'
+              {cityFilter !== 'todas'
                 ? 'Tente limpar filtros ou trocar a cidade para "Todas as cidades".'
                 : 'Tente limpar ou ajustar os filtros selecionados.'}
             </p>
@@ -1226,6 +1228,11 @@ export default function JoinvilleCarsView({
                         {car.isTurbo && (
                           <span className="inline-flex items-center h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-medium bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/30">
                             Turbo
+                          </span>
+                        )}
+                        {car.listingStatus && car.listingStatus !== 'active' && (
+                          <span className="inline-flex items-center h-5 sm:h-[22px] px-1.5 rounded-[4px] text-[10px] sm:text-[11px] leading-none font-medium bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                            Indisponível
                           </span>
                         )}
                       </div>

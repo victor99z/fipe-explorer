@@ -10,6 +10,9 @@ import {
   parseWebmotorsNextData,
 } from "../webmotors-carros";
 import { parseCarJsonLdBlocks } from "../extractors";
+import { resolveScraperForListing } from "../index";
+import { inferLocationFromUrl } from "../../utils/location";
+import { checkListingUrlAvailability } from "../../services/listing-availability";
 
 describe("OLX carros scraper", () => {
   test("validates OLX car URLs and rejects recommendation/invalid URLs", () => {
@@ -239,5 +242,98 @@ describe("Webmotors carros scraper", () => {
     expect(items[0]?.features.brand).toBe("Hyundai");
     expect(items[0]?.features.price).toBe(62900);
     expect(items[0]?.features.mileage_km).toBe(45000);
+  });
+
+  test("resolves regional scrapers and infers Curitiba PR fallback location", () => {
+    expect(
+      resolveScraperForListing(
+        "olx-curitiba",
+        "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-pr/curitiba",
+      ),
+    ).not.toBeNull();
+    expect(
+      resolveScraperForListing(
+        "webmotors-curitiba",
+        "https://www.webmotors.com.br/carros/pr-curitiba",
+      ),
+    ).not.toBeNull();
+
+    expect(
+      inferLocationFromUrl(
+        "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-pr/curitiba",
+      ),
+    ).toEqual({ city: "Curitiba", state: "PR" });
+    expect(
+      inferLocationFromUrl("https://www.webmotors.com.br/carros/sc-jaragua-do-sul"),
+    ).toEqual({ city: "Jaraguá do Sul", state: "SC" });
+
+    const olxCuritibaNoAddr = mapOlxCarCard(
+      {
+        title: "Honda Fit EX 1.5 Flex 2020",
+        href: "/autos-e-pecas/carros-vans-e-utilitarios/honda-fit-999",
+        address: "",
+        price: "R$ 84.900",
+        details: "45.000 km CVT Flex",
+        seller: "Loja",
+        image: "",
+      },
+      "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-pr/curitiba",
+    );
+    expect(olxCuritibaNoAddr?.features.city).toBe("Curitiba");
+    expect(olxCuritibaNoAddr?.features.state).toBe("PR");
+  });
+
+  test("checks listing URL availability conservatively against 404, redirects, sold markers and 403 challenges", async () => {
+    const gone = await checkListingUrlAvailability(
+      "https://pr.olx.com.br/d/carros/onix-123",
+      async () => ({ status: 404, url: "https://pr.olx.com.br/d/carros/onix-123", text: async () => "" }),
+    );
+    expect(gone).toBe("inactive");
+
+    const redirected = await checkListingUrlAvailability(
+      "https://www.webmotors.com.br/comprar/vw/polo/123",
+      async () => ({
+        status: 200,
+        url: "https://www.webmotors.com.br/carros/pr-curitiba",
+        text: async () => "<html>".repeat(60),
+      }),
+    );
+    expect(redirected).toBe("inactive");
+
+    const olxCategoryRedirect = await checkListingUrlAvailability(
+      "https://pr.olx.com.br/curitiba/autos-e-pecas/carros-vans-e-utilitarios/onix-1234567",
+      async () => ({
+        status: 200,
+        url: "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios/estado-pr/curitiba",
+        text: async () => "<html>".repeat(60),
+      }),
+    );
+    expect(olxCategoryRedirect).toBe("inactive");
+
+    const soldPhrase = await checkListingUrlAvailability(
+      "https://pr.olx.com.br/d/carros/polo-999",
+      async () => ({
+        status: 200,
+        url: "https://pr.olx.com.br/d/carros/polo-999",
+        text: async () => `<html><body>${" ".repeat(220)}Este anúncio foi removido pelo anunciante</body></html>`,
+      }),
+    );
+    expect(soldPhrase).toBe("inactive");
+
+    const challenge = await checkListingUrlAvailability(
+      "https://pr.olx.com.br/d/carros/hb20-123",
+      async () => ({ status: 403, url: "https://pr.olx.com.br/d/carros/hb20-123", text: async () => "Cloudflare" }),
+    );
+    expect(challenge).toBe("unknown");
+
+    const active = await checkListingUrlAvailability(
+      "https://www.webmotors.com.br/comprar/fiat/argo/2023/999",
+      async () => ({
+        status: 200,
+        url: "https://www.webmotors.com.br/comprar/fiat/argo/2023/999",
+        text: async () => `<html><body>${"Fiat Argo 1.0 Drive ".repeat(30)}</body></html>`,
+      }),
+    );
+    expect(active).toBe("active");
   });
 });
