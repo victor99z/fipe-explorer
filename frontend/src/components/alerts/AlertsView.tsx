@@ -16,6 +16,7 @@ import {
   TrendingDown,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatCambioLabel } from '../../services/pocketbase';
 import {
   createUserAlert,
   deleteNotification,
@@ -409,6 +410,11 @@ export default function AlertsView({
                     {alert.brand && (
                       <span className="px-2 py-0.5 rounded-[4px] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a]">
                         {alert.brand}
+                      </span>
+                    )}
+                    {alert.transmission && alert.transmission !== 'todos' && (
+                      <span className="px-2 py-0.5 rounded-[4px] bg-[#fafafa] dark:bg-[#121212] border border-[#ededed] dark:border-[#27272a]">
+                        {formatCambioLabel(alert.transmission)}
                       </span>
                     )}
                     {(alert.minYear > 0 || alert.maxYear > 0) && (

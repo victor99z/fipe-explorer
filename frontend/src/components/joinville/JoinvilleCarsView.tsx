@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import {
   applyCarImageFallback,
+  CAMBIO_FILTER_OPTIONS,
   DEFAULT_REGIONAL_CITIES,
   fetchCarFacetsAndStats,
   fetchPagedCarListings,
@@ -58,12 +59,7 @@ const MOTORIZACAO_OPTIONS = [
   { value: 'aspirado', label: 'Aspirado' },
 ];
 
-const CAMBIO_OPTIONS = [
-  { value: 'todos', label: 'Todos' },
-  { value: 'automatico', label: 'Automático' },
-  { value: 'manual', label: 'Manual' },
-  { value: 'CVT', label: 'CVT' },
-];
+const CAMBIO_OPTIONS = [...CAMBIO_FILTER_OPTIONS];
 
 const LITRAGEM_OPTIONS = [
   { value: 'todos', label: 'Todas' },
@@ -80,6 +76,7 @@ const LITRAGEM_OPTIONS = [
 function mapIntentCambio(transmission?: string): string {
   if (!transmission) return 'todos';
   const low = transmission.toLowerCase();
+  if (low.includes('autom') && low.includes('cvt')) return 'automatico_cvt';
   if (low.includes('cvt')) return 'CVT';
   if (low.includes('autom')) return 'automatico';
   if (low.includes('manual')) return 'manual';

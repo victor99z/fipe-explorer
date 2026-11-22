@@ -176,6 +176,86 @@ export interface CarFacetsAndStats {
   fuels: string[];
 }
 
+export const CAMBIO_FILTER_OPTIONS = [
+  { value: 'todos', label: 'Todos' },
+  { value: 'automatico_cvt', label: 'Automático & CVT' },
+  { value: 'automatico', label: 'Automático' },
+  { value: 'CVT', label: 'CVT' },
+  { value: 'manual', label: 'Manual' },
+] as const;
+
+export function formatCambioLabel(cambio?: string): string {
+  if (!cambio || cambio === 'todos') return 'Todos';
+  const match = CAMBIO_FILTER_OPTIONS.find(
+    (opt) => opt.value.toLowerCase() === cambio.toLowerCase(),
+  );
+  return match ? match.label : cambio;
+}
+
+const AUTOMATIC_TEXT_TERMS = [
+  'transmission ~ "Automát"',
+  'transmission ~ "Automatizado"',
+  'text_description ~ " aut."',
+  'text_description ~ " aut "',
+  'text_description ~ "autom"',
+  'text_description ~ "tiptr"',
+  'text_description ~ "s-tronic"',
+  'text_description ~ "s.tr"',
+  'text_description ~ "dsg"',
+  'text_description ~ "powershift"',
+  'text_description ~ "dualogic"',
+  'text_description ~ "i-motion"',
+];
+
+const CVT_TEXT_TERMS = [
+  'transmission ~ "CVT"',
+  'text_description ~ " cvt"',
+  'text_description ~ "e-cvt"',
+];
+
+export function buildCambioFilterClause(
+  pb: PocketBase,
+  cambio?: string,
+  includeFipeModel = true,
+): string | null {
+  if (!cambio || cambio === 'todos') return null;
+
+  const autoTerms = includeFipeModel
+    ? [
+        ...AUTOMATIC_TEXT_TERMS,
+        'fipe_model ~ " aut"',
+        'fipe_model ~ "tiptr"',
+        'fipe_model ~ "s-tronic"',
+      ]
+    : AUTOMATIC_TEXT_TERMS;
+
+  const cvtTerms = includeFipeModel
+    ? [...CVT_TEXT_TERMS, 'fipe_model ~ " cvt"', 'fipe_model ~ "e-cvt"']
+    : CVT_TEXT_TERMS;
+
+  if (cambio === 'automatico_cvt') {
+    return `((${[...autoTerms, ...cvtTerms].join(' || ')}) && transmission !~ "Manual")`;
+  }
+  if (cambio === 'automatico') {
+    return `((${autoTerms.join(' || ')}) && transmission !~ "Manual")`;
+  }
+  if (cambio === 'CVT') {
+    return `((${cvtTerms.join(' || ')}) && transmission !~ "Manual")`;
+  }
+  if (cambio === 'manual') {
+    const manualTerms = [
+      'transmission ~ "Manual"',
+      'text_description ~ " manual"',
+      'text_description ~ " mec"',
+    ];
+    if (includeFipeModel) {
+      manualTerms.push('fipe_model ~ " manual"', 'fipe_model ~ " mec"');
+    }
+    return `((${manualTerms.join(' || ')}) && transmission !~ "Automát" && transmission !~ "CVT" && transmission !~ "Automatizado")`;
+  }
+  return pb.filter('transmission ~ {:cambio}', { cambio });
+}
+
 export const DEFAULT_REGIONAL_CITIES = [
   'Joinville',
   'Curitiba',
@@ -664,20 +744,9 @@ function buildFilterExpression(
   }
 
   // Cambio
-  if (params.cambio === 'automatico') {
-    clauses.push(
-      '(transmission ~ "Automát" || transmission ~ "CVT" || transmission ~ "Automatizado" || text_description ~ " aut." || text_description ~ " aut " || text_description ~ "autom" || text_description ~ " cvt" || text_description ~ "e-cvt" || text_description ~ "tiptr" || text_description ~ "s-tronic" || text_description ~ "s.tr" || text_description ~ "dsg" || text_description ~ "powershift" || text_description ~ "dualogic" || text_description ~ "i-motion" || fipe_model ~ " aut" || fipe_model ~ " cvt" || fipe_model ~ "tiptr" || fipe_model ~ "s-tronic")',
-    );
-  } else if (params.cambio === 'manual') {
-    clauses.push(
-      '(transmission ~ "Manual" || text_description ~ " manual" || text_description ~ " mec" || fipe_model ~ " manual" || fipe_model ~ " mec")',
-    );
-  } else if (params.cambio === 'CVT') {
-    clauses.push(
-      '(transmission ~ "CVT" || text_description ~ " cvt" || text_description ~ "e-cvt" || fipe_model ~ " cvt" || fipe_model ~ "e-cvt")',
-    );
-  } else if (params.cambio && params.cambio !== 'todos') {
-    clauses.push(pb.filter('transmission ~ {:cambio}', { cambio: params.cambio }));
+  const cambioClause = buildCambioFilterClause(pb, params.cambio, true);
+  if (cambioClause) {
+    clauses.push(cambioClause);
   }
 
   // Litragem

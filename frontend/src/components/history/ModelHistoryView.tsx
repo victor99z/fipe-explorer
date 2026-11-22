@@ -43,6 +43,7 @@ import {
   type ModelHistoryResult,
 } from '../../services/modelHistory';
 import {
+  CAMBIO_FILTER_OPTIONS,
   DEFAULT_REGIONAL_CITIES,
   mapCarRecord,
   PB_CAR_COLLECTIONS,
@@ -101,9 +102,7 @@ const FALLBACK_CHIPS: Array<{ query: string; label: string; count?: number }> = 
 
 const TRANSMISSION_OPTIONS = [
   { value: 'todos', label: 'Todos os câmbios' },
-  { value: 'automatico', label: 'Automático' },
-  { value: 'manual', label: 'Manual' },
-  { value: 'CVT', label: 'CVT' },
+  ...CAMBIO_FILTER_OPTIONS.filter((opt) => opt.value !== 'todos'),
 ];
 
 const FUEL_OPTIONS = [

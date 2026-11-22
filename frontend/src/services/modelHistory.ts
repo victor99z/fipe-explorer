@@ -1,5 +1,6 @@
 import PocketBase, { ClientResponseError } from 'pocketbase';
 import {
+  buildCambioFilterClause,
   buildTokenizedSearchClauses,
   DEFAULT_REGIONAL_CITIES,
   mergeAndSortRegionalCities,
@@ -250,14 +251,9 @@ function buildQueryClauses(pb: PocketBase, query: ModelHistoryQuery): string[] {
   const maxK = Number((query.maxKm ?? '').replace(/[^\d]/g, '')) || 0;
   if (maxK > 0) clauses.push(pb.filter('mileage_km <= {:maxk}', { maxk: maxK }));
 
-  if (query.cambio === 'automatico') {
-    clauses.push(
-      '(transmission ~ "Automát" || transmission ~ "CVT" || transmission ~ "Automatizado" || text_description ~ " aut" || text_description ~ " cvt")',
-    );
-  } else if (query.cambio === 'manual') {
-    clauses.push('(transmission ~ "Manual" || text_description ~ " manual" || text_description ~ " mec")');
-  } else if (query.cambio === 'CVT') {
-    clauses.push('(transmission ~ "CVT" || text_description ~ " cvt")');
+  const cambioClause = buildCambioFilterClause(pb, query.cambio, false);
+  if (cambioClause) {
+    clauses.push(cambioClause);
   }
 
   if (query.fuel && query.fuel !== 'todos') {

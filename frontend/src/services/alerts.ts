@@ -377,11 +377,24 @@ function matchesAlertInClient(car: CarListingItem, alert: CarAlertItem): boolean
   if (alert.transmission && alert.transmission !== 'todos') {
     const ta = normalizeSearchText(alert.transmission);
     const tc = normalizeSearchText(car.transmission);
-    if (ta === 'automatico') {
-      if (!tc.includes('automat') && !tc.includes('cvt') && !tc.includes('dsg')) {
-        return false;
-      }
-    } else if (!tc.includes(ta)) {
+    const titleFallback = tc
+      ? ''
+      : normalizeSearchText(`${car.title} ${car.fipeMatch?.nome_modelo ?? ''}`);
+    const isAutoCar =
+      tc.includes('automat') ||
+      tc.includes('dsg') ||
+      tc.includes('tiptr') ||
+      /\baut\b/.test(titleFallback) ||
+      titleFallback.includes('tiptr') ||
+      titleFallback.includes('dsg') ||
+      titleFallback.includes('s-tronic');
+    const isCvtCar = tc.includes('cvt') || /\be?-?cvt\b/.test(titleFallback);
+
+    if (ta === 'automatico_cvt' || ta === 'automatico') {
+      if (!isAutoCar && !isCvtCar) return false;
+    } else if (ta === 'cvt') {
+      if (!isCvtCar) return false;
+    } else if (!tc.includes(ta) && !titleFallback.includes(ta)) {
       return false;
     }
   }

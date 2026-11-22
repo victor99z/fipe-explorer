@@ -55,7 +55,7 @@ function buildListingSearchIntent(vehicle: Vehicle): FipeListingSearchIntent {
 
   const term = [brand, firstModelToken].filter(Boolean).join(' ').trim();
   const transmission = vehicle.is_automatico
-    ? 'Automático'
+    ? 'Automático & CVT'
     : vehicle.tipo_cambio === 'Manual'
       ? 'Manual'
       : undefined;

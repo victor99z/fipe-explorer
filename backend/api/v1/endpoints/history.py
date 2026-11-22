@@ -15,7 +15,7 @@ def get_history(
     modelo: Optional[str] = None,
     ano_modelo: Optional[int] = None,
     motorizacao: Optional[str] = Query("todos", description="todos, turbo, aspirado"),
-    cambio: Optional[str] = Query("todos", description="todos, automatico, manual"),
+    cambio: Optional[str] = Query("todos", description="todos, automatico_cvt, automatico, manual"),
     groupby: str = "ano",  # 'ano' or 'mes'
     metrica_ano: str = "media",  # 'media', 'fechamento', 'max', 'min'
     service: AnalyticsService = Depends(get_analytics_service)

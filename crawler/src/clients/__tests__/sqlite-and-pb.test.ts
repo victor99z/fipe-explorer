@@ -302,6 +302,82 @@ describe("alert-matcher unit tests", () => {
       ),
     ).toBe(false);
   });
+
+  test("matches combined automatico_cvt transmission alerts against both Automático and CVT cars", () => {
+    const combinedAlert: CarAlertRow = {
+      id: "alert-auto-cvt",
+      userId: "user-1",
+      name: "Automático ou CVT",
+      active: true,
+      searchQuery: "corolla",
+      brand: "Toyota",
+      model: "",
+      version: "",
+      fipeCode: "",
+      city: "",
+      portal: "",
+      motorizacao: "",
+      transmission: "automatico_cvt",
+      fuel: "",
+      minYear: 0,
+      maxYear: 0,
+      minPrice: 0,
+      maxPrice: 0,
+      maxKm: 0,
+      onlyBelowFipe: false,
+      minFipeDiscountPct: 0,
+      notifyOnNew: true,
+      notifyOnPriceDrop: true,
+      lastCheckedAt: null,
+      lastMatchedAt: null,
+      matchesCount: 0,
+    };
+
+    expect(
+      doesCarMatchAlert(
+        {
+          id: "a1",
+          ref: "https://sc.olx.com.br/d/corolla-1",
+          title: "Toyota Corolla XEi 2.0 Aut. 2020",
+          brand: "Toyota",
+          model: "Corolla",
+          price: 110000,
+          transmission: "Automático",
+        },
+        combinedAlert,
+      ),
+    ).toBe(true);
+
+    expect(
+      doesCarMatchAlert(
+        {
+          id: "a2",
+          ref: "https://sc.olx.com.br/d/corolla-2",
+          title: "Toyota Corolla Altis 2.0 CVT 2021",
+          brand: "Toyota",
+          model: "Corolla",
+          price: 120000,
+          transmission: "CVT",
+        },
+        combinedAlert,
+      ),
+    ).toBe(true);
+
+    expect(
+      doesCarMatchAlert(
+        {
+          id: "a3",
+          ref: "https://sc.olx.com.br/d/corolla-3",
+          title: "Toyota Corolla GLi 1.8 Manual 2018",
+          brand: "Toyota",
+          model: "Corolla",
+          price: 85000,
+          transmission: "Manual",
+        },
+        combinedAlert,
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("PocketBaseAdapter unit tests (mocked client)", () => {

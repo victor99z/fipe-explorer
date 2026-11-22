@@ -11,7 +11,7 @@ class VehicleFilterParams(BaseModel):
     marcas: Optional[str] = Field(default=None, description="Marcas separadas por vírgula")
     combustivel: Optional[str] = Field(default=None, description="Nome do combustível")
     motorizacao: Optional[str] = Field(default="todos", description="todos, turbo, aspirado")
-    cambio: Optional[str] = Field(default="todos", description="todos, automatico, manual")
+    cambio: Optional[str] = Field(default="todos", description="todos, automatico_cvt, automatico, manual")
     litragem: Optional[str] = Field(default="todos", description="todos, 1.0, 1.3, 1.4, 1.5, 1.6, 1.8, 2.0, 2.0+")
     search: Optional[str] = Field(default=None, description="Termo de pesquisa livre")
     ordenacao: str = Field(default="preco_desc", description="Ordenação dos resultados")

@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useState } from 'react';
 import { BellPlus, Loader2, X } from 'lucide-react';
 import type { CarAlertInput, CarAlertItem } from '../../services/alerts';
+import { CAMBIO_FILTER_OPTIONS } from '../../services/pocketbase';
 import { NativeDialog } from '../ui/NativeDialog';
 
 export interface AlertFormModalProps {
@@ -332,10 +333,11 @@ export function AlertFormModal({
                 onChange={(e) => setTransmission(e.target.value)}
                 className="w-full h-8 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs text-[#171717] dark:text-[#ededed] focus:outline-none focus:border-[#3ecf8e]"
               >
-                <option value="">Todos</option>
-                <option value="automatico">Automático</option>
-                <option value="manual">Manual</option>
-                <option value="CVT">CVT</option>
+                {CAMBIO_FILTER_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value === 'todos' ? '' : opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
             </div>
 

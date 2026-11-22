@@ -174,7 +174,7 @@ class SqlQueryBuilder:
         if not is_only_electric:
             has_combustion_tech_filter = (
                 motorizacao in ("turbo", "aspirado")
-                or cambio in ("automatico", "manual")
+                or cambio in ("automatico", "automatico_cvt", "manual")
                 or bool(litragem and litragem != "todos")
             )
             if has_combustion_tech_filter:
@@ -190,8 +190,8 @@ class SqlQueryBuilder:
             elif motorizacao == "aspirado":
                 where_clauses.append("is_turbo = false" if is_enriched else f"NOT regexp_matches(lower(nome_modelo), '{TURBO_PATTERN}')")
 
-            # Transmission (Automatic vs Manual)
-            if cambio == "automatico":
+            # Transmission (Automatic/CVT vs Manual)
+            if cambio in ("automatico", "automatico_cvt"):
                 where_clauses.append("is_automatico = true" if is_enriched else f"regexp_matches(lower(nome_modelo), '{AUTOMATIC_PATTERN}')")
             elif cambio == "manual":
                 where_clauses.append("is_manual = true" if is_enriched else f"regexp_matches(lower(nome_modelo), '{MANUAL_PATTERN}')")

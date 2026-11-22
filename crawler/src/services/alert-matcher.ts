@@ -97,16 +97,28 @@ export function doesCarMatchAlert(
   if (alert.transmission && alert.transmission !== "todos") {
     const trAlert = normalizeTextForMatch(alert.transmission);
     const trCar = normalizeTextForMatch(car.transmission);
-    if (trAlert === "automatico") {
-      if (
-        !trCar.includes("automat") &&
-        !trCar.includes("cvt") &&
-        !trCar.includes("dsg") &&
-        !trCar.includes("tiptr")
-      ) {
+    const titleFallback = trCar
+      ? ""
+      : normalizeTextForMatch(`${car.title ?? ""} ${car.fipeModel ?? ""}`);
+    const isAutoCar =
+      trCar.includes("automat") ||
+      trCar.includes("dsg") ||
+      trCar.includes("tiptr") ||
+      /\baut\b/.test(titleFallback) ||
+      titleFallback.includes("tiptr") ||
+      titleFallback.includes("dsg") ||
+      titleFallback.includes("s-tronic");
+    const isCvtCar = trCar.includes("cvt") || /\be?-?cvt\b/.test(titleFallback);
+
+    if (trAlert === "automatico_cvt" || trAlert === "automatico") {
+      if (!isAutoCar && !isCvtCar) {
         return false;
       }
-    } else if (!trCar.includes(trAlert)) {
+    } else if (trAlert === "cvt") {
+      if (!isCvtCar) {
+        return false;
+      }
+    } else if (!trCar.includes(trAlert) && !titleFallback.includes(trAlert)) {
       return false;
     }
   }

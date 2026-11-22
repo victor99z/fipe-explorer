@@ -131,7 +131,7 @@ export default function BudgetFinderView({
 
   // Filters
   const [motorizacao, setMotorizacao] = useState<string>('todos'); // 'todos', 'turbo', 'aspirado'
-  const [cambio, setCambio] = useState<string>('todos'); // 'todos', 'automatico', 'manual'
+  const [cambio, setCambio] = useState<string>('todos'); // 'todos', 'automatico_cvt', 'manual'
   const [litragem, setLitragem] = useState<string>('todos'); // 'todos', '1.0', '1.4', etc.
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [searchModel, setSearchModel] = useState<string>('');
@@ -876,12 +876,12 @@ export default function BudgetFinderView({
                   Transmissão
                 </label>
               </div>
-              <div className="grid grid-cols-3 gap-1 bg-[#fafafa] dark:bg-[#121212] p-1 rounded-[6px] border border-[#ededed] dark:border-[#27272a]">
+              <div className="flex items-center gap-1 bg-[#fafafa] dark:bg-[#121212] p-1 rounded-[6px] border border-[#ededed] dark:border-[#27272a]">
                 <button
                   type="button"
                   aria-pressed={cambio === 'todos'}
                   onClick={() => { setCambio('todos'); setPage(1); }}
-                  className={`py-1.5 text-xs rounded-[4px] transition-colors focus:outline-none cursor-pointer ${
+                  className={`flex-1 py-1.5 px-2 text-xs rounded-[4px] transition-colors focus:outline-none cursor-pointer ${
                     cambio === 'todos' 
                       ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium shadow-xs' 
                       : 'text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed]'
@@ -891,21 +891,21 @@ export default function BudgetFinderView({
                 </button>
                 <button
                   type="button"
-                  aria-pressed={cambio === 'automatico'}
-                  onClick={() => { setCambio('automatico'); setPage(1); }}
-                  className={`py-1.5 text-xs rounded-[4px] transition-colors focus:outline-none cursor-pointer ${
-                    cambio === 'automatico' 
+                  aria-pressed={cambio === 'automatico_cvt' || cambio === 'automatico'}
+                  onClick={() => { setCambio('automatico_cvt'); setPage(1); }}
+                  className={`flex-[1.7] py-1.5 px-2 text-xs whitespace-nowrap rounded-[4px] transition-colors focus:outline-none cursor-pointer ${
+                    cambio === 'automatico_cvt' || cambio === 'automatico'
                       ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium shadow-xs' 
                       : 'text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed]'
                   }`}
                 >
-                  Automático
+                  Automático & CVT
                 </button>
                 <button
                   type="button"
                   aria-pressed={cambio === 'manual'}
                   onClick={() => { setCambio('manual'); setPage(1); }}
-                  className={`py-1.5 text-xs rounded-[4px] transition-colors focus:outline-none cursor-pointer ${
+                  className={`flex-1 py-1.5 px-2 text-xs rounded-[4px] transition-colors focus:outline-none cursor-pointer ${
                     cambio === 'manual' 
                       ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] font-medium shadow-xs' 
                       : 'text-[#707070] dark:text-[#a1a1aa] hover:text-[#171717] dark:hover:text-[#ededed]'
