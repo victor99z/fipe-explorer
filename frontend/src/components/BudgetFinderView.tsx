@@ -11,6 +11,15 @@ import CustomDropdown from './ui/custom-dropdown';
 import VehicleHistoryModal from './VehicleHistoryModal';
 import { Vehicle, VehicleSearchResponse, EngineSizeItem, FuelItem } from '../types/vehicle';
 import { fetchBrands, fetchEngineSizes, fetchCars, fetchFuels } from '../services/api';
+import { isRequestAbortError } from '../services/pocketbase';
+import { useDebouncedFields } from '../hooks/useDebouncedFields';
+import {
+  buildFipeUrlParams,
+  parseFipeUrlParams,
+  parseSectionFromUrl,
+  syncUrlSearchParams,
+  type FipeUrlState,
+} from '../lib/urlState';
 
 const POPULAR_BRANDS: string[] = [
   'VW - VolksWagen',
@@ -121,25 +130,105 @@ export default function BudgetFinderView({
   onSearchListings,
   onInspectModelHistory,
 }: BudgetFinderViewProps) {
+  const [initialUrl] = useState<FipeUrlState>(() => parseFipeUrlParams());
+
   // Budget inputs
-  const [budgetValue, setBudgetValue] = useState<string>('80000');
-  const [useSmartRange, setUseSmartRange] = useState<boolean>(true); // 80% to 100% of budget
-  const [showAdvancedPricing, setShowAdvancedPricing] = useState<boolean>(false);
+  const [budgetValue, setBudgetValue] = useState<string>(() => initialUrl.budgetValue);
+  const [useSmartRange, setUseSmartRange] = useState<boolean>(() => initialUrl.useSmartRange); // 80% to 100% of budget
+  const [showAdvancedPricing, setShowAdvancedPricing] = useState<boolean>(() => initialUrl.showAdvancedPricing);
   const [showMobileSpecFilters, setShowMobileSpecFilters] = useState<boolean>(false);
-  const [minPrice, setMinPrice] = useState<string>('64000');
-  const [maxPrice, setMaxPrice] = useState<string>('80000');
+  const [minPrice, setMinPrice] = useState<string>(() => initialUrl.minPrice);
+  const [maxPrice, setMaxPrice] = useState<string>(() => initialUrl.maxPrice);
 
   // Filters
-  const [motorizacao, setMotorizacao] = useState<string>('todos'); // 'todos', 'turbo', 'aspirado'
-  const [cambio, setCambio] = useState<string>('todos'); // 'todos', 'automatico_cvt', 'manual'
-  const [litragem, setLitragem] = useState<string>('todos'); // 'todos', '1.0', '1.4', etc.
-  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
-  const [searchModel, setSearchModel] = useState<string>('');
-  const [minYear, setMinYear] = useState<string>('2018');
-  const [maxYear, setMaxYear] = useState<string>('2026');
-  const [combustivel, setCombustivel] = useState<string>('todos');
-  const [ordenacao, setOrdenacao] = useState<string>('preco_desc');
-  const [page, setPage] = useState<number>(1);
+  const [motorizacao, setMotorizacao] = useState<string>(() => initialUrl.motorizacao); // 'todos', 'turbo', 'aspirado'
+  const [cambio, setCambio] = useState<string>(() => initialUrl.cambio); // 'todos', 'automatico_cvt', 'manual'
+  const [litragem, setLitragem] = useState<string>(() => initialUrl.litragem); // 'todos', '1.0', '1.4', etc.
+  const [selectedBrands, setSelectedBrands] = useState<string[]>(() => initialUrl.selectedBrands);
+  const [searchModel, setSearchModel] = useState<string>(() => initialUrl.searchModel);
+  const [minYear, setMinYear] = useState<string>(() => initialUrl.minYear);
+  const [maxYear, setMaxYear] = useState<string>(() => initialUrl.maxYear);
+  const [combustivel, setCombustivel] = useState<string>(() => initialUrl.combustivel);
+  const [ordenacao, setOrdenacao] = useState<string>(() => initialUrl.ordenacao);
+  const [page, setPage] = useState<number>(() => initialUrl.page);
+
+  const [debouncedInputs, flushDebouncedInputs] = useDebouncedFields(
+    {
+      budgetValue,
+      useSmartRange,
+      minPrice,
+      maxPrice,
+      searchModel,
+    },
+    450,
+  );
+
+  useEffect(() => {
+    if (parseSectionFromUrl() !== 'fipe') return;
+    syncUrlSearchParams(
+      buildFipeUrlParams({
+        budgetValue: debouncedInputs.budgetValue,
+        useSmartRange: debouncedInputs.useSmartRange,
+        showAdvancedPricing,
+        minPrice: debouncedInputs.minPrice,
+        maxPrice: debouncedInputs.maxPrice,
+        minYear,
+        maxYear,
+        motorizacao,
+        cambio,
+        litragem,
+        selectedBrands,
+        searchModel: debouncedInputs.searchModel,
+        combustivel,
+        ordenacao,
+        page,
+      }),
+      'replace',
+    );
+  }, [
+    debouncedInputs,
+    showAdvancedPricing,
+    minYear,
+    maxYear,
+    motorizacao,
+    cambio,
+    litragem,
+    selectedBrands,
+    combustivel,
+    ordenacao,
+    page,
+  ]);
+
+  useEffect(() => {
+    const handlePop = () => {
+      if (parseSectionFromUrl() !== 'fipe') return;
+      const u = parseFipeUrlParams();
+      setBudgetValue(u.budgetValue);
+      setUseSmartRange(u.useSmartRange);
+      setShowAdvancedPricing(u.showAdvancedPricing);
+      setMinPrice(u.minPrice);
+      setMaxPrice(u.maxPrice);
+      setMotorizacao(u.motorizacao);
+      setCambio(u.cambio);
+      setLitragem(u.litragem);
+      setSelectedBrands(u.selectedBrands);
+      setSearchModel(u.searchModel);
+      setMinYear(u.minYear);
+      setMaxYear(u.maxYear);
+      setCombustivel(u.combustivel);
+      setOrdenacao(u.ordenacao);
+      setPage(u.page);
+      flushDebouncedInputs({
+        budgetValue: u.budgetValue,
+        useSmartRange: u.useSmartRange,
+        minPrice: u.minPrice,
+        maxPrice: u.maxPrice,
+        searchModel: u.searchModel,
+      });
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, [flushDebouncedInputs]);
 
   // External data
   const [allBrands, setAllBrands] = useState<string[]>([]);
@@ -167,26 +256,44 @@ export default function BudgetFinderView({
   };
 
   // Sync smart range when budget changes
-  const applyBudget = (rawVal: string, isSmart: boolean = useSmartRange) => {
+  const applyBudget = (
+    rawVal: string,
+    isSmart: boolean = useSmartRange,
+    immediate: boolean = false,
+  ) => {
     const clean = parsePriceInput(rawVal);
-    setBudgetValue(clean);
+    let nextMin = minPrice;
+    let nextMax = maxPrice;
+
     if (!clean) {
-      setMinPrice('0');
-      setMaxPrice('');
-      setPage(1);
-      return;
-    }
-    const num = Number(clean);
-    if (!isNaN(num) && num > 0) {
-      if (isSmart) {
-        setMinPrice(Math.round(num * 0.8).toString());
-        setMaxPrice(num.toString());
-      } else {
-        setMinPrice('0');
-        setMaxPrice(num.toString());
+      nextMin = '0';
+      nextMax = '';
+    } else {
+      const num = Number(clean);
+      if (!isNaN(num) && num > 0) {
+        if (isSmart) {
+          nextMin = Math.round(num * 0.8).toString();
+          nextMax = num.toString();
+        } else {
+          nextMin = '0';
+          nextMax = num.toString();
+        }
       }
     }
+
+    setBudgetValue(clean);
+    setMinPrice(nextMin);
+    setMaxPrice(nextMax);
     setPage(1);
+    if (immediate) {
+      flushDebouncedInputs({
+        budgetValue: clean,
+        useSmartRange: isSmart,
+        minPrice: nextMin,
+        maxPrice: nextMax,
+        searchModel,
+      });
+    }
   };
 
   // Close brand dropdown on click outside
@@ -254,55 +361,69 @@ export default function BudgetFinderView({
     loadFilterOptions();
   }, []);
 
-  // Main search fetch
+  // Main search fetch (open inputs debounced 450ms; cancels stale requests)
   useEffect(() => {
-    let isCancelled = false;
+    const controller = new AbortController();
 
     async function executeSearch() {
       setLoading(true);
       setError(null);
       try {
-        const result = await fetchCars({
-          tipo_veiculo: 'carro',
-          preco_min: minPrice || '0',
-          preco_max: maxPrice || '1000000',
-          ano_min: minYear || '1990',
-          ano_max: maxYear || '2026',
-          motorizacao,
-          cambio,
-          litragem,
-          marcas: selectedBrands,
-          combustivel,
-          search: searchModel.trim() || undefined,
-          ordenacao,
-          page,
-          limit: 18
-        });
+        const result = await fetchCars(
+          {
+            tipo_veiculo: 'carro',
+            preco_min: debouncedInputs.minPrice || '0',
+            preco_max: debouncedInputs.maxPrice || '1000000',
+            ano_min: minYear || '1990',
+            ano_max: maxYear || '2026',
+            motorizacao,
+            cambio,
+            litragem,
+            marcas: selectedBrands,
+            combustivel,
+            search: debouncedInputs.searchModel.trim() || undefined,
+            ordenacao,
+            page,
+            limit: 18,
+          },
+          controller.signal,
+        );
 
-        if (!isCancelled) {
+        if (!controller.signal.aborted) {
           setData(result);
         }
       } catch (err: unknown) {
-        if (!isCancelled) {
-          console.error(err);
-          setError("Não foi possível carregar os dados. Verifique a conexão com o servidor.");
+        if (controller.signal.aborted || isRequestAbortError(err)) {
+          return;
         }
+        console.error(err);
+        setError("Não foi possível carregar os dados. Verifique a conexão com o servidor.");
       } finally {
-        if (!isCancelled) {
+        if (!controller.signal.aborted) {
           setLoading(false);
         }
       }
     }
 
-    const timer = setTimeout(() => {
-      executeSearch();
-    }, 200);
+    void executeSearch();
 
     return () => {
-      isCancelled = true;
-      clearTimeout(timer);
+      controller.abort();
     };
-  }, [minPrice, maxPrice, motorizacao, cambio, litragem, selectedBrands, searchModel, minYear, maxYear, combustivel, ordenacao, page]);
+  }, [
+    debouncedInputs.minPrice,
+    debouncedInputs.maxPrice,
+    debouncedInputs.searchModel,
+    motorizacao,
+    cambio,
+    litragem,
+    selectedBrands,
+    minYear,
+    maxYear,
+    combustivel,
+    ordenacao,
+    page,
+  ]);
 
   const toggleBrand = (brandName: string) => {
     setSelectedBrands(prev => {
@@ -330,6 +451,13 @@ export default function BudgetFinderView({
     setCombustivel('todos');
     setOrdenacao('preco_desc');
     setPage(1);
+    flushDebouncedInputs({
+      budgetValue: '80000',
+      useSmartRange: true,
+      minPrice: '64000',
+      maxPrice: '80000',
+      searchModel: '',
+    });
   };
 
   const formattedBudgetDisplay = (): string => {
@@ -411,7 +539,7 @@ export default function BudgetFinderView({
               onClick={() => {
                 const next = !useSmartRange;
                 setUseSmartRange(next);
-                applyBudget(budgetValue, next);
+                applyBudget(budgetValue, next, true);
               }}
               className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-[4px] border transition-colors cursor-pointer text-[11px] sm:text-xs ${
                 useSmartRange 
@@ -474,6 +602,11 @@ export default function BudgetFinderView({
                   inputMode="numeric"
                   value={formatPriceInput(budgetValue)}
                   onChange={(e) => applyBudget(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      flushDebouncedInputs({ budgetValue, useSmartRange, minPrice, maxPrice, searchModel });
+                    }
+                  }}
                   placeholder="Ex: 80.000"
                   className={`w-full bg-transparent text-[#171717] dark:text-[#ededed] font-semibold tabular-nums text-base sm:text-lg focus:outline-none focus-visible:outline-none placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] ${budgetValue ? 'pr-6' : ''}`}
                 />
@@ -481,7 +614,7 @@ export default function BudgetFinderView({
                   <button
                     type="button"
                     aria-label="Limpar orçamento"
-                    onClick={() => applyBudget('')}
+                    onClick={() => applyBudget('', useSmartRange, true)}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9a9a9a] dark:text-[#71717a] hover:text-[#171717] dark:hover:text-[#ededed] p-0.5 cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" aria-hidden="true" />
@@ -498,7 +631,7 @@ export default function BudgetFinderView({
                       key={val}
                       type="button"
                       aria-pressed={isActive}
-                      onClick={() => applyBudget(val.toString())}
+                      onClick={() => applyBudget(val.toString(), useSmartRange, true)}
                       className={`shrink-0 h-8 px-2.5 text-xs tabular-nums rounded-[4px] border transition-colors focus:outline-none cursor-pointer inline-flex items-center justify-center ${
                         isActive 
                           ? 'bg-[#171717] dark:bg-[#3ecf8e] text-[#ffffff] dark:text-[#171717] border-[#171717] dark:border-[#3ecf8e] font-medium' 
@@ -1067,13 +1200,28 @@ export default function BudgetFinderView({
                   placeholder="Ex: Polo, Civic, Onix..."
                   value={searchModel}
                   onChange={(e) => { setSearchModel(e.target.value); setPage(1); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      flushDebouncedInputs({ budgetValue, useSmartRange, minPrice, maxPrice, searchModel });
+                    }
+                  }}
                   className="pl-8 pr-7 text-xs h-8"
                 />
                 {searchModel && (
                   <button 
                     type="button"
                     aria-label="Limpar busca por modelo"
-                    onClick={() => { setSearchModel(''); setPage(1); }}
+                    onClick={() => {
+                      setSearchModel('');
+                      setPage(1);
+                      flushDebouncedInputs({
+                        budgetValue,
+                        useSmartRange,
+                        minPrice,
+                        maxPrice,
+                        searchModel: '',
+                      });
+                    }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9a9a9a] dark:text-[#71717a] hover:text-[#171717] dark:hover:text-[#ededed] cursor-pointer"
                   >
                     <X className="w-3 h-3" aria-hidden="true" />

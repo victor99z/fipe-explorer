@@ -13,6 +13,11 @@ import {
 import type { FipeListingSearchIntent } from './components/joinville/JoinvilleCarsView';
 import type { ModelHistoryIntent } from './components/history/ModelHistoryView';
 import type { Vehicle } from './types/vehicle';
+import {
+  getTabParamForSection,
+  parseSectionFromUrl,
+  syncUrlSearchParams,
+} from './lib/urlState';
 
 const JoinvilleCarsView = lazy(
   () => import('./components/joinville/JoinvilleCarsView'),
@@ -87,7 +92,22 @@ function SectionLoader() {
 function AppContent() {
   const { pb, user, isAuthenticated, isAdmin, refreshUnreadCount } = useAuth();
 
-  const [activeSection, setActiveSection] = useState<AppSection>('fipe');
+  const [activeSection, setActiveSection] = useState<AppSection>(() => {
+    const fromUrl = parseSectionFromUrl();
+    if ((fromUrl === 'history' || fromUrl === 'alerts') && !pb.authStore.isValid) {
+      return 'fipe';
+    }
+    if (fromUrl === 'admin') {
+      const rec = pb.authStore.record as Record<string, unknown> | null;
+      const col = String(rec?.collectionName ?? '');
+      const role = String(rec?.role ?? '').toLowerCase();
+      const canAdmin =
+        pb.authStore.isValid &&
+        (col === '_superusers' || col === '_admins' || role === 'admin');
+      return canAdmin ? 'admin' : 'fipe';
+    }
+    return fromUrl;
+  });
   const [listingsSearch, setListingsSearch] = useState<FipeListingSearchIntent | null>(null);
   const [historyIntent, setHistoryIntent] = useState<ModelHistoryIntent | null>(null);
 
@@ -121,12 +141,42 @@ function AppContent() {
   }, [theme]);
 
   useEffect(() => {
+    const pushSectionToUrl = (section: AppSection, mode: 'replace' | 'push' = 'replace') => {
+      const params = new URLSearchParams();
+      const tabParam = getTabParamForSection(section);
+      if (tabParam) params.set('tab', tabParam);
+      syncUrlSearchParams(params, mode);
+    };
+
     if (!isAuthenticated && (activeSection === 'history' || activeSection === 'alerts' || activeSection === 'admin')) {
+      pushSectionToUrl('fipe', 'replace');
       setActiveSection('fipe');
     } else if (activeSection === 'admin' && !isAdmin) {
+      pushSectionToUrl('fipe', 'replace');
       setActiveSection('fipe');
     }
   }, [isAuthenticated, isAdmin, activeSection]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const next = parseSectionFromUrl();
+      if ((next === 'history' || next === 'alerts') && !isAuthenticated) {
+        syncUrlSearchParams(new URLSearchParams(), 'replace');
+        setActiveSection('fipe');
+        return;
+      }
+      if (next === 'admin' && (!isAuthenticated || !isAdmin)) {
+        syncUrlSearchParams(new URLSearchParams(), 'replace');
+        setActiveSection('fipe');
+        return;
+      }
+      setListingsSearch(null);
+      setHistoryIntent(null);
+      setActiveSection(next);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isAuthenticated, isAdmin]);
 
   useEffect(() => {
     if (isAuthenticated && user?.profileUserId && pendingAlertAfterAuth) {
@@ -138,6 +188,9 @@ function AppContent() {
 
   useEffect(() => {
     if (isAuthenticated && pendingHistoryAfterAuth) {
+      const tabParams = new URLSearchParams();
+      tabParams.set('tab', 'historico');
+      syncUrlSearchParams(tabParams, 'push');
       setHistoryIntent(pendingHistoryAfterAuth);
       setPendingHistoryAfterAuth(null);
       setActiveSection('history');
@@ -166,10 +219,17 @@ function AppContent() {
     if (section === 'admin' && (!isAuthenticated || !isAdmin)) {
       return;
     }
+    setListingsSearch(null);
+    setHistoryIntent(null);
+    const params = new URLSearchParams();
+    const tabParam = getTabParamForSection(section);
+    if (tabParam) params.set('tab', tabParam);
+    syncUrlSearchParams(params, 'push');
     setActiveSection(section);
   };
 
   const handleSearchVehicleListings = (vehicle: Vehicle) => {
+    syncUrlSearchParams(new URLSearchParams({ tab: 'anuncios' }), 'push');
     setListingsSearch(buildListingSearchIntent(vehicle));
     setActiveSection('joinville');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -198,6 +258,7 @@ function AppContent() {
       return;
     }
 
+    syncUrlSearchParams(new URLSearchParams({ tab: 'historico' }), 'push');
     setHistoryIntent(nextIntent);
     setActiveSection('history');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -218,6 +279,7 @@ function AppContent() {
       return;
     }
 
+    syncUrlSearchParams(new URLSearchParams({ tab: 'historico' }), 'push');
     setHistoryIntent(nextIntent);
     setActiveSection('history');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -242,6 +304,7 @@ function AppContent() {
     const created = await createUserAlert(pb, uid, input);
     await evaluateAlertAgainstCatalog(pb, created, uid).catch(() => undefined);
     await refreshUnreadCount();
+    syncUrlSearchParams(new URLSearchParams({ tab: 'alertas' }), 'push');
     setActiveSection('alerts');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };

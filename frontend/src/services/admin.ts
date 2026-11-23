@@ -290,6 +290,7 @@ export async function fetchCrawlerLogs(
 export async function fetchAdminCarros(
   pb: PocketBase,
   params: { page: number; perPage?: number; search?: string; status?: string },
+  signal?: AbortSignal,
 ): Promise<{ items: CarListingItem[]; totalItems: number; totalPages: number }> {
   const clauses: string[] = [];
   if (params.status && params.status !== 'all') {
@@ -306,6 +307,7 @@ export async function fetchAdminCarros(
     .getList<Record<string, unknown>>(params.page, params.perPage ?? 20, {
       ...(clauses.length > 0 ? { filter: clauses.join(' && ') } : {}),
       sort: '-updated',
+      ...(signal ? { signal } : {}),
     });
 
   return {
@@ -343,6 +345,7 @@ export async function fetchAdminUsers(
   pb: PocketBase,
   page = 1,
   search = '',
+  signal?: AbortSignal,
 ): Promise<{ items: AdminUserItem[]; totalItems: number; totalPages: number }> {
   const filter = search.trim()
     ? pb.filter('(email ~ {:q} || name ~ {:q})', { q: search.trim() })
@@ -352,6 +355,7 @@ export async function fetchAdminUsers(
     .getList<Record<string, unknown>>(page, 30, {
       ...(filter ? { filter } : {}),
       sort: '-created',
+      ...(signal ? { signal } : {}),
     });
 
   return {

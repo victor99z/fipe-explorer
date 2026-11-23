@@ -47,17 +47,26 @@ import {
 } from '../../services/admin';
 import {
   DEFAULT_POCKETBASE_URL,
+  isRequestAbortError,
   type CarListingItem,
 } from '../../services/pocketbase';
+import { useDebouncedFields } from '../../hooks/useDebouncedFields';
 import {
   formatBRL,
   formatDateTimeBR,
   formatMileageKm,
   formatPct,
 } from '../../lib/formatters';
+import {
+  buildAdminUrlParams,
+  parseAdminTabFromUrl,
+  parseSectionFromUrl,
+  syncUrlSearchParams,
+  type AdminUrlTab,
+} from '../../lib/urlState';
 import { NativeDialog } from '../ui/NativeDialog';
 
-type AdminTab = 'overview' | 'crawler' | 'cars' | 'users' | 'alerts';
+type AdminTab = AdminUrlTab;
 
 export interface AdminViewProps {
   onInspectModelHistory: (query: string) => void;
@@ -69,8 +78,22 @@ export default function AdminView({ onInspectModelHistory }: AdminViewProps) {
   const deleteTitleId = useId();
   const newSourceTitleId = useId();
 
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => parseAdminTabFromUrl());
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (parseSectionFromUrl() !== 'admin') return;
+    syncUrlSearchParams(buildAdminUrlParams(activeTab), 'replace');
+  }, [activeTab]);
+
+  useEffect(() => {
+    const handlePop = () => {
+      if (parseSectionFromUrl() !== 'admin') return;
+      setActiveTab(parseAdminTabFromUrl());
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, []);
   const [busyAction, setBusyAction] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +147,10 @@ export default function AdminView({ onInspectModelHistory }: AdminViewProps) {
   const [usersPage, setUsersPage] = useState(1);
   const [usersTotalPages, setUsersTotalPages] = useState(1);
   const [userSearch, setUserSearch] = useState('');
+  const [debouncedAdminSearch, flushAdminSearch] = useDebouncedFields(
+    { carSearch, userSearch },
+    450,
+  );
 
   // Alerts
   const [systemAlerts, setSystemAlerts] = useState<AdminAlertOverviewItem[]>([]);
@@ -156,23 +183,50 @@ export default function AdminView({ onInspectModelHistory }: AdminViewProps) {
     }
   }, [pb, logLevel]);
 
-  const loadCars = useCallback(async () => {
-    const res = await fetchAdminCarros(pb, {
-      page: carsPage,
-      perPage: 20,
-      search: carSearch,
-      status: carStatusFilter,
-    });
-    setCars(res.items);
-    setCarsTotal(res.totalItems);
-    setCarsTotalPages(res.totalPages);
-  }, [pb, carsPage, carSearch, carStatusFilter]);
+  const loadCars = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const res = await fetchAdminCarros(
+          pb,
+          {
+            page: carsPage,
+            perPage: 20,
+            search: debouncedAdminSearch.carSearch,
+            status: carStatusFilter,
+          },
+          signal,
+        );
+        if (signal?.aborted) return;
+        setCars(res.items);
+        setCarsTotal(res.totalItems);
+        setCarsTotalPages(res.totalPages);
+      } catch (err) {
+        if (signal?.aborted || isRequestAbortError(err)) return;
+        throw err;
+      }
+    },
+    [pb, carsPage, debouncedAdminSearch.carSearch, carStatusFilter],
+  );
 
-  const loadUsers = useCallback(async () => {
-    const res = await fetchAdminUsers(pb, usersPage, userSearch);
-    setUsers(res.items);
-    setUsersTotalPages(res.totalPages);
-  }, [pb, usersPage, userSearch]);
+  const loadUsers = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const res = await fetchAdminUsers(
+          pb,
+          usersPage,
+          debouncedAdminSearch.userSearch,
+          signal,
+        );
+        if (signal?.aborted) return;
+        setUsers(res.items);
+        setUsersTotalPages(res.totalPages);
+      } catch (err) {
+        if (signal?.aborted || isRequestAbortError(err)) return;
+        throw err;
+      }
+    },
+    [pb, usersPage, debouncedAdminSearch.userSearch],
+  );
 
   const loadAlerts = useCallback(async () => {
     const list = await fetchAdminAlerts(pb);
@@ -186,9 +240,13 @@ export default function AdminView({ onInspectModelHistory }: AdminViewProps) {
 
   useEffect(() => {
     if (!isAuthenticated || !isAdmin) return;
-    if (activeTab === 'cars') void loadCars();
-    if (activeTab === 'users') void loadUsers();
+    const controller = new AbortController();
+    if (activeTab === 'cars') void loadCars(controller.signal);
+    if (activeTab === 'users') void loadUsers(controller.signal);
     if (activeTab === 'alerts') void loadAlerts();
+    return () => {
+      controller.abort();
+    };
   }, [isAuthenticated, isAdmin, activeTab, loadCars, loadUsers, loadAlerts]);
 
   if (!isAuthenticated || !isAdmin) {
@@ -801,6 +859,11 @@ export default function AdminView({ onInspectModelHistory }: AdminViewProps) {
                   setCarSearch(e.target.value);
                   setCarsPage(1);
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    flushAdminSearch({ carSearch, userSearch });
+                  }
+                }}
                 placeholder="Buscar anúncio por modelo, código FIPE, cidade..."
                 className="w-full h-8 pl-8 pr-3 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#121212] text-xs"
               />
@@ -961,6 +1024,11 @@ export default function AdminView({ onInspectModelHistory }: AdminViewProps) {
               onChange={(e) => {
                 setUserSearch(e.target.value);
                 setUsersPage(1);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  flushAdminSearch({ carSearch, userSearch });
+                }
               }}
               placeholder="Filtrar usuários por nome ou e-mail..."
               className="w-full h-8 pl-8 pr-3 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#ffffff] dark:bg-[#121212] text-xs"

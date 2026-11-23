@@ -25,6 +25,7 @@ import {
   DEFAULT_REGIONAL_CITIES,
   fetchCarFacetsAndStats,
   fetchPagedCarListings,
+  isRequestAbortError,
   updateCarCuration,
   type CarFacetsAndStats,
   type CarListingItem,
@@ -36,6 +37,13 @@ import type { CarAlertInput } from '../../services/alerts';
 import { formatBRL, formatPct } from '../../lib/formatters';
 import CustomDropdown from '../ui/custom-dropdown';
 import { CarListingModal } from './CarListingModal';
+import {
+  buildJoinvilleUrlParams,
+  parseJoinvilleUrlParams,
+  parseSectionFromUrl,
+  syncUrlSearchParams,
+  type JoinvilleUrlState,
+} from '../../lib/urlState';
 
 export interface FipeListingSearchIntent {
   term: string;
@@ -107,10 +115,12 @@ export default function JoinvilleCarsView({
 
   const resultsTopRef = useRef<HTMLDivElement>(null);
   const requestSeqRef = useRef(0);
+  const [initialUrl] = useState<JoinvilleUrlState>(() => parseJoinvilleUrlParams());
+  const lastAppliedNonceRef = useRef<number | null>(initialSearch?.nonce ?? null);
 
   // Page results
   const [carros, setCarros] = useState<CarListingItem[]>([]);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => (initialSearch ? 1 : initialUrl.page));
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -134,47 +144,129 @@ export default function JoinvilleCarsView({
   });
 
   // Filters (aligned with Tabela FIPE + location/ad facets)
-  const [search, setSearch] = useState(() => initialSearch?.term ?? '');
-  const [cityFilter, setCityFilter] = useState('todas');
-  const [neighborhoodFilter, setNeighborhoodFilter] = useState('');
-  const [brandFilter, setBrandFilter] = useState('');
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
-  const [minYear, setMinYear] = useState('');
-  const [maxYear, setMaxYear] = useState('');
-  const [motorizacaoFilter, setMotorizacaoFilter] = useState('todos');
-  const [cambioFilter, setCambioFilter] = useState('todos');
-  const [litragemFilter, setLitragemFilter] = useState('todos');
-  const [combustivelFilter, setCombustivelFilter] = useState('todos');
-  const [portalFilter, setPortalFilter] = useState('');
-  const [sellerFilter, setSellerFilter] = useState('');
-  const [maxKm, setMaxKm] = useState('');
+  const [search, setSearch] = useState(() => initialSearch?.term ?? initialUrl.search);
+  const [cityFilter, setCityFilter] = useState(() =>
+    initialSearch ? 'todas' : initialUrl.cityFilter,
+  );
+  const [neighborhoodFilter, setNeighborhoodFilter] = useState(() =>
+    initialSearch ? '' : initialUrl.neighborhoodFilter,
+  );
+  const [brandFilter, setBrandFilter] = useState(() =>
+    initialSearch ? '' : initialUrl.brandFilter,
+  );
+  const [minPrice, setMinPrice] = useState(() =>
+    initialSearch ? '' : initialUrl.minPrice,
+  );
+  const [maxPrice, setMaxPrice] = useState(() =>
+    initialSearch ? '' : initialUrl.maxPrice,
+  );
+  const [minYear, setMinYear] = useState(() =>
+    initialSearch ? '' : initialUrl.minYear,
+  );
+  const [maxYear, setMaxYear] = useState(() =>
+    initialSearch ? '' : initialUrl.maxYear,
+  );
+  const [motorizacaoFilter, setMotorizacaoFilter] = useState(() =>
+    initialSearch ? 'todos' : initialUrl.motorizacaoFilter,
+  );
+  const [cambioFilter, setCambioFilter] = useState(() =>
+    initialSearch ? 'todos' : initialUrl.cambioFilter,
+  );
+  const [litragemFilter, setLitragemFilter] = useState(() =>
+    initialSearch ? 'todos' : initialUrl.litragemFilter,
+  );
+  const [combustivelFilter, setCombustivelFilter] = useState(() =>
+    initialSearch ? 'todos' : initialUrl.combustivelFilter,
+  );
+  const [portalFilter, setPortalFilter] = useState(() =>
+    initialSearch ? '' : initialUrl.portalFilter,
+  );
+  const [sellerFilter, setSellerFilter] = useState(() =>
+    initialSearch ? '' : initialUrl.sellerFilter,
+  );
+  const [maxKm, setMaxKm] = useState(() =>
+    initialSearch ? '' : initialUrl.maxKm,
+  );
 
   // Debounced text/numeric query inputs
   const [debouncedText, setDebouncedText] = useState(() => ({
-    search: initialSearch?.term ?? '',
-    neighborhood: '',
-    minPrice: '',
-    maxPrice: '',
-    minYear: '',
-    maxYear: '',
-    maxKm: '',
+    search: initialSearch?.term ?? initialUrl.search,
+    neighborhood: initialSearch ? '' : initialUrl.neighborhoodFilter,
+    minPrice: initialSearch ? '' : initialUrl.minPrice,
+    maxPrice: initialSearch ? '' : initialUrl.maxPrice,
+    minYear: initialSearch ? '' : initialUrl.minYear,
+    maxYear: initialSearch ? '' : initialUrl.maxYear,
+    maxKm: initialSearch ? '' : initialUrl.maxKm,
   }));
 
-  const [onlyBelowFipe, setOnlyBelowFipe] = useState(false);
-  const [visibilityMode, setVisibilityMode] = useState<VisibilityMode>('active');
-  const [sortBy, setSortBy] = useState<SortMode>(() => (initialSearch ? 'relevance' : 'newest'));
+  const [onlyBelowFipe, setOnlyBelowFipe] = useState(() =>
+    initialSearch ? false : initialUrl.onlyBelowFipe,
+  );
+  const [visibilityMode, setVisibilityMode] = useState<VisibilityMode>(() =>
+    initialSearch ? 'active' : initialUrl.visibilityMode,
+  );
+  const [sortBy, setSortBy] = useState<SortMode>(() =>
+    initialSearch ? 'relevance' : initialUrl.sortBy,
+  );
   const [showFilters, setShowFilters] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
   );
-  const [fipeContext, setFipeContext] = useState<FipeListingSearchIntent | null>(() => initialSearch ?? null);
-  const [exactYearOnly, setExactYearOnly] = useState(false);
-  const [exactFipeOnly, setExactFipeOnly] = useState(false);
+  const [fipeContext, setFipeContext] = useState<FipeListingSearchIntent | null>(() => {
+    if (initialSearch) return initialSearch;
+    if (!initialUrl.fipeContext) return null;
+    return {
+      ...initialUrl.fipeContext,
+      nonce: 0,
+    };
+  });
+  const [exactYearOnly, setExactYearOnly] = useState(() =>
+    initialSearch ? false : initialUrl.exactYearOnly,
+  );
+  const [exactFipeOnly, setExactFipeOnly] = useState(() =>
+    initialSearch ? false : initialUrl.exactFipeOnly,
+  );
   const [refreshTick, setRefreshTick] = useState(0);
+
+  // Override page initialized above (line ~113) when initialUrl.page > 1
+  const applyJoinvilleUrlState = useCallback((u: JoinvilleUrlState) => {
+    setSearch(u.search);
+    setCityFilter(u.cityFilter);
+    setNeighborhoodFilter(u.neighborhoodFilter);
+    setBrandFilter(u.brandFilter);
+    setMinPrice(u.minPrice);
+    setMaxPrice(u.maxPrice);
+    setMinYear(u.minYear);
+    setMaxYear(u.maxYear);
+    setMaxKm(u.maxKm);
+    setMotorizacaoFilter(u.motorizacaoFilter);
+    setCambioFilter(u.cambioFilter);
+    setLitragemFilter(u.litragemFilter);
+    setCombustivelFilter(u.combustivelFilter);
+    setPortalFilter(u.portalFilter);
+    setSellerFilter(u.sellerFilter);
+    setOnlyBelowFipe(u.onlyBelowFipe);
+    setVisibilityMode(u.visibilityMode);
+    setSortBy(u.sortBy);
+    setPage(u.page);
+    setExactYearOnly(u.exactYearOnly);
+    setExactFipeOnly(u.exactFipeOnly);
+    setFipeContext(u.fipeContext ? { ...u.fipeContext, nonce: 0 } : null);
+    setDebouncedText({
+      search: u.search,
+      neighborhood: u.neighborhoodFilter,
+      minPrice: u.minPrice,
+      maxPrice: u.maxPrice,
+      minYear: u.minYear,
+      maxYear: u.maxYear,
+      maxKm: u.maxKm,
+    });
+  }, []);
 
   // Sync incoming search intent from Tabela FIPE
   useEffect(() => {
     if (!initialSearch) return;
+    if (lastAppliedNonceRef.current === initialSearch.nonce) return;
+    lastAppliedNonceRef.current = initialSearch.nonce;
     setSearch(initialSearch.term);
     setBrandFilter('');
     setMotorizacaoFilter('todos');
@@ -197,7 +289,86 @@ export default function JoinvilleCarsView({
     }));
   }, [initialSearch]);
 
-  // Debounce free-text and numeric filter inputs (~250ms) & reset page to 1
+  useEffect(() => {
+    if (parseSectionFromUrl() !== 'joinville') return;
+    syncUrlSearchParams(
+      buildJoinvilleUrlParams({
+        search: debouncedText.search,
+        cityFilter,
+        neighborhoodFilter: debouncedText.neighborhood,
+        brandFilter,
+        minPrice: debouncedText.minPrice,
+        maxPrice: debouncedText.maxPrice,
+        minYear: debouncedText.minYear,
+        maxYear: debouncedText.maxYear,
+        maxKm: debouncedText.maxKm,
+        motorizacaoFilter,
+        cambioFilter,
+        litragemFilter,
+        combustivelFilter,
+        portalFilter,
+        sellerFilter,
+        onlyBelowFipe,
+        visibilityMode,
+        sortBy,
+        page,
+        exactYearOnly,
+        exactFipeOnly,
+        fipeContext: fipeContext
+          ? {
+              term: fipeContext.term,
+              codigoFipe: fipeContext.codigoFipe,
+              year: fipeContext.year,
+              transmission: fipeContext.transmission,
+              fuel: fipeContext.fuel,
+              fipeLabel: fipeContext.fipeLabel,
+            }
+          : null,
+      }),
+      'replace',
+    );
+  }, [
+    debouncedText,
+    cityFilter,
+    brandFilter,
+    motorizacaoFilter,
+    cambioFilter,
+    litragemFilter,
+    combustivelFilter,
+    portalFilter,
+    sellerFilter,
+    onlyBelowFipe,
+    visibilityMode,
+    sortBy,
+    page,
+    exactYearOnly,
+    exactFipeOnly,
+    fipeContext,
+  ]);
+
+  useEffect(() => {
+    const handlePop = () => {
+      if (parseSectionFromUrl() !== 'joinville') return;
+      applyJoinvilleUrlState(parseJoinvilleUrlParams());
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, [applyJoinvilleUrlState]);
+
+  const flushDebouncedText = useCallback(() => {
+    setPage(1);
+    setDebouncedText({
+      search,
+      neighborhood: neighborhoodFilter,
+      minPrice,
+      maxPrice,
+      minYear,
+      maxYear,
+      maxKm,
+    });
+  }, [search, neighborhoodFilter, minPrice, maxPrice, minYear, maxYear, maxKm]);
+
+  // Debounce free-text and numeric filter inputs (~450ms) & reset page to 1
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedText((prev) => {
@@ -223,59 +394,65 @@ export default function JoinvilleCarsView({
           maxKm,
         };
       });
-    }, 250);
+    }, 450);
     return () => window.clearTimeout(timer);
   }, [search, neighborhoodFilter, minPrice, maxPrice, minYear, maxYear, maxKm]);
 
   // Load facets/stats whenever cityFilter or manual refresh changes
   useEffect(() => {
-    let active = true;
-    fetchCarFacetsAndStats(pb, cityFilter)
+    const controller = new AbortController();
+    fetchCarFacetsAndStats(pb, cityFilter, controller.signal)
       .then((res) => {
-        if (active) setFacets(res);
+        if (!controller.signal.aborted) setFacets(res);
       })
-      .catch(() => {
+      .catch((err) => {
+        if (controller.signal.aborted || isRequestAbortError(err)) return;
         // Non-blocking: list query surfaces connection errors if PB is down
       });
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [pb, cityFilter, refreshTick]);
 
-  // Load current page from PocketBase (zero browser-side FIPE batch matching)
+  // Load current page from PocketBase (cancelling stale in-flight requests)
   useEffect(() => {
     const seq = ++requestSeqRef.current;
+    const controller = new AbortController();
     setLoading(true);
     setLoadError(null);
 
-    fetchPagedCarListings(pb, {
-      page,
-      perPage: ITEMS_PER_PAGE,
-      search: debouncedText.search,
-      city: cityFilter,
-      neighborhood: debouncedText.neighborhood,
-      portal: portalFilter,
-      brand: brandFilter,
-      motorizacao: motorizacaoFilter,
-      cambio: cambioFilter,
-      litragem: litragemFilter,
-      combustivel: combustivelFilter,
-      sellerType: sellerFilter,
-      minPrice: debouncedText.minPrice,
-      maxPrice: debouncedText.maxPrice,
-      minYear: debouncedText.minYear,
-      maxYear: debouncedText.maxYear,
-      maxKm: debouncedText.maxKm,
-      onlyBelowFipe,
-      exactYear: exactYearOnly ? fipeContext?.year : undefined,
-      exactFipeCode: exactFipeOnly ? fipeContext?.codigoFipe : undefined,
-      visibilityMode,
-      sortBy,
-      userId: userId || undefined,
-      curationMap,
-    })
+    fetchPagedCarListings(
+      pb,
+      {
+        page,
+        perPage: ITEMS_PER_PAGE,
+        search: debouncedText.search,
+        city: cityFilter,
+        neighborhood: debouncedText.neighborhood,
+        portal: portalFilter,
+        brand: brandFilter,
+        motorizacao: motorizacaoFilter,
+        cambio: cambioFilter,
+        litragem: litragemFilter,
+        combustivel: combustivelFilter,
+        sellerType: sellerFilter,
+        minPrice: debouncedText.minPrice,
+        maxPrice: debouncedText.maxPrice,
+        minYear: debouncedText.minYear,
+        maxYear: debouncedText.maxYear,
+        maxKm: debouncedText.maxKm,
+        onlyBelowFipe,
+        exactYear: exactYearOnly ? fipeContext?.year : undefined,
+        exactFipeCode: exactFipeOnly ? fipeContext?.codigoFipe : undefined,
+        visibilityMode,
+        sortBy,
+        userId: userId || undefined,
+        curationMap,
+      },
+      controller.signal,
+    )
       .then((res) => {
-        if (requestSeqRef.current !== seq) return;
+        if (requestSeqRef.current !== seq || controller.signal.aborted) return;
         setCarros(res.items);
         setTotalItems(res.totalItems);
         setTotalPages(res.totalPages);
@@ -286,18 +463,28 @@ export default function JoinvilleCarsView({
           cur ? res.items.find((c) => c.id === cur.id) ?? cur : null,
         );
       })
-      .catch(() => {
-        if (requestSeqRef.current !== seq) return;
+      .catch((err) => {
+        if (
+          requestSeqRef.current !== seq ||
+          controller.signal.aborted ||
+          isRequestAbortError(err)
+        ) {
+          return;
+        }
         setLoadError('Não foi possível carregar os anúncios no momento. Tente novamente em instantes.');
         setCarros([]);
         setTotalItems(0);
         setTotalPages(1);
       })
       .finally(() => {
-        if (requestSeqRef.current === seq) {
+        if (requestSeqRef.current === seq && !controller.signal.aborted) {
           setLoading(false);
         }
       });
+
+    return () => {
+      controller.abort();
+    };
   }, [
     pb,
     page,
@@ -620,6 +807,12 @@ export default function JoinvilleCarsView({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    flushDebouncedText();
+                  }
+                }}
                 placeholder="Buscar modelo, versão, código FIPE ou bairro..."
                 className="w-full h-8 pl-8 pr-3 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:outline-none focus:border-[#3ecf8e]"
               />

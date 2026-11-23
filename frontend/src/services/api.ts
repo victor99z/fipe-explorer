@@ -39,7 +39,10 @@ export async function fetchFuels(tipoVeiculo: string = 'carro'): Promise<FuelIte
   return res.json();
 }
 
-export async function fetchCars(filters: VehicleFilterParams): Promise<VehicleSearchResponse> {
+export async function fetchCars(
+  filters: VehicleFilterParams,
+  signal?: AbortSignal,
+): Promise<VehicleSearchResponse> {
   const params = new URLSearchParams();
 
   if (filters.tipo_veiculo) params.append('tipo_veiculo', filters.tipo_veiculo);
@@ -62,7 +65,7 @@ export async function fetchCars(filters: VehicleFilterParams): Promise<VehicleSe
     params.append('marca', filters.marca);
   }
 
-  const res = await fetch(`/api/search/by-price?${params.toString()}`);
+  const res = await fetch(`/api/search/by-price?${params.toString()}`, { signal });
   if (!res.ok) {
     throw new Error(`Falha ao buscar veículos: ${res.statusText}`);
   }

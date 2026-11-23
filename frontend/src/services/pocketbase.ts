@@ -344,6 +344,15 @@ function getHttpStatus(err: unknown): number | undefined {
   return undefined;
 }
 
+export function isRequestAbortError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  if (err instanceof ClientResponseError && err.isAbort) return true;
+  if ('isAbort' in err && (err as { isAbort?: unknown }).isAbort === true) {
+    return true;
+  }
+  return 'name' in err && (err as { name?: unknown }).name === 'AbortError';
+}
+
 function parseStringArray(raw: unknown): string[] {
   if (Array.isArray(raw)) {
     return raw.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
@@ -885,6 +894,7 @@ export async function fetchUserCurationMap(
 export async function fetchPagedCarListings(
   pb: PocketBase,
   params: CarListQueryParams,
+  signal?: AbortSignal,
 ): Promise<CarListPageResult> {
   const localPrefs = params.curationMap ?? loadLocalCarPrefs();
   const perPage = params.perPage ?? 24;
@@ -903,6 +913,7 @@ export async function fetchPagedCarListings(
         ...(filter ? { filter } : {}),
         sort,
         fields: LIST_CARD_FIELDS,
+        ...(signal ? { signal } : {}),
       });
 
     return {
@@ -913,6 +924,7 @@ export async function fetchPagedCarListings(
       totalPages: Math.max(1, res.totalPages),
     };
   } catch (err) {
+    if (isRequestAbortError(err)) throw err;
     const status = getHttpStatus(err);
     if (status === 404) {
       return { items: [], page: 1, perPage, totalItems: 0, totalPages: 1 };
@@ -925,6 +937,7 @@ export async function fetchPagedCarListings(
           ...(filter ? { filter } : {}),
           fields:
             'id,collectionId,collectionName,ref,text_description,id_listing,images,image_urls,price,year,mileage_km,brand,model,version,transmission,fuel,color,body_type,seller_type,neighborhood,city,state,fipe_price,fipe_code,fipe_brand,fipe_model,fipe_year,fipe_ref_period,fipe_diff_pct,notes,created,updated',
+          ...(signal ? { signal } : {}),
         });
       return {
         items: res.items.map((r) => mapCarRecord(pb, r, localPrefs)),
@@ -941,6 +954,7 @@ export async function fetchPagedCarListings(
 export async function fetchCarFacetsAndStats(
   pb: PocketBase,
   cityFilter?: string,
+  signal?: AbortSignal,
 ): Promise<CarFacetsAndStats> {
   const baseClauses = [ACTIVE_LISTING_FILTER];
   if (cityFilter && cityFilter !== 'todas') {
@@ -949,34 +963,50 @@ export async function fetchCarFacetsAndStats(
   const baseFilter = baseClauses.join(' && ');
   const belowFilter = `${baseFilter} && fipe_price > 0 && fipe_diff_pct <= 0`;
 
+  const reqOpts = signal ? { signal } : {};
   const [totalRes, belowRes, sampleRes, citiesRes] = await Promise.all([
     pb
       .collection(PB_CAR_COLLECTIONS.CARROS)
       .getList(1, 1, {
         filter: baseFilter,
         fields: 'id',
+        ...reqOpts,
       })
-      .catch(() => ({ totalItems: 0 })),
+      .catch((err) => {
+        if (isRequestAbortError(err)) throw err;
+        return { totalItems: 0 };
+      }),
     pb
       .collection(PB_CAR_COLLECTIONS.CARROS)
-      .getList(1, 1, { filter: belowFilter, fields: 'id' })
-      .catch(() => ({ totalItems: 0 })),
+      .getList(1, 1, { filter: belowFilter, fields: 'id', ...reqOpts })
+      .catch((err) => {
+        if (isRequestAbortError(err)) throw err;
+        return { totalItems: 0 };
+      }),
     pb
       .collection(PB_CAR_COLLECTIONS.CARROS)
       .getList<Record<string, unknown>>(1, 400, {
         filter: baseFilter,
         fields: 'brand,fuel,price',
+        ...reqOpts,
       })
-      .catch(() => ({ items: [] as Record<string, unknown>[] })),
+      .catch((err) => {
+        if (isRequestAbortError(err)) throw err;
+        return { items: [] as Record<string, unknown>[] };
+      }),
     pb
       .collection(PB_CAR_COLLECTIONS.CARROS)
-      .getFullList<Record<string, unknown>>({
+      .getList<Record<string, unknown>>(1, 500, {
         filter: `${ACTIVE_LISTING_FILTER} && city != ""`,
         sort: '-updated',
         fields: 'city',
-        batch: 1000,
+        ...reqOpts,
       })
-      .catch(() => [] as Record<string, unknown>[]),
+      .then((res) => res.items)
+      .catch((err) => {
+        if (isRequestAbortError(err)) throw err;
+        return [] as Record<string, unknown>[];
+      }),
   ]);
 
   const observedCities: string[] = [];

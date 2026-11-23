@@ -3,6 +3,7 @@ import {
   buildCambioFilterClause,
   buildTokenizedSearchClauses,
   DEFAULT_REGIONAL_CITIES,
+  isRequestAbortError,
   mergeAndSortRegionalCities,
   PB_CAR_COLLECTIONS,
 } from './pocketbase';
@@ -422,8 +423,10 @@ export async function fetchHistoryFacets(
 export async function fetchModelListingHistory(
   pb: PocketBase,
   query: ModelHistoryQuery,
+  signal?: AbortSignal,
 ): Promise<ModelHistoryResult> {
   const filter = buildQueryClauses(pb, query).join(' && ');
+  const reqOpts = signal ? { signal } : {};
 
   let historyCollectionAvailable = true;
   const [historyItems, currentItems] = await Promise.all([
@@ -432,9 +435,11 @@ export async function fetchModelListingHistory(
       .getList<Record<string, unknown>>(1, 500, {
         filter,
         sort: '-recorded_at,-created',
+        ...reqOpts,
       })
       .then((r) => r.items)
       .catch((err) => {
+        if (isRequestAbortError(err)) throw err;
         if (getHttpStatus(err) === 404) {
           historyCollectionAvailable = false;
         }
@@ -445,9 +450,13 @@ export async function fetchModelListingHistory(
       .getList<Record<string, unknown>>(1, 300, {
         filter,
         sort: '-updated',
+        ...reqOpts,
       })
       .then((r) => r.items)
-      .catch(() => [] as Record<string, unknown>[]),
+      .catch((err) => {
+        if (isRequestAbortError(err)) throw err;
+        return [] as Record<string, unknown>[];
+      }),
   ]);
 
   const currentByRef = new Map<string, Record<string, unknown>>();

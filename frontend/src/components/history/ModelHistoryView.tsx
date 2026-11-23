@@ -45,6 +45,7 @@ import {
 import {
   CAMBIO_FILTER_OPTIONS,
   DEFAULT_REGIONAL_CITIES,
+  isRequestAbortError,
   mapCarRecord,
   PB_CAR_COLLECTIONS,
   updateCarCuration,
@@ -61,6 +62,14 @@ import {
 } from '../../lib/formatters';
 import CustomDropdown from '../ui/custom-dropdown';
 import { CarListingModal } from '../joinville/CarListingModal';
+import {
+  buildModelHistoryUrlParams,
+  parseModelHistoryUrlParams,
+  parseSectionFromUrl,
+  syncUrlSearchParams,
+  type HistorySubTab,
+  type ModelHistoryUrlState,
+} from '../../lib/urlState';
 
 ChartJS.register(
   CategoryScale,
@@ -88,7 +97,7 @@ export interface ModelHistoryViewProps {
   onCreateAlert: (prefill: Partial<CarAlertInput>) => void;
 }
 
-type HistoryTab = 'ads' | 'timeline' | 'breakdown';
+type HistoryTab = HistorySubTab;
 type SortKey = 'recordedAt' | 'price' | 'mileageKm' | 'fipeDiffPct' | 'year';
 
 const FALLBACK_CHIPS: Array<{ query: string; label: string; count?: number }> = [
@@ -133,41 +142,62 @@ export default function ModelHistoryView({
   const maxKmId = useId();
   const tableCaptionId = useId();
 
-  const [search, setSearch] = useState(initialIntent?.search ?? '');
-  const [brand, setBrand] = useState(initialIntent?.brand ?? '');
-  const [minYear, setMinYear] = useState(
-    initialIntent?.year ? String(initialIntent.year) : '',
+  const [initialUrl] = useState<ModelHistoryUrlState>(() => parseModelHistoryUrlParams());
+  const lastAppliedNonceRef = React.useRef<number | null>(initialIntent?.nonce ?? null);
+
+  const [search, setSearch] = useState(() => initialIntent?.search ?? initialUrl.search);
+  const [brand, setBrand] = useState(() => initialIntent?.brand ?? initialUrl.brand);
+  const [minYear, setMinYear] = useState(() =>
+    initialIntent?.year ? String(initialIntent.year) : initialUrl.minYear,
   );
-  const [maxYear, setMaxYear] = useState(
-    initialIntent?.year ? String(initialIntent.year) : '',
+  const [maxYear, setMaxYear] = useState(() =>
+    initialIntent?.year ? String(initialIntent.year) : initialUrl.maxYear,
   );
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
-  const [maxKm, setMaxKm] = useState('');
-  const [cambio, setCambio] = useState('todos');
-  const [fuel, setFuel] = useState('todos');
-  const [portal, setPortal] = useState('');
-  const [city, setCity] = useState('todas');
-  const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('all');
-  const [fipeCode, setFipeCode] = useState(initialIntent?.fipeCode ?? '');
+  const [minPrice, setMinPrice] = useState(() =>
+    initialIntent ? '' : initialUrl.minPrice,
+  );
+  const [maxPrice, setMaxPrice] = useState(() =>
+    initialIntent ? '' : initialUrl.maxPrice,
+  );
+  const [maxKm, setMaxKm] = useState(() =>
+    initialIntent ? '' : initialUrl.maxKm,
+  );
+  const [cambio, setCambio] = useState(() =>
+    initialIntent ? 'todos' : initialUrl.cambio,
+  );
+  const [fuel, setFuel] = useState(() =>
+    initialIntent ? 'todos' : initialUrl.fuel,
+  );
+  const [portal, setPortal] = useState(() =>
+    initialIntent ? '' : initialUrl.portal,
+  );
+  const [city, setCity] = useState(() =>
+    initialIntent ? 'todas' : initialUrl.city,
+  );
+  const [status, setStatus] = useState<'all' | 'active' | 'inactive'>(() =>
+    initialIntent ? 'all' : initialUrl.status,
+  );
+  const [fipeCode, setFipeCode] = useState(() =>
+    initialIntent?.fipeCode ?? initialUrl.fipeCode,
+  );
   const [showFilters, setShowFilters] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
   );
 
   const [activeQuery, setActiveQuery] = useState<ModelHistoryQuery>(() => ({
-    search: initialIntent?.search ?? '',
-    brand: initialIntent?.brand ?? '',
-    minYear: initialIntent?.year ? String(initialIntent.year) : '',
-    maxYear: initialIntent?.year ? String(initialIntent.year) : '',
-    minPrice: '',
-    maxPrice: '',
-    maxKm: '',
-    cambio: 'todos',
-    fuel: 'todos',
-    portal: '',
-    city: 'todas',
-    fipeCode: initialIntent?.fipeCode ?? '',
-    status: 'all',
+    search: initialIntent?.search ?? initialUrl.search,
+    brand: initialIntent?.brand ?? initialUrl.brand,
+    minYear: initialIntent?.year ? String(initialIntent.year) : initialUrl.minYear,
+    maxYear: initialIntent?.year ? String(initialIntent.year) : initialUrl.maxYear,
+    minPrice: initialIntent ? '' : initialUrl.minPrice,
+    maxPrice: initialIntent ? '' : initialUrl.maxPrice,
+    maxKm: initialIntent ? '' : initialUrl.maxKm,
+    cambio: initialIntent ? 'todos' : initialUrl.cambio,
+    fuel: initialIntent ? 'todos' : initialUrl.fuel,
+    portal: initialIntent ? '' : initialUrl.portal,
+    city: initialIntent ? 'todas' : initialUrl.city,
+    fipeCode: initialIntent?.fipeCode ?? initialUrl.fipeCode,
+    status: initialIntent ? 'all' : initialUrl.status,
   }));
 
   const [result, setResult] = useState<ModelHistoryResult | null>(null);
@@ -178,7 +208,9 @@ export default function ModelHistoryView({
     cities: [...DEFAULT_REGIONAL_CITIES],
     modelChips: [],
   });
-  const [activeTab, setActiveTab] = useState<HistoryTab>('ads');
+  const [activeTab, setActiveTab] = useState<HistoryTab>(() =>
+    initialIntent ? 'ads' : initialUrl.activeTab,
+  );
   const [expandedAdRefs, setExpandedAdRefs] = useState<Record<string, boolean>>({});
   const [sortKey, setSortKey] = useState<SortKey>('recordedAt');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -229,6 +261,8 @@ export default function ModelHistoryView({
 
   useEffect(() => {
     if (!initialIntent) return;
+    if (lastAppliedNonceRef.current === initialIntent.nonce) return;
+    lastAppliedNonceRef.current = initialIntent.nonce;
     const nextSearch = initialIntent.search;
     const nextBrand = initialIntent.brand ?? '';
     const yr = initialIntent.year ? String(initialIntent.year) : '';
@@ -247,6 +281,7 @@ export default function ModelHistoryView({
     setCity('todas');
     setStatus('all');
     setFipeCode(nextFipe);
+    setActiveTab('ads');
     setActiveQuery({
       search: nextSearch,
       brand: nextBrand,
@@ -265,36 +300,114 @@ export default function ModelHistoryView({
   }, [initialIntent]);
 
   useEffect(() => {
+    if (parseSectionFromUrl() !== 'history') return;
+    syncUrlSearchParams(
+      buildModelHistoryUrlParams({
+        search: activeQuery.search,
+        brand: activeQuery.brand ?? '',
+        minYear: activeQuery.minYear ?? '',
+        maxYear: activeQuery.maxYear ?? '',
+        minPrice: activeQuery.minPrice ?? '',
+        maxPrice: activeQuery.maxPrice ?? '',
+        maxKm: activeQuery.maxKm ?? '',
+        cambio: activeQuery.cambio ?? 'todos',
+        fuel: activeQuery.fuel ?? 'todos',
+        portal: activeQuery.portal ?? '',
+        city: activeQuery.city ?? 'todas',
+        status: activeQuery.status ?? 'all',
+        fipeCode: activeQuery.fipeCode ?? '',
+        activeTab,
+      }),
+      'replace',
+    );
+  }, [activeQuery, activeTab]);
+
+  useEffect(() => {
+    const handlePop = () => {
+      if (parseSectionFromUrl() !== 'history') return;
+      const u = parseModelHistoryUrlParams();
+      setSearch(u.search);
+      setBrand(u.brand);
+      setMinYear(u.minYear);
+      setMaxYear(u.maxYear);
+      setMinPrice(u.minPrice);
+      setMaxPrice(u.maxPrice);
+      setMaxKm(u.maxKm);
+      setCambio(u.cambio);
+      setFuel(u.fuel);
+      setPortal(u.portal);
+      setCity(u.city);
+      setStatus(u.status);
+      setFipeCode(u.fipeCode);
+      setActiveTab(u.activeTab);
+      setActiveQuery({
+        search: u.search,
+        brand: u.brand,
+        minYear: u.minYear,
+        maxYear: u.maxYear,
+        minPrice: u.minPrice,
+        maxPrice: u.maxPrice,
+        maxKm: u.maxKm,
+        cambio: u.cambio,
+        fuel: u.fuel,
+        portal: u.portal,
+        city: u.city,
+        fipeCode: u.fipeCode,
+        status: u.status,
+      });
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, []);
+
+  useEffect(() => {
     fetchHistoryFacets(pb)
       .then((data) => setFacets(data))
       .catch(() => undefined);
   }, [pb]);
 
+  const historyRequestSeqRef = React.useRef(0);
+
   const runSearch = useCallback(
-    async (q: ModelHistoryQuery) => {
+    async (q: ModelHistoryQuery, signal?: AbortSignal) => {
+      const seq = ++historyRequestSeqRef.current;
       setLoading(true);
       setError(null);
       try {
-        const res = await fetchModelListingHistory(pb, q);
+        const res = await fetchModelListingHistory(pb, q, signal);
+        if (historyRequestSeqRef.current !== seq || signal?.aborted) return;
         setResult(res);
       } catch (err) {
+        if (
+          historyRequestSeqRef.current !== seq ||
+          signal?.aborted ||
+          isRequestAbortError(err)
+        ) {
+          return;
+        }
         setError(
           err instanceof Error
             ? err.message
             : 'Não foi possível consultar o histórico de anúncios deste modelo.',
         );
       } finally {
-        setLoading(false);
+        if (historyRequestSeqRef.current === seq && !signal?.aborted) {
+          setLoading(false);
+        }
       }
     },
     [pb],
   );
 
   useEffect(() => {
-    void runSearch(activeQuery);
+    const controller = new AbortController();
+    void runSearch(activeQuery, controller.signal);
+    return () => {
+      controller.abort();
+    };
   }, [activeQuery, runSearch]);
 
-  // Debounced auto-sync for text & numeric inputs
+  // Debounced auto-sync (~450ms) for open text & numeric inputs
   useEffect(() => {
     const next = buildCurrentQuery();
     const serializedNext = JSON.stringify(next);
@@ -305,7 +418,7 @@ export default function ModelHistoryView({
       setActiveQuery((prev) =>
         JSON.stringify(prev) === serializedNext ? prev : next,
       );
-    }, 250);
+    }, 450);
     return () => window.clearTimeout(timer);
   }, [activeQuery, buildCurrentQuery]);
 

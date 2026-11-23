@@ -44,6 +44,12 @@ import {
   formatMileageKm,
   formatPct,
 } from '../../lib/formatters';
+import {
+  buildAlertsUrlParams,
+  parseAlertsUnreadFromUrl,
+  parseSectionFromUrl,
+  syncUrlSearchParams,
+} from '../../lib/urlState';
 import { AlertFormModal } from './AlertFormModal';
 import { CarListingModal } from '../joinville/CarListingModal';
 
@@ -69,8 +75,22 @@ export default function AlertsView({
   const [notifications, setNotifications] = useState<CarAlertNotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [unreadOnly, setUnreadOnly] = useState(() => parseAlertsUnreadFromUrl());
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (parseSectionFromUrl() !== 'alerts') return;
+    syncUrlSearchParams(buildAlertsUrlParams(unreadOnly), 'replace');
+  }, [unreadOnly]);
+
+  useEffect(() => {
+    const handlePop = () => {
+      if (parseSectionFromUrl() !== 'alerts') return;
+      setUnreadOnly(parseAlertsUnreadFromUrl());
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, []);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [formOpen, setFormOpen] = useState(false);
