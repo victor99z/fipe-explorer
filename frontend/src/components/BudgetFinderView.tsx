@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { 
   Search, ChevronLeft, ChevronRight, Check, X, 
   ChevronDown, SlidersHorizontal, RotateCcw, 
@@ -12,7 +12,12 @@ import VehicleHistoryModal from './VehicleHistoryModal';
 import { Vehicle, VehicleSearchResponse, EngineSizeItem, FuelItem } from '../types/vehicle';
 import { fetchBrands, fetchEngineSizes, fetchCars, fetchFuels } from '../services/api';
 import { isRequestAbortError } from '../services/pocketbase';
-import { useDebouncedFields } from '../hooks/useDebouncedFields';
+import {
+  FILTER_DEBOUNCE_MS,
+  LOCAL_FILTER_DEBOUNCE_MS,
+  useDebouncedFields,
+  useDebouncedValue,
+} from '../hooks/useDebouncedFields';
 import {
   buildFipeUrlParams,
   parseFipeUrlParams,
@@ -152,6 +157,10 @@ export default function BudgetFinderView({
   const [ordenacao, setOrdenacao] = useState<string>(() => initialUrl.ordenacao);
   const [page, setPage] = useState<number>(() => initialUrl.page);
 
+  const handleDebouncedCommit = useCallback(() => {
+    setPage(1);
+  }, []);
+
   const [debouncedInputs, flushDebouncedInputs] = useDebouncedFields(
     {
       budgetValue,
@@ -160,7 +169,8 @@ export default function BudgetFinderView({
       maxPrice,
       searchModel,
     },
-    450,
+    FILTER_DEBOUNCE_MS,
+    handleDebouncedCommit,
   );
 
   useEffect(() => {
@@ -218,13 +228,16 @@ export default function BudgetFinderView({
       setCombustivel(u.combustivel);
       setOrdenacao(u.ordenacao);
       setPage(u.page);
-      flushDebouncedInputs({
-        budgetValue: u.budgetValue,
-        useSmartRange: u.useSmartRange,
-        minPrice: u.minPrice,
-        maxPrice: u.maxPrice,
-        searchModel: u.searchModel,
-      });
+      flushDebouncedInputs(
+        {
+          budgetValue: u.budgetValue,
+          useSmartRange: u.useSmartRange,
+          minPrice: u.minPrice,
+          maxPrice: u.maxPrice,
+          searchModel: u.searchModel,
+        },
+        { silent: true },
+      );
     };
     window.addEventListener('popstate', handlePop);
     return () => window.removeEventListener('popstate', handlePop);
@@ -241,7 +254,17 @@ export default function BudgetFinderView({
   // Brand dropdown state
   const [brandDropdownOpen, setBrandDropdownOpen] = useState<boolean>(false);
   const [brandSearchTerm, setBrandSearchTerm] = useState<string>('');
+  const [debouncedBrandSearch, flushBrandSearch] = useDebouncedValue(
+    brandSearchTerm,
+    LOCAL_FILTER_DEBOUNCE_MS,
+  );
   const brandDropdownRef = useRef<HTMLDivElement>(null);
+
+  const filteredPopoverBrands = useMemo(() => {
+    const q = debouncedBrandSearch.trim().toLowerCase();
+    if (!q) return allBrands;
+    return allBrands.filter((b) => b.toLowerCase().includes(q));
+  }, [allBrands, debouncedBrandSearch]);
 
   // Modal vehicle history
   const [selectedVehicleForHistory, setSelectedVehicleForHistory] = useState<Vehicle | null>(null);
@@ -284,8 +307,8 @@ export default function BudgetFinderView({
     setBudgetValue(clean);
     setMinPrice(nextMin);
     setMaxPrice(nextMax);
-    setPage(1);
     if (immediate) {
+      setPage(1);
       flushDebouncedInputs({
         budgetValue: clean,
         useSmartRange: isSmart,
@@ -656,7 +679,12 @@ export default function BudgetFinderView({
                     inputMode="numeric"
                     placeholder="0"
                     value={formatPriceInput(minPrice)}
-                    onChange={(e) => { setMinPrice(parsePriceInput(e.target.value)); setPage(1); }}
+                    onChange={(e) => setMinPrice(parsePriceInput(e.target.value))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        flushDebouncedInputs({ budgetValue, useSmartRange, minPrice, maxPrice, searchModel });
+                      }
+                    }}
                     className="h-8 text-xs tabular-nums"
                   />
                 </div>
@@ -668,7 +696,12 @@ export default function BudgetFinderView({
                     inputMode="numeric"
                     placeholder="100.000"
                     value={formatPriceInput(maxPrice)}
-                    onChange={(e) => { setMaxPrice(parsePriceInput(e.target.value)); setPage(1); }}
+                    onChange={(e) => setMaxPrice(parsePriceInput(e.target.value))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        flushDebouncedInputs({ budgetValue, useSmartRange, minPrice, maxPrice, searchModel });
+                      }
+                    }}
                     className="h-8 text-xs tabular-nums"
                   />
                 </div>
@@ -1106,7 +1139,10 @@ export default function BudgetFinderView({
                     type="button"
                     onClick={() => {
                       setBrandDropdownOpen(!brandDropdownOpen);
-                      if (!brandDropdownOpen) setBrandSearchTerm('');
+                      if (!brandDropdownOpen) {
+                        setBrandSearchTerm('');
+                        flushBrandSearch('');
+                      }
                     }}
                     className={`h-8 inline-flex items-center gap-1.5 px-2.5 rounded-[6px] text-xs transition-colors border cursor-pointer focus:outline-none ${
                       brandDropdownOpen
@@ -1131,13 +1167,21 @@ export default function BudgetFinderView({
                           placeholder="Buscar marca..."
                           value={brandSearchTerm}
                           onChange={(e) => setBrandSearchTerm(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              flushBrandSearch(brandSearchTerm);
+                            }
+                          }}
                           className="h-8 w-full rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] pl-8 pr-7 text-xs text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:outline-none focus-visible:outline-none focus:ring-1 focus:ring-[#3ecf8e] transition-colors"
                           autoFocus
                         />
                         {brandSearchTerm && (
                           <button
                             type="button"
-                            onClick={() => setBrandSearchTerm('')}
+                            onClick={() => {
+                              setBrandSearchTerm('');
+                              flushBrandSearch('');
+                            }}
                             className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9a9a9a] dark:text-[#71717a] hover:text-[#171717] dark:hover:text-[#ededed] p-0.5 cursor-pointer"
                           >
                             <X className="w-3 h-3" />
@@ -1147,14 +1191,12 @@ export default function BudgetFinderView({
 
                       {/* Scrollable list of brands */}
                       <div className="max-h-56 overflow-y-auto space-y-0.5 pr-1">
-                        {allBrands.filter(b => b.toLowerCase().includes(brandSearchTerm.toLowerCase())).length === 0 ? (
+                        {filteredPopoverBrands.length === 0 ? (
                           <div className="py-4 text-center text-xs text-[#707070] dark:text-[#a1a1aa]">
                             Nenhuma marca encontrada
                           </div>
                         ) : (
-                          allBrands
-                            .filter(b => b.toLowerCase().includes(brandSearchTerm.toLowerCase()))
-                            .map((b) => {
+                          filteredPopoverBrands.map((b) => {
                               const isSel = selectedBrands.includes(b);
                               return (
                                 <button
@@ -1199,7 +1241,7 @@ export default function BudgetFinderView({
                   type="text"
                   placeholder="Ex: Polo, Civic, Onix..."
                   value={searchModel}
-                  onChange={(e) => { setSearchModel(e.target.value); setPage(1); }}
+                  onChange={(e) => setSearchModel(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       flushDebouncedInputs({ budgetValue, useSmartRange, minPrice, maxPrice, searchModel });

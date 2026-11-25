@@ -686,37 +686,50 @@ export async function fetchModelListingHistory(
     allSnapshots.push(...snaps);
   }
 
-  groupedAds.sort(
+  return summarizeModelHistory(groupedAds, allSnapshots, historyCollectionAvailable);
+}
+
+export interface KmRangeFilter {
+  min: number | null;
+  max: number | null;
+}
+
+function summarizeModelHistory(
+  groupedAds: GroupedAdHistory[],
+  allSnapshots: ModelHistorySnapshot[],
+  historyCollectionAvailable: boolean,
+): ModelHistoryResult {
+  const sortedAds = [...groupedAds].sort(
     (a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime(),
   );
-  allSnapshots.sort(
+  const sortedSnapshots = [...allSnapshots].sort(
     (a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime(),
   );
 
   // Aggregate stats over unique observed ads (practiced prices & mileages)
-  const adPrices = groupedAds.map((a) => a.currentPrice).filter((p) => p > 0);
-  const adMileages = groupedAds
+  const adPrices = sortedAds.map((a) => a.currentPrice).filter((p) => p > 0);
+  const adMileages = sortedAds
     .map((a) => a.mileageKm)
     .filter((k): k is number => typeof k === 'number' && k >= 0);
 
   const priceStats = computeStats(adPrices);
   const mileageStats = computeStats(adMileages);
 
-  const fipeAds = groupedAds.filter((a) => a.fipePrice && a.fipePrice > 0);
+  const fipeAds = sortedAds.filter((a) => a.fipePrice && a.fipePrice > 0);
   const fipePrices = fipeAds.map((a) => a.fipePrice!);
   const fipeDiffs = fipeAds
     .map((a) => a.fipeDiffPct)
     .filter((d): d is number => typeof d === 'number' && Number.isFinite(d));
 
-  const dropAds = groupedAds.filter((a) => a.priceChangeBrl < 0);
-  const incAds = groupedAds.filter((a) => a.priceChangeBrl > 0);
+  const dropAds = sortedAds.filter((a) => a.priceChangeBrl < 0);
+  const incAds = sortedAds.filter((a) => a.priceChangeBrl > 0);
 
   // Build daily time-series buckets from snapshots
   const dayBuckets = new Map<
     string,
     { prices: number[]; fipes: number[] }
   >();
-  for (const snap of allSnapshots) {
+  for (const snap of sortedSnapshots) {
     if (!snap.recordedAt || snap.price <= 0) continue;
     const d = new Date(snap.recordedAt);
     if (Number.isNaN(d.getTime())) continue;
@@ -745,7 +758,7 @@ export async function fetchModelListingHistory(
       };
     });
 
-  const scatterPoints: ModelHistoryScatterPoint[] = groupedAds
+  const scatterPoints: ModelHistoryScatterPoint[] = sortedAds
     .filter((a) => a.mileageKm !== null && a.currentPrice > 0)
     .map((a) => ({
       ref: a.ref,
@@ -765,10 +778,10 @@ export async function fetchModelListingHistory(
     }));
 
   return {
-    uniqueAdsCount: groupedAds.length,
-    activeAdsCount: groupedAds.filter((a) => a.listingStatus === 'active').length,
-    inactiveAdsCount: groupedAds.filter((a) => a.listingStatus !== 'active').length,
-    totalSnapshotsCount: allSnapshots.length,
+    uniqueAdsCount: sortedAds.length,
+    activeAdsCount: sortedAds.filter((a) => a.listingStatus === 'active').length,
+    inactiveAdsCount: sortedAds.filter((a) => a.listingStatus !== 'active').length,
+    totalSnapshotsCount: sortedSnapshots.length,
     priceStats,
     mileageStats,
     fipeMatchedCount: fipeAds.length,
@@ -794,11 +807,56 @@ export async function fetchModelListingHistory(
         : null,
     timeSeries,
     scatterPoints,
-    portalBreakdown: buildBreakdown(groupedAds, (a) => a.portal || 'Outro portal'),
-    sellerBreakdown: buildBreakdown(groupedAds, (a) => a.sellerType || 'Não informado'),
-    yearBreakdown: buildBreakdown(groupedAds, (a) => (a.year ? String(a.year) : 'Sem ano')),
-    groupedAds,
-    timelineEvents: allSnapshots,
+    portalBreakdown: buildBreakdown(sortedAds, (a) => a.portal || 'Outro portal'),
+    sellerBreakdown: buildBreakdown(sortedAds, (a) => a.sellerType || 'Não informado'),
+    yearBreakdown: buildBreakdown(sortedAds, (a) => (a.year ? String(a.year) : 'Sem ano')),
+    groupedAds: sortedAds,
+    timelineEvents: sortedSnapshots,
     historyCollectionAvailable,
   };
+}
+
+export function filterModelHistoryResultByKmRange(
+  result: ModelHistoryResult,
+  range: KmRangeFilter,
+): ModelHistoryResult {
+  if (range.min === null && range.max === null) return result;
+  const filteredAds = result.groupedAds.filter((ad) => {
+    if (ad.mileageKm === null) return false;
+    if (range.min !== null && ad.mileageKm < range.min) return false;
+    if (range.max !== null && ad.mileageKm > range.max) return false;
+    return true;
+  });
+  const allowedRefs = new Set(filteredAds.map((ad) => ad.ref));
+  const filteredSnapshots = result.timelineEvents.filter((snap) =>
+    allowedRefs.has(snap.ref),
+  );
+  return summarizeModelHistory(
+    filteredAds,
+    filteredSnapshots,
+    result.historyCollectionAvailable,
+  );
+}
+
+export function computeKmOutlierSuggestion(
+  points: ModelHistoryScatterPoint[],
+): { cutoffKm: number; excludedCount: number } | null {
+  if (points.length < 6) return null;
+  const sorted = points.map((p) => p.mileageKm).sort((a, b) => a - b);
+  const q1 = percentile(sorted, 0.25) ?? 0;
+  const q3 = percentile(sorted, 0.75) ?? 0;
+  // Nearest-rank P90 capped below the extreme tail keeps small samples robust against single high-km outliers.
+  const p90Idx = Math.min(
+    sorted.length - 2,
+    Math.floor((sorted.length - 1) * 0.9),
+  );
+  const p90 = sorted[p90Idx] ?? q3;
+  const iqr = Math.max(q3 - q1, 15000);
+  const rawCutoff = Math.max(q3 + 3 * iqr, p90 * 1.35, 150000);
+  const cutoffKm = Math.ceil(rawCutoff / 10000) * 10000;
+  const excludedCount = sorted.filter((km) => km > cutoffKm).length;
+  if (excludedCount < 1 || excludedCount >= Math.ceil(points.length * 0.25)) {
+    return null;
+  }
+  return { cutoffKm, excludedCount };
 }

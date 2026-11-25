@@ -87,6 +87,8 @@ export interface ModelHistoryUrlState {
   status: HistoryStatusFilter;
   fipeCode: string;
   activeTab: HistorySubTab;
+  kmRangeMin: string;
+  kmRangeMax: string;
 }
 
 const VALID_VISIBILITY: readonly VisibilityMode[] = [
@@ -468,6 +470,8 @@ export function parseModelHistoryUrlParams(
     status,
     fipeCode: params.get('fipe')?.trim() || '',
     activeTab,
+    kmRangeMin: sanitizeDigits(params.get('km_de')),
+    kmRangeMax: sanitizeDigits(params.get('km_ate')),
   };
 }
 
@@ -495,6 +499,8 @@ export function buildModelHistoryUrlParams(
   if (state.activeTab !== 'ads') {
     params.set('sub', state.activeTab);
   }
+  setIfNonEmpty(params, 'km_de', state.kmRangeMin);
+  setIfNonEmpty(params, 'km_ate', state.kmRangeMax);
 
   return params;
 }

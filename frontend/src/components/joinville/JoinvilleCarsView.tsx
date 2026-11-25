@@ -38,6 +38,10 @@ import { formatBRL, formatPct } from '../../lib/formatters';
 import CustomDropdown from '../ui/custom-dropdown';
 import { CarListingModal } from './CarListingModal';
 import {
+  FILTER_DEBOUNCE_MS,
+  useDebouncedFields,
+} from '../../hooks/useDebouncedFields';
+import {
   buildJoinvilleUrlParams,
   parseJoinvilleUrlParams,
   parseSectionFromUrl,
@@ -188,16 +192,26 @@ export default function JoinvilleCarsView({
     initialSearch ? '' : initialUrl.maxKm,
   );
 
-  // Debounced text/numeric query inputs
-  const [debouncedText, setDebouncedText] = useState(() => ({
-    search: initialSearch?.term ?? initialUrl.search,
-    neighborhood: initialSearch ? '' : initialUrl.neighborhoodFilter,
-    minPrice: initialSearch ? '' : initialUrl.minPrice,
-    maxPrice: initialSearch ? '' : initialUrl.maxPrice,
-    minYear: initialSearch ? '' : initialUrl.minYear,
-    maxYear: initialSearch ? '' : initialUrl.maxYear,
-    maxKm: initialSearch ? '' : initialUrl.maxKm,
-  }));
+  const handleDebouncedTextCommit = useCallback(() => {
+    setPage(1);
+  }, []);
+
+  // Debounced text/numeric query inputs (commits page reset together in timer batch)
+  const [debouncedText, flushTextFields] = useDebouncedFields(
+    {
+      search,
+      neighborhood: neighborhoodFilter,
+      minPrice,
+      maxPrice,
+      minYear,
+      maxYear,
+      maxKm,
+    },
+    FILTER_DEBOUNCE_MS,
+    handleDebouncedTextCommit,
+  );
+  const debouncedTextRef = useRef(debouncedText);
+  debouncedTextRef.current = debouncedText;
 
   const [onlyBelowFipe, setOnlyBelowFipe] = useState(() =>
     initialSearch ? false : initialUrl.onlyBelowFipe,
@@ -228,39 +242,45 @@ export default function JoinvilleCarsView({
   const [refreshTick, setRefreshTick] = useState(0);
 
   // Override page initialized above (line ~113) when initialUrl.page > 1
-  const applyJoinvilleUrlState = useCallback((u: JoinvilleUrlState) => {
-    setSearch(u.search);
-    setCityFilter(u.cityFilter);
-    setNeighborhoodFilter(u.neighborhoodFilter);
-    setBrandFilter(u.brandFilter);
-    setMinPrice(u.minPrice);
-    setMaxPrice(u.maxPrice);
-    setMinYear(u.minYear);
-    setMaxYear(u.maxYear);
-    setMaxKm(u.maxKm);
-    setMotorizacaoFilter(u.motorizacaoFilter);
-    setCambioFilter(u.cambioFilter);
-    setLitragemFilter(u.litragemFilter);
-    setCombustivelFilter(u.combustivelFilter);
-    setPortalFilter(u.portalFilter);
-    setSellerFilter(u.sellerFilter);
-    setOnlyBelowFipe(u.onlyBelowFipe);
-    setVisibilityMode(u.visibilityMode);
-    setSortBy(u.sortBy);
-    setPage(u.page);
-    setExactYearOnly(u.exactYearOnly);
-    setExactFipeOnly(u.exactFipeOnly);
-    setFipeContext(u.fipeContext ? { ...u.fipeContext, nonce: 0 } : null);
-    setDebouncedText({
-      search: u.search,
-      neighborhood: u.neighborhoodFilter,
-      minPrice: u.minPrice,
-      maxPrice: u.maxPrice,
-      minYear: u.minYear,
-      maxYear: u.maxYear,
-      maxKm: u.maxKm,
-    });
-  }, []);
+  const applyJoinvilleUrlState = useCallback(
+    (u: JoinvilleUrlState) => {
+      setSearch(u.search);
+      setCityFilter(u.cityFilter);
+      setNeighborhoodFilter(u.neighborhoodFilter);
+      setBrandFilter(u.brandFilter);
+      setMinPrice(u.minPrice);
+      setMaxPrice(u.maxPrice);
+      setMinYear(u.minYear);
+      setMaxYear(u.maxYear);
+      setMaxKm(u.maxKm);
+      setMotorizacaoFilter(u.motorizacaoFilter);
+      setCambioFilter(u.cambioFilter);
+      setLitragemFilter(u.litragemFilter);
+      setCombustivelFilter(u.combustivelFilter);
+      setPortalFilter(u.portalFilter);
+      setSellerFilter(u.sellerFilter);
+      setOnlyBelowFipe(u.onlyBelowFipe);
+      setVisibilityMode(u.visibilityMode);
+      setSortBy(u.sortBy);
+      setPage(u.page);
+      setExactYearOnly(u.exactYearOnly);
+      setExactFipeOnly(u.exactFipeOnly);
+      setFipeContext(u.fipeContext ? { ...u.fipeContext, nonce: 0 } : null);
+      flushTextFields(
+        {
+          search: u.search,
+          neighborhood: u.neighborhoodFilter,
+          minPrice: u.minPrice,
+          maxPrice: u.maxPrice,
+          minYear: u.minYear,
+          maxYear: u.maxYear,
+          maxKm: u.maxKm,
+        },
+        { silent: true },
+      );
+    },
+    [flushTextFields],
+  );
 
   // Sync incoming search intent from Tabela FIPE
   useEffect(() => {
@@ -281,13 +301,16 @@ export default function JoinvilleCarsView({
     setVisibilityMode('active');
     setSortBy('relevance');
     setPage(1);
-    setDebouncedText((cur) => ({
-      ...cur,
-      search: initialSearch.term,
-      minYear: '',
-      maxYear: '',
-    }));
-  }, [initialSearch]);
+    flushTextFields(
+      {
+        ...debouncedTextRef.current,
+        search: initialSearch.term,
+        minYear: '',
+        maxYear: '',
+      },
+      { silent: true },
+    );
+  }, [initialSearch, flushTextFields]);
 
   useEffect(() => {
     if (parseSectionFromUrl() !== 'joinville') return;
@@ -356,8 +379,7 @@ export default function JoinvilleCarsView({
   }, [applyJoinvilleUrlState]);
 
   const flushDebouncedText = useCallback(() => {
-    setPage(1);
-    setDebouncedText({
+    flushTextFields({
       search,
       neighborhood: neighborhoodFilter,
       minPrice,
@@ -366,37 +388,16 @@ export default function JoinvilleCarsView({
       maxYear,
       maxKm,
     });
-  }, [search, neighborhoodFilter, minPrice, maxPrice, minYear, maxYear, maxKm]);
-
-  // Debounce free-text and numeric filter inputs (~450ms) & reset page to 1
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedText((prev) => {
-        if (
-          prev.search === search &&
-          prev.neighborhood === neighborhoodFilter &&
-          prev.minPrice === minPrice &&
-          prev.maxPrice === maxPrice &&
-          prev.minYear === minYear &&
-          prev.maxYear === maxYear &&
-          prev.maxKm === maxKm
-        ) {
-          return prev;
-        }
-        setPage(1);
-        return {
-          search,
-          neighborhood: neighborhoodFilter,
-          minPrice,
-          maxPrice,
-          minYear,
-          maxYear,
-          maxKm,
-        };
-      });
-    }, 450);
-    return () => window.clearTimeout(timer);
-  }, [search, neighborhoodFilter, minPrice, maxPrice, minYear, maxYear, maxKm]);
+  }, [
+    flushTextFields,
+    search,
+    neighborhoodFilter,
+    minPrice,
+    maxPrice,
+    minYear,
+    maxYear,
+    maxKm,
+  ]);
 
   // Load facets/stats whenever cityFilter or manual refresh changes
   useEffect(() => {
@@ -637,15 +638,18 @@ export default function JoinvilleCarsView({
     setVisibilityMode('active');
     setSortBy('newest');
     setPage(1);
-    setDebouncedText({
-      search: '',
-      neighborhood: '',
-      minPrice: '',
-      maxPrice: '',
-      minYear: '',
-      maxYear: '',
-      maxKm: '',
-    });
+    flushTextFields(
+      {
+        search: '',
+        neighborhood: '',
+        minPrice: '',
+        maxPrice: '',
+        minYear: '',
+        maxYear: '',
+        maxKm: '',
+      },
+      { silent: true },
+    );
   }
 
   function goToPage(nextPage: number) {
@@ -965,6 +969,12 @@ export default function JoinvilleCarsView({
                       min={0}
                       value={minPrice}
                       onChange={(e) => setMinPrice(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          flushDebouncedText();
+                        }
+                      }}
                       placeholder="Mín."
                       className="w-full h-8 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs tabular-nums text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:outline-none focus:border-[#3ecf8e]"
                     />
@@ -979,6 +989,12 @@ export default function JoinvilleCarsView({
                       min={0}
                       value={maxPrice}
                       onChange={(e) => setMaxPrice(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          flushDebouncedText();
+                        }
+                      }}
                       placeholder="Máx."
                       className="w-full h-8 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs tabular-nums text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:outline-none focus:border-[#3ecf8e]"
                     />
@@ -1002,6 +1018,12 @@ export default function JoinvilleCarsView({
                       max={2030}
                       value={minYear}
                       onChange={(e) => setMinYear(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          flushDebouncedText();
+                        }
+                      }}
                       placeholder="Mín."
                       className="w-full h-8 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs tabular-nums text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:outline-none focus:border-[#3ecf8e]"
                     />
@@ -1017,6 +1039,12 @@ export default function JoinvilleCarsView({
                       max={2030}
                       value={maxYear}
                       onChange={(e) => setMaxYear(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          flushDebouncedText();
+                        }
+                      }}
                       placeholder="Máx."
                       className="w-full h-8 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs tabular-nums text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:outline-none focus:border-[#3ecf8e]"
                     />
@@ -1155,6 +1183,12 @@ export default function JoinvilleCarsView({
                   min={0}
                   value={maxKm}
                   onChange={(e) => setMaxKm(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      flushDebouncedText();
+                    }
+                  }}
                   placeholder="Ex.: 80000"
                   className="w-full h-8 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs tabular-nums text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:outline-none focus:border-[#3ecf8e]"
                 />
@@ -1172,6 +1206,12 @@ export default function JoinvilleCarsView({
                   type="text"
                   value={neighborhoodFilter}
                   onChange={(e) => setNeighborhoodFilter(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      flushDebouncedText();
+                    }
+                  }}
                   placeholder="Ex.: América, Centro..."
                   className="w-full h-8 px-2.5 rounded-[6px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] text-xs text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:outline-none focus:border-[#3ecf8e]"
                 />

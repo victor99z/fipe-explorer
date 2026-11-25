@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -50,7 +50,10 @@ import {
   isRequestAbortError,
   type CarListingItem,
 } from '../../services/pocketbase';
-import { useDebouncedFields } from '../../hooks/useDebouncedFields';
+import {
+  FILTER_DEBOUNCE_MS,
+  useDebouncedFields,
+} from '../../hooks/useDebouncedFields';
 import {
   formatBRL,
   formatDateTimeBR,
@@ -147,9 +150,23 @@ export default function AdminView({ onInspectModelHistory }: AdminViewProps) {
   const [usersPage, setUsersPage] = useState(1);
   const [usersTotalPages, setUsersTotalPages] = useState(1);
   const [userSearch, setUserSearch] = useState('');
+  const lastAdminSearchRef = useRef({ carSearch: '', userSearch: '' });
+  const handleAdminSearchCommit = useCallback(
+    (next: { carSearch: string; userSearch: string }) => {
+      if (lastAdminSearchRef.current.carSearch !== next.carSearch) {
+        setCarsPage(1);
+      }
+      if (lastAdminSearchRef.current.userSearch !== next.userSearch) {
+        setUsersPage(1);
+      }
+      lastAdminSearchRef.current = next;
+    },
+    [],
+  );
   const [debouncedAdminSearch, flushAdminSearch] = useDebouncedFields(
     { carSearch, userSearch },
-    450,
+    FILTER_DEBOUNCE_MS,
+    handleAdminSearchCommit,
   );
 
   // Alerts
@@ -855,10 +872,7 @@ export default function AdminView({ onInspectModelHistory }: AdminViewProps) {
                 type="text"
                 aria-label="Buscar anúncios para moderar"
                 value={carSearch}
-                onChange={(e) => {
-                  setCarSearch(e.target.value);
-                  setCarsPage(1);
-                }}
+                onChange={(e) => setCarSearch(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     flushAdminSearch({ carSearch, userSearch });
@@ -1021,10 +1035,7 @@ export default function AdminView({ onInspectModelHistory }: AdminViewProps) {
               type="text"
               aria-label="Buscar usuários por nome ou e-mail"
               value={userSearch}
-              onChange={(e) => {
-                setUserSearch(e.target.value);
-                setUsersPage(1);
-              }}
+              onChange={(e) => setUserSearch(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   flushAdminSearch({ carSearch, userSearch });

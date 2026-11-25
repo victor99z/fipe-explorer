@@ -1,6 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Check, Search, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import {
+  LOCAL_FILTER_DEBOUNCE_MS,
+  useDebouncedValue,
+} from '../../hooks/useDebouncedFields';
 
 export interface DropdownOption<T = string | number> {
   value: T;
@@ -42,6 +46,10 @@ export default function CustomDropdown<T extends string | number = string>({
 }: CustomDropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, flushSearchTerm] = useDebouncedValue(
+    searchTerm,
+    LOCAL_FILTER_DEBOUNCE_MS,
+  );
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -118,15 +126,18 @@ export default function CustomDropdown<T extends string | number = string>({
     }
     if (!isOpen) {
       setSearchTerm('');
+      flushSearchTerm('');
     }
-  }, [isOpen, searchable]);
+  }, [isOpen, searchable, flushSearchTerm]);
 
   const selectedOption = options.find((opt) => String(opt.value) === String(value));
   const displayLabel = selectedOption ? selectedOption.label : placeholder;
 
-  const filteredOptions = searchable && searchTerm.trim()
-    ? options.filter((opt) => opt.label.toLowerCase().includes(searchTerm.toLowerCase()))
-    : options;
+  const filteredOptions = useMemo(() => {
+    const q = debouncedSearchTerm.trim().toLowerCase();
+    if (!searchable || !q) return options;
+    return options.filter((opt) => opt.label.toLowerCase().includes(q));
+  }, [searchable, debouncedSearchTerm, options]);
 
   const activeState =
     isActive !== undefined
@@ -179,12 +190,20 @@ export default function CustomDropdown<T extends string | number = string>({
                 placeholder={searchPlaceholder}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    flushSearchTerm(searchTerm);
+                  }
+                }}
                 className="h-7 w-full rounded-[4px] border border-[#dfdfdf] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#121212] pl-7 pr-6 text-xs text-[#171717] dark:text-[#ededed] placeholder:text-[#9a9a9a] dark:placeholder:text-[#71717a] focus:border-[#3ecf8e] dark:focus:border-[#3ecf8e] focus:outline-none focus-visible:outline-none focus:ring-1 focus:ring-[#3ecf8e] transition-colors"
               />
               {searchTerm && (
                 <button
                   type="button"
-                  onClick={() => setSearchTerm('')}
+                  onClick={() => {
+                    setSearchTerm('');
+                    flushSearchTerm('');
+                  }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9a9a9a] dark:text-[#71717a] hover:text-[#171717] dark:hover:text-[#ededed] p-0.5"
                 >
                   <X className="w-3 h-3" />
