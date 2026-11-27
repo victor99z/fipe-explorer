@@ -23,7 +23,8 @@ fipe-explorer/
 │   └── src/components/            # Telas de visualização, gráficos (Chart.js) e comparador
 ├── scripts/
 │   ├── update_dataset.py          # Automação de checagem, download e atomic swap do Hugging Face
-│   └── enrich_parquet.py          # Pipeline DuckDB de pré-cálculo e enriquecimento
+│   ├── enrich_parquet.py          # Pipeline DuckDB de pré-cálculo e enriquecimento
+│   └── seed_pocketbase.py         # Filtro e restauração de backup oficial do PocketBase para dev
 ├── data/                          # Armazenamento local do dataset Parquet (:ro no backend)
 ├── docker-compose.yml             # Orquestração completa de produção (Backend + Frontend + Tunnel + Updater)
 └── server.py                      # Entrypoint Uvicorn
@@ -157,7 +158,29 @@ docker compose -f docker-compose.dev.yml up --build
 - **Frontend Vite (HMR):** `http://localhost:3000`
 - **Backend FastAPI (--reload):** `http://localhost:8000`
 - **Swagger Docs:** `http://localhost:8000/docs`
+- **PocketBase Local:** `http://localhost:8090/_/`
 - As alterações em `frontend/src/`, `backend/` e `server.py` refletem instantaneamente no navegador sem rebuild.
+
+### Seed do PocketBase Dev a partir de Backup Oficial
+
+Coloque o backup `.zip` exportado do PocketBase oficial na pasta `backup/` (ignorada pelo Git e pelo Docker build) e use `scripts/seed_pocketbase.py`:
+
+```bash
+# 1. Inspecionar coleções e tamanho de storage no backup
+python3 scripts/seed_pocketbase.py inspect
+
+# 2. Gerar seed limpo (somente coleções do FIPEX + imagens de carros, sanitizado para dev)
+python3 scripts/seed_pocketbase.py prepare
+
+# 3. Restaurar sob demanda no volume Docker pb-dev-data (para/reinicia o container automaticamente)
+python3 scripts/seed_pocketbase.py restore
+
+# (Opcional) Versão leve sem imagens locais (~35 MB)
+python3 scripts/seed_pocketbase.py prepare --no-images
+```
+
+- **Auto-seed automático:** quando `backup/fipex_dev_seed.zip` existir e o volume `pb-dev-data` ainda estiver vazio, o `pocketbase/entrypoint.sh` carrega o seed automaticamente ao subir `docker compose -f docker-compose.dev.yml up`. Para forçar sobrescrita na subida, defina `POCKETBASE_SEED_FORCE=true`.
+- **Worktrees:** o script detecta automaticamente backups em `backup/` do repositório principal e você pode apontar o Compose para lá via `POCKETBASE_BACKUP_DIR=/caminho/para/backup`.
 
 ---
 

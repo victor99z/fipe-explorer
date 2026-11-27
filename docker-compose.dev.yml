@@ -78,8 +78,11 @@ services:
     environment:
       - POCKETBASE_EMAIL=${POCKETBASE_EMAIL:-}
       - POCKETBASE_PASSWORD=${POCKETBASE_PASSWORD:-}
+      - POCKETBASE_SEED_ZIP=${POCKETBASE_SEED_ZIP:-/pb/seed/fipex_dev_seed.zip}
+      - POCKETBASE_SEED_FORCE=${POCKETBASE_SEED_FORCE:-false}
     volumes:
       - pb-dev-data:/pb/pb_data
+      - ${POCKETBASE_BACKUP_DIR:-./backup}:/pb/seed:ro
     ports:
       - "${POCKETBASE_PORT:-8090}:8090"
     networks:
@@ -88,8 +91,8 @@ services:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8090/api/health"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 5s
+      retries: 10
+      start_period: 30s
 
   # ----------------------------------------------------------------------------
   # Car Crawler (OLX + Webmotors Joinville): Execute com --profile crawler

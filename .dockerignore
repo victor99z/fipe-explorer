@@ -14,5 +14,7 @@ frontend/node_modules
 frontend/dist
 dist
 data/
+pb_data/
+backup/
 README.md
 LICENSE

@@ -33,6 +33,8 @@ pnpm-debug.log*
 # Data folder
 data/
 pb_data/
+backup/*
+!backup/.gitkeep
 *.parquet
 !backend/data/
 !backend/data/*.parquet
