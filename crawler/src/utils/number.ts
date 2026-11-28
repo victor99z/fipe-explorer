@@ -59,7 +59,12 @@ export function parseYearPair(
   if (!raw) return {};
 
   const str = String(raw).trim();
-  const pairMatch = str.match(/\b(19[5-9]\d|20[0-3]\d)\s*[/\-]\s*(19[5-9]\d|20[0-3]\d)\b/);
+  // Ignore "2008" when it is the Peugeot 2008 model name rather than the vehicle year.
+  const withoutModelNumbers = str.replace(/\bpeugeot\s+2008\b/gi, "peugeot ");
+
+  const pairMatch = withoutModelNumbers.match(
+    /\b(19[5-9]\d|20[0-3]\d)\s*[/\-]\s*(19[5-9]\d|20[0-3]\d)\b/,
+  );
   if (pairMatch?.[1] && pairMatch?.[2]) {
     const y1 = parseInt(pairMatch[1], 10);
     const y2 = parseInt(pairMatch[2], 10);
@@ -69,9 +74,12 @@ export function parseYearPair(
     };
   }
 
-  const singleMatch = str.match(/\b(19[6-9]\d|20[0-3]\d)\b/);
-  if (singleMatch?.[1]) {
-    return { modelYear: parseInt(singleMatch[1], 10) };
+  const singleMatches = Array.from(
+    withoutModelNumbers.matchAll(/\b(19[6-9]\d|20[0-3]\d)\b/g),
+  );
+  const lastMatch = singleMatches[singleMatches.length - 1];
+  if (lastMatch?.[1]) {
+    return { modelYear: parseInt(lastMatch[1], 10) };
   }
 
   return {};

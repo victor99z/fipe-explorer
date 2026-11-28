@@ -1,6 +1,4 @@
 import os
-import re
-import unicodedata
 from typing import List, Dict, Any, Tuple, Optional
 from backend.core.config import settings
 from backend.core import database
@@ -8,37 +6,13 @@ from backend.core.cache import cache_store
 from backend.core.database import db_session
 from backend.repositories.query_builder import SqlQueryBuilder
 from backend.domain.calculations import format_currency
+from backend.domain.fipe_matcher import (
+    YearCatalogBucket,
+    build_fipe_catalog_entry,
+    build_year_buckets,
+    match_listings_against_catalog,
+)
 from backend.domain.vehicle_rules import determine_transmission_label, infer_specs_from_name, is_electric_vehicle
-
-_BRAND_ALIAS_MAP: Dict[str, Tuple[str, ...]] = {
-    "volkswagen": ("vw - volkswagen", "volkswagen"),
-    "vw": ("vw - volkswagen", "volkswagen"),
-    "chevrolet": ("gm - chevrolet", "chevrolet"),
-    "gm": ("gm - chevrolet", "chevrolet"),
-    "citroen": ("citroën", "citroen"),
-    "caoa chery": ("caoa chery", "caoa chery/chery", "chery"),
-    "chery": ("caoa chery", "caoa chery/chery", "chery"),
-    "mercedes-benz": ("mercedes-benz",),
-    "land rover": ("land rover",),
-}
-
-def _strip_accents_lower(text: str) -> str:
-    nfd = unicodedata.normalize("NFD", text or "")
-    return "".join(ch for ch in nfd if unicodedata.category(ch) != "Mn").lower()
-
-def _tokenize_car_text(text: str) -> List[str]:
-    clean = _strip_accents_lower(text)
-    return [t for t in re.split(r"[^a-z0-9.]+", clean) if t and (len(t) >= 2 or t.isdigit())]
-
-def _brand_matches(item_brand: Optional[str], fipe_brand: str) -> bool:
-    if not item_brand:
-        return True
-    norm_item = _strip_accents_lower(item_brand).strip()
-    norm_fipe = _strip_accents_lower(fipe_brand).strip()
-    if norm_item == norm_fipe or norm_item in norm_fipe or norm_fipe in norm_item:
-        return True
-    aliases = _BRAND_ALIAS_MAP.get(norm_item, ())
-    return any(alias in norm_fipe for alias in aliases)
 
 class VehicleRepository:
     """Data Access Layer for paginated vehicle search and fast autocomplete suggestions."""
@@ -226,13 +200,13 @@ class VehicleRepository:
         return total, items
 
     @staticmethod
-    def _get_fipe_car_catalog_by_year() -> Tuple[bool, Dict[int, List[Tuple[str, str, str, int, Optional[str], float, int, int, set]]]]:
+    def _get_fipe_car_catalog_by_year() -> Tuple[bool, Dict[int, YearCatalogBucket]]:
         if not os.path.exists(settings.PARQUET_FILE):
             settings.PARQUET_FILE = settings.resolve_parquet_file()
         if not os.path.exists(settings.PARQUET_FILE):
             return False, {}
 
-        cache_key = "fipe_match_catalog_carro_v1"
+        cache_key = "fipe_match_catalog_carro_v2"
         cached = cache_store.get(cache_key)
         if cached is not None:
             return True, cached
@@ -266,13 +240,20 @@ class VehicleRepository:
         with db_session() as con:
             rows = con.execute(query).fetchall()
 
-        by_year: Dict[int, List[Tuple[str, str, str, int, Optional[str], float, int, int, set]]] = {}
-        for r in rows:
-            yr = int(r[3])
-            tokens = set(_tokenize_car_text(f"{r[1]} {r[2]} {r[4] or ''}"))
-            by_year.setdefault(yr, []).append(
-                (r[0], r[1], r[2], yr, r[4], float(r[5]), int(r[6]), int(r[7]), tokens)
+        entries = [
+            build_fipe_catalog_entry(
+                codigo_fipe=r[0],
+                nome_marca=r[1],
+                nome_modelo=r[2],
+                ano_modelo=int(r[3]),
+                nome_combustivel=r[4],
+                valor=float(r[5]),
+                mes_referencia=int(r[6]),
+                ano_referencia=int(r[7]),
             )
+            for r in rows
+        ]
+        by_year = build_year_buckets(entries)
 
         cache_store.set(cache_key, by_year, ttl_seconds=3600)
         return True, by_year
@@ -284,68 +265,4 @@ class VehicleRepository:
         if not dataset_available:
             return False, {}
 
-        matches: Dict[str, Dict[str, Any]] = {}
-        for item in items:
-            item_id = item.get("id")
-            yr = item.get("year")
-            if not item_id or not yr:
-                continue
-            candidates = by_year.get(int(yr), [])
-            if not candidates:
-                continue
-
-            item_brand = item.get("brand")
-            item_model = item.get("model") or ""
-            item_text = " ".join(
-                str(x)
-                for x in (
-                    item_brand or "",
-                    item_model,
-                    item.get("version") or "",
-                    item.get("transmission") or "",
-                    item.get("fuel") or "",
-                    item.get("title") or "",
-                )
-                if x
-            )
-            item_tokens = set(_tokenize_car_text(item_text))
-            model_tokens = set(_tokenize_car_text(item_model))
-            if not item_tokens:
-                continue
-
-            best_score = 0.0
-            best_row = None
-
-            for cand in candidates:
-                if not _brand_matches(item_brand, cand[1]):
-                    continue
-                cand_tokens = cand[8]
-                if model_tokens and not (model_tokens & cand_tokens):
-                    continue
-                overlap = len(item_tokens & cand_tokens)
-                if overlap == 0:
-                    continue
-                # Jaccard-weighted score favoring model token match
-                union_len = len(item_tokens | cand_tokens)
-                score = overlap / max(1, union_len)
-                if model_tokens and model_tokens.issubset(cand_tokens):
-                    score += 0.25
-                if score > best_score:
-                    best_score = score
-                    best_row = cand
-
-            if best_row and best_score >= 0.25:
-                confidence = min(0.99, round(best_score, 2))
-                matches[item_id] = {
-                    "codigo_fipe": best_row[0],
-                    "nome_marca": best_row[1],
-                    "nome_modelo": best_row[2],
-                    "ano_modelo": best_row[3],
-                    "nome_combustivel": best_row[4],
-                    "valor": best_row[5],
-                    "valor_formatado": format_currency(best_row[5]),
-                    "periodo_referencia": f"{best_row[6]:02d}/{best_row[7]}",
-                    "confidence": confidence,
-                }
-
-        return True, matches
+        return True, match_listings_against_catalog(items, by_year)

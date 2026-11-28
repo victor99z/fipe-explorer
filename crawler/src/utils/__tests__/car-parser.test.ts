@@ -23,6 +23,9 @@ describe("number utils", () => {
       modelYear: 2021,
     });
     expect(parseYearPair("2023")).toEqual({ modelYear: 2023 });
+    expect(parseYearPair("Peugeot 2008 Allure 1.0 Turbo Flex 5P Aut. 2025")).toEqual({
+      modelYear: 2025,
+    });
   });
 });
 
